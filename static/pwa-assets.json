@@ -28,6 +28,7 @@
     "static/libs/dict/chunks/jmdict_chunk_001.json",
     "static/libs/dict/chunks/jmdict_metadata.json",
     "static/js/modules/analyzer/index.js",
+    "static/js/modules/analyzer/cache/idb.js",
     "static/favicon.svg",
     "static/logo.png",
     "static/apple-touch-icon.png",
