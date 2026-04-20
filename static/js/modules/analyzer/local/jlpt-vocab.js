@@ -73,6 +73,8 @@ export function classifyWord(lemma, _posTag) {
   if (CORE_N4.has(lemma)) return 'N4';
   const freq = queryJMdictFreq(lemma);
   if (freq == null) return 'unknown';
+  // lookupFreq returns 5000 (common) / 20000 (uncommon) / null — see dictionary.js.
+  // <=10000 → common-tagged → N3; <=25000 → uncommon-tagged → N2; else → N1.
   if (freq <= 10000) return 'N3';
   if (freq <= 25000) return 'N2';
   return 'N1';
