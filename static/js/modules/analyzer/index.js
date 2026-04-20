@@ -1,6 +1,7 @@
 // Reading Analyzer — public API. See docs/plans/2026-04-21-reading-analyzer-design.md
 // Classic-script consumers use window.YomikikuanAnalyzer (wired up at end of this file).
 import { analyzeDifficulty } from './local/difficulty.js';
+import './providers/mock.js';
 
 const SCHEMA_VERSION = 1;
 
