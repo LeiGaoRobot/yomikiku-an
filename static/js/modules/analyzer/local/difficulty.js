@@ -1,0 +1,83 @@
+// Local difficulty analyzer. No network. Returns JLPT-ish level + histograms.
+// Kuromoji accessor: the plan assumed `window.kuromojiReady` but this project
+// does NOT expose that. Kuromoji is loaded as a classic script at
+// `static/libs/kuromoji.js` which sets `window.kuromoji` (with `.builder()`).
+// `static/segmenter.js` builds its own tokenizer inside `JapaneseSegmenter`.
+// Here we build-and-cache our own tokenizer via `window.kuromoji.builder()`
+// — lighter than spinning up the full `JapaneseSegmenter` (no kuroshiro).
+import { classifyWord } from './jlpt-vocab.js';
+import { kanjiGrade } from './jlpt-kanji.js';
+
+const JAPANESE_RE = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/;
+const DIC_PATH = '/static/libs/dict/';
+
+let tokenizerPromise = null;
+
+function buildTokenizer() {
+  if (tokenizerPromise) return tokenizerPromise;
+  tokenizerPromise = new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !window.kuromoji || typeof window.kuromoji.builder !== 'function') {
+      reject(new Error('kuromoji not loaded on window'));
+      return;
+    }
+    window.kuromoji.builder({ dicPath: DIC_PATH }).build((err, tokenizer) => {
+      if (err) reject(err);
+      else resolve(tokenizer);
+    });
+  });
+  // If the build fails, clear the cached promise so a later call can retry.
+  tokenizerPromise.catch(() => { tokenizerPromise = null; });
+  return tokenizerPromise;
+}
+
+async function tokenize(text) {
+  const tokenizer = await buildTokenizer();
+  return tokenizer.tokenize(text);
+}
+
+export async function analyzeDifficulty(text) {
+  if (!text || !JAPANESE_RE.test(text)) {
+    return {
+      level: 'n/a',
+      vocab: null,
+      kanjiHistogram: null,
+      avgSentenceLen: 0,
+      readingTimeMin: 0,
+      computedAt: Date.now(),
+    };
+  }
+  const tokens = await tokenize(text);
+  const vocab = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0, unknown: 0 };
+  for (const t of tokens) {
+    const cls = classifyWord(t.basic_form || t.surface_form, t.pos);
+    vocab[cls]++;
+  }
+  const kanjiHistogram = { N5: 0, N4: 0, N3: 0, N2: 0, N1: 0, unknown: 0 };
+  for (const ch of text) {
+    if (ch >= '\u4E00' && ch <= '\u9FFF') {
+      const g = kanjiGrade(ch);
+      kanjiHistogram[g || 'unknown']++;
+    }
+  }
+  const sentences = text.split(/[。！？\n]+/).filter((s) => s.trim());
+  const avgSentenceLen = sentences.length ? Math.round(text.length / sentences.length) : 0;
+  const readingTimeMin = Math.max(1, Math.round(text.length / 400));
+  return {
+    level: pickLevel(vocab, kanjiHistogram),
+    vocab,
+    kanjiHistogram,
+    avgSentenceLen,
+    readingTimeMin,
+    computedAt: Date.now(),
+  };
+}
+
+function pickLevel(vocab, kanji) {
+  const total = Object.values(vocab).reduce((a, b) => a + b, 0) || 1;
+  const share = (bucket) => bucket.reduce((a, k) => a + (vocab[k] || 0), 0) / total;
+  if (share(['N1']) > 0.05 || (kanji.N1 || 0) > 3) return 'n1';
+  if (share(['N1', 'N2']) > 0.1) return 'n2';
+  if (share(['N1', 'N2', 'N3']) > 0.15) return 'n3';
+  if (share(['N1', 'N2', 'N3', 'N4']) > 0.25) return 'n4';
+  return 'n5';
+}

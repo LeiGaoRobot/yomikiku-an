@@ -31,6 +31,7 @@
     "static/js/modules/analyzer/cache/idb.js",
     "static/js/modules/analyzer/local/jlpt-kanji.js",
     "static/js/modules/analyzer/local/jlpt-vocab.js",
+    "static/js/modules/analyzer/local/difficulty.js",
     "static/favicon.svg",
     "static/logo.png",
     "static/apple-touch-icon.png",
