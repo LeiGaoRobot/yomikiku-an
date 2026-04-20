@@ -37,6 +37,7 @@
     "static/js/modules/analyzer/providers/base.js",
     "static/js/modules/analyzer/providers/registry.js",
     "static/js/modules/analyzer/providers/mock.js",
+    "static/js/modules/analyzer/providers/gemini.js",
     "static/favicon.svg",
     "static/logo.png",
     "static/apple-touch-icon.png",
