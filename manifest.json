@@ -1,0 +1,29 @@
+{
+  "name": "読み聞く庵 — 日本語の読解とリスニング",
+  "short_name": "読み聞く庵",
+  "description": "YomiKiku-an — 日本語テキストを読み、耳で聞く学習ツール",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4a90e2",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "static/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "static/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "scope": "/",
+  "categories": ["education", "productivity", "utilities"],
+  "lang": "ja",
+  "dir": "auto"
+}
+

@@ -1,0 +1,1028 @@
+/* ============================================================
+   Apple-inspired FULL REDESIGN layer for YomiKiku-an
+   Source: getdesign.md/apple (DESIGN.md spec)
+   Loaded AFTER static/styles.css — acts as an override layer
+   that reshapes layout, typography, color, motion, and chrome.
+   ============================================================ */
+
+/* ---------------------------------------------------------------
+   1. Tokens
+---------------------------------------------------------------- */
+:root {
+  /* Palette */
+  --ap-bg:              #fbfbfd;       /* page canvas – slightly cooler than #f5f5f7 */
+  --ap-surface:         #ffffff;       /* content card */
+  --ap-surface-2:       #f5f5f7;       /* sidebar / secondary panel */
+  --ap-surface-3:       #ededf0;       /* hover / pressed on light surfaces */
+  --ap-ink:             #1d1d1f;       /* primary text */
+  --ap-ink-80:          rgba(29,29,31,.80);
+  --ap-ink-64:          rgba(29,29,31,.64);
+  --ap-ink-48:          rgba(29,29,31,.48);
+  --ap-ink-24:          rgba(29,29,31,.24);
+  --ap-ink-08:          rgba(29,29,31,.08);
+  --ap-ink-04:          rgba(29,29,31,.04);
+
+  --ap-blue:            #0071e3;
+  --ap-blue-hover:      #0077ed;
+  --ap-blue-press:      #006edb;
+  --ap-link:            #0066cc;
+  --ap-link-dark:       #2997ff;
+
+  --ap-success:         #30d158;
+  --ap-warn:            #ff9f0a;
+  --ap-error:           #ff3b30;
+
+  /* Shadows */
+  --ap-shadow-1:        0 1px 2px rgba(0,0,0,.04);
+  --ap-shadow-2:        0 4px 16px rgba(0,0,0,.06);
+  --ap-shadow-3:        0 12px 40px rgba(0,0,0,.10);
+  --ap-shadow-card:     3px 5px 30px rgba(0,0,0,.18);
+
+  /* Radii */
+  --ap-r-xs:  5px;
+  --ap-r-sm:  8px;
+  --ap-r-md:  11px;
+  --ap-r-lg:  12px;
+  --ap-r-xl:  18px;
+  --ap-r-2xl: 22px;
+  --ap-r-pill: 980px;
+
+  /* Spacing scale (8px base) */
+  --ap-s-1: 4px;
+  --ap-s-2: 8px;
+  --ap-s-3: 12px;
+  --ap-s-4: 16px;
+  --ap-s-5: 20px;
+  --ap-s-6: 24px;
+  --ap-s-7: 32px;
+  --ap-s-8: 40px;
+  --ap-s-9: 48px;
+  --ap-s-10: 64px;
+
+  /* Motion */
+  --ap-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ap-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
+  --ap-dur-fast: 120ms;
+  --ap-dur: 200ms;
+  --ap-dur-slow: 320ms;
+
+  /* Typography */
+  --ap-font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+    "Yu Gothic", "Meiryo", sans-serif;
+  --ap-font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont,
+    "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+    "Yu Gothic", "Meiryo", sans-serif;
+  --ap-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* ---------------------------------------------------------------
+   2. Map onto existing YomiKiku-an variables (all themes)
+---------------------------------------------------------------- */
+:root,
+:root[data-theme="paper"],
+:root[data-theme="sakura"],
+:root[data-theme="sticky"],
+:root[data-theme="green"],
+:root[data-theme="blue"] {
+  --bg:                   var(--ap-bg);
+  --text:                 var(--ap-ink);
+  --muted:                var(--ap-ink-64);
+  --border:               var(--ap-ink-08);
+  --elev:                 var(--ap-surface);
+  --primary:              var(--ap-blue);
+
+  --toolbar-bg:           rgba(255,255,255,.72);
+  --toolbar-border:       var(--ap-ink-08);
+  --toolbar-shadow:       var(--ap-shadow-2);
+  --toolbar-chip-bg:      #ffffff;
+  --toolbar-chip-border:  var(--ap-ink-08);
+  --toolbar-chip-hover:   rgba(0,113,227,.10);
+  --toolbar-chip-neutral: var(--ap-surface-2);
+  --toolbar-chip-neutral-border: var(--ap-ink-04);
+  --header-shadow-strong: rgba(0,0,0,.08);
+  --header-shadow-soft:   rgba(0,0,0,.04);
+
+  --scroll-track:       rgba(0,0,0,.03);
+  --scroll-thumb:       rgba(0,0,0,.18);
+  --scroll-thumb-hover: rgba(0,0,0,.32);
+}
+
+:root[data-theme="dark"] {
+  --ap-bg:       #000000;
+  --ap-surface:  #1d1d1f;
+  --ap-surface-2:#121214;
+  --ap-surface-3:#2a2a2c;
+  --ap-ink:      #f5f5f7;
+  --ap-ink-80:   rgba(245,245,247,.80);
+  --ap-ink-64:   rgba(245,245,247,.64);
+  --ap-ink-48:   rgba(245,245,247,.48);
+  --ap-ink-24:   rgba(245,245,247,.24);
+  --ap-ink-08:   rgba(245,245,247,.08);
+  --ap-ink-04:   rgba(245,245,247,.04);
+
+  --bg:     var(--ap-bg);
+  --text:   var(--ap-ink);
+  --muted:  var(--ap-ink-64);
+  --border: var(--ap-ink-08);
+  --elev:   var(--ap-surface);
+  --primary: var(--ap-blue);
+
+  --toolbar-bg: rgba(0,0,0,.72);
+  --toolbar-border: var(--ap-ink-08);
+  --toolbar-chip-bg: #272729;
+  --toolbar-chip-border: var(--ap-ink-08);
+  --toolbar-chip-hover: rgba(41,151,255,.16);
+  --toolbar-chip-neutral: #28282a;
+  --toolbar-chip-neutral-border: var(--ap-ink-08);
+  --scroll-track: rgba(255,255,255,.04);
+  --scroll-thumb: rgba(255,255,255,.20);
+  --scroll-thumb-hover: rgba(255,255,255,.34);
+}
+
+/* ---------------------------------------------------------------
+   3. Base typography & body
+---------------------------------------------------------------- */
+html { background: var(--ap-bg); }
+body {
+  font-family: var(--ap-font-text);
+  font-size: 15px;
+  line-height: 1.47;
+  letter-spacing: -0.01em;
+  color: var(--ap-ink);
+  background: var(--ap-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis: none;
+  font-feature-settings: "ss01", "cv11";
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4, .sidebar-title, .settings-modal-title, .logo-text {
+  font-family: var(--ap-font-display);
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  color: var(--ap-ink);
+}
+h1 { font-size: 40px; line-height: 1.1; letter-spacing: -0.028em; }
+h2 { font-size: 28px; line-height: 1.14; }
+h3 { font-size: 21px; line-height: 1.19; }
+h4 { font-size: 17px; line-height: 1.24; }
+
+a {
+  color: var(--ap-link);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: opacity var(--ap-dur) var(--ap-ease);
+}
+a:hover { text-decoration: underline; }
+:root[data-theme="dark"] a { color: var(--ap-link-dark); }
+
+small, .editor-count, .editor-date, .caption {
+  font-size: 12px;
+  line-height: 1.33;
+  letter-spacing: 0;
+  color: var(--ap-ink-48);
+}
+
+/* ---------------------------------------------------------------
+   4. Layout scaffolding — MINIMAL (don't fight styles.css geometry)
+   Only set page background and remove hard borders from sidebar.
+---------------------------------------------------------------- */
+.main-container { background: var(--ap-bg) !important; }
+.folder-management,
+aside.folder-management {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Sidebar section text restyle — no layout changes */
+.sidebar-title {
+  color: var(--ap-ink-48) !important;
+  letter-spacing: 0.04em;
+  font-weight: 600 !important;
+}
+
+/* Active doc/folder highlight — Apple Blue tint, keep styles.css geometry */
+.doc-list .doc-item.active,
+.folder-list .folder-item.active {
+  background: rgba(0,113,227,.08) !important;
+  color: var(--ap-ink) !important;
+}
+:root[data-theme="dark"] .doc-list .doc-item.active {
+  background: rgba(41,151,255,.16) !important;
+  color: var(--ap-link-dark) !important;
+}
+
+/* ---------------------------------------------------------------
+   5. Header — color only, keep geometry from styles.css
+---------------------------------------------------------------- */
+.main-header {
+  background: rgba(251,251,253,.78) !important;
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-color: var(--ap-ink-08) !important;
+}
+:root[data-theme="dark"] .main-header {
+  background: rgba(0,0,0,.72) !important;
+  border-color: var(--ap-ink-08) !important;
+}
+
+.main-header-left,
+.main-header-right,
+.header-voice-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--ap-s-2);
+}
+.main-header-right { margin-left: auto; }
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ap-s-2);
+  padding: 4px var(--ap-s-2);
+  border-radius: var(--ap-r-sm);
+  transition: background var(--ap-dur) var(--ap-ease);
+}
+.logo:hover { background: var(--ap-ink-04); text-decoration: none; }
+.logo-icon { width: 22px; height: 22px; }
+.logo-text {
+  font-family: var(--ap-font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  color: var(--ap-ink) !important;
+}
+
+/* Header progress bar */
+.play-progress {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ap-ink-08);
+  min-width: 120px;
+  overflow: hidden;
+}
+.play-progress-fill {
+  background: var(--ap-blue);
+  border-radius: 999px;
+  transition: width var(--ap-dur-fast) linear;
+}
+
+.speed-display {
+  font-family: var(--ap-font-text);
+  font-size: 12px;
+  letter-spacing: -0.008em;
+  color: var(--ap-ink-48);
+  padding: 0 6px;
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------
+   6. Buttons
+---------------------------------------------------------------- */
+button { font-family: var(--ap-font-text); }
+
+.theme-icon-btn,
+.btn-new,
+.btn-new-dropdown,
+.btn-sort,
+.folder-collapse-btn,
+.editor-star-toggle {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--ap-r-sm) !important;
+  color: var(--ap-ink-80) !important;
+  padding: 6px !important;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--ap-dur-fast) var(--ap-ease),
+              color var(--ap-dur-fast) var(--ap-ease),
+              transform var(--ap-dur-fast) var(--ap-ease);
+}
+.theme-icon-btn:hover,
+.btn-new:hover,
+.btn-new-dropdown:hover,
+.btn-sort:hover {
+  background: var(--ap-ink-08) !important;
+  color: var(--ap-ink) !important;
+}
+.theme-icon-btn:active,
+.btn-new:active {
+  transform: scale(0.94);
+  background: var(--ap-ink-08) !important;
+}
+
+/* Primary action buttons */
+button.primary,
+.btn.primary,
+button[type="submit"]:not(.secondary),
+#geminiApiKeySave {
+  background: var(--ap-blue) !important;
+  color: #fff !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--ap-r-sm) !important;
+  padding: 8px 16px !important;
+  font-family: var(--ap-font-text);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  box-shadow: var(--ap-shadow-1);
+  transition: background var(--ap-dur-fast) var(--ap-ease), transform var(--ap-dur-fast) var(--ap-ease);
+}
+button.primary:hover,
+.btn.primary:hover,
+#geminiApiKeySave:hover { background: var(--ap-blue-hover) !important; }
+button.primary:active,
+.btn.primary:active,
+#geminiApiKeySave:active { background: var(--ap-blue-press) !important; transform: scale(0.98); }
+
+/* Secondary / quiet button */
+#geminiApiKeyClear {
+  background: var(--ap-surface-2) !important;
+  color: var(--ap-ink) !important;
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-sm) !important;
+  padding: 8px 14px !important;
+  font-size: 14px;
+  transition: background var(--ap-dur-fast) var(--ap-ease);
+}
+#geminiApiKeyClear:hover { background: var(--ap-surface-3) !important; }
+
+/* Pill CTA (opt-in) */
+.btn-pill {
+  border-radius: var(--ap-r-pill) !important;
+  padding: 10px 22px !important;
+  background: transparent !important;
+  color: var(--ap-link) !important;
+  border: 1px solid var(--ap-link) !important;
+  font-size: 14px;
+  letter-spacing: -0.008em;
+}
+.btn-pill:hover { background: rgba(0,102,204,.06) !important; text-decoration: none; }
+:root[data-theme="dark"] .btn-pill {
+  color: var(--ap-link-dark) !important;
+  border-color: var(--ap-link-dark) !important;
+}
+
+/* ---------------------------------------------------------------
+   7. Inputs, selects, textarea, range
+---------------------------------------------------------------- */
+input[type="text"],
+input[type="password"],
+input[type="search"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+select,
+textarea {
+  font-family: var(--ap-font-text);
+  font-size: 15px;
+  letter-spacing: -0.008em;
+  color: var(--ap-ink);
+  background: var(--ap-surface-2);
+  border: 1px solid var(--ap-ink-08);
+  border-radius: var(--ap-r-md);
+  padding: 8px 12px;
+  transition: border-color var(--ap-dur-fast) var(--ap-ease),
+              box-shadow var(--ap-dur-fast) var(--ap-ease),
+              background var(--ap-dur-fast) var(--ap-ease);
+  outline: none;
+}
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--ap-blue);
+  box-shadow: 0 0 0 4px rgba(0,113,227,.18);
+  background: var(--ap-surface);
+}
+
+:root[data-theme="dark"] input[type="text"],
+:root[data-theme="dark"] input[type="password"],
+:root[data-theme="dark"] input[type="search"],
+:root[data-theme="dark"] input[type="number"],
+:root[data-theme="dark"] input[type="email"],
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background: #1a1a1c;
+  border-color: var(--ap-ink-08);
+  color: var(--ap-ink);
+}
+
+/* Range */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--ap-ink-08);
+  border-radius: 999px;
+  padding: 0;
+  border: none;
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(0,113,227,.22);
+  border-radius: 999px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,.22);
+  cursor: pointer;
+  transition: transform var(--ap-dur-fast) var(--ap-ease);
+}
+input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
+input[type="range"]::-webkit-slider-thumb:active { transform: scale(.92); }
+input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; border: 1px solid rgba(0,0,0,.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,.22); cursor: pointer;
+}
+:root[data-theme="dark"] input[type="range"] { background: rgba(255,255,255,.14); }
+
+/* Checkbox */
+input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: var(--ap-blue);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------
+   8. Editor canvas — color only + width parity with output panel
+---------------------------------------------------------------- */
+.content-scroll-area,
+#content {
+  background: var(--ap-surface);
+}
+
+/* styles.css caps .input-section at max-width: 860px, which makes the
+   editor narrower than the output / token row. Align them. */
+.main-container:not(.two-pane) .input-section {
+  max-width: none !important;
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--ap-ink-48);
+  padding: var(--ap-s-10) var(--ap-s-6);
+  font-size: 15px;
+}
+#emptyText {
+  font-family: var(--ap-font-display);
+  font-size: 24px;
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  line-height: 1.3;
+  color: var(--ap-ink-48);
+}
+
+/* EasyMDE refinements */
+.EasyMDEContainer .CodeMirror {
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-lg) !important;
+  padding: var(--ap-s-3) !important;
+  font-family: var(--ap-font-text) !important;
+  font-size: 15px !important;
+  line-height: 1.6 !important;
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  box-shadow: var(--ap-shadow-1);
+}
+.EasyMDEContainer .editor-toolbar {
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-md) !important;
+  padding: 4px !important;
+  background: var(--ap-surface) !important;
+  position: static !important;
+}
+.EasyMDEContainer .editor-toolbar button {
+  border-radius: var(--ap-r-sm) !important;
+  color: var(--ap-ink-80) !important;
+}
+.EasyMDEContainer .editor-toolbar button:hover {
+  background: var(--ap-ink-08) !important;
+  border-color: transparent !important;
+}
+:root[data-theme="dark"] .EasyMDEContainer .CodeMirror,
+:root[data-theme="dark"] .EasyMDEContainer .editor-toolbar {
+  background: #1a1a1c !important;
+  color: var(--ap-ink) !important;
+  border-color: var(--ap-ink-08) !important;
+}
+
+/* ---------------------------------------------------------------
+   9. Token pills (morphological tokens — Apple refinement)
+---------------------------------------------------------------- */
+.line-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: stretch;
+  margin-bottom: var(--ap-s-3);
+  padding: var(--ap-s-2) 0;
+}
+.token-pill {
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-ink-08);
+  border-radius: var(--ap-r-md);
+  padding: 6px 10px;
+  box-shadow: var(--ap-shadow-1);
+  transition: transform var(--ap-dur-fast) var(--ap-ease),
+              box-shadow var(--ap-dur-fast) var(--ap-ease),
+              border-color var(--ap-dur-fast) var(--ap-ease);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  cursor: pointer;
+}
+.token-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--ap-shadow-2);
+  border-color: var(--ap-ink-24);
+}
+.token-pill.playing {
+  border-color: var(--ap-blue);
+  box-shadow: 0 0 0 3px rgba(0,113,227,.18), var(--ap-shadow-2);
+  background: rgba(0,113,227,.04);
+}
+.token-pill .token-kanji {
+  font-family: var(--ap-font-display);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  color: var(--ap-ink);
+  line-height: 1.25;
+}
+.token-pill .token-reading,
+.token-pill .token-romaji {
+  font-family: var(--ap-font-text);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--ap-ink-48);
+  line-height: 1.3;
+  margin-top: 2px;
+}
+.token-pill .token-pos {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-top: 4px;
+  background: var(--ap-ink-08);
+  color: var(--ap-ink-64);
+}
+
+/* POS color tints (restrained Apple palette) */
+.token-pill[data-pos="名詞"]     { --pos-bg: rgba(0,113,227,.08); --pos-fg: #0071e3; }
+.token-pill[data-pos="動詞"]     { --pos-bg: rgba(48,209,88,.10); --pos-fg: #1f8a3e; }
+.token-pill[data-pos="形容詞"]   { --pos-bg: rgba(255,159,10,.12); --pos-fg: #b76e00; }
+.token-pill[data-pos="副詞"]     { --pos-bg: rgba(175,82,222,.10); --pos-fg: #813fc9; }
+.token-pill[data-pos="助詞"]     { --pos-bg: rgba(255,59,48,.08);  --pos-fg: #c2352b; }
+.token-pill[data-pos="感動詞"]   { --pos-bg: rgba(255,214,10,.16); --pos-fg: #8a6b00; }
+.token-pill[data-pos]::before {
+  display: none; /* color applied via .token-pos bg below */
+}
+.token-pill[data-pos] .token-pos {
+  background: var(--pos-bg, var(--ap-ink-08));
+  color: var(--pos-fg, var(--ap-ink-64));
+}
+
+:root[data-theme="dark"] .token-pill {
+  background: #1d1d1f;
+  border-color: var(--ap-ink-08);
+  box-shadow: none;
+}
+:root[data-theme="dark"] .token-pill:hover { background: #252527; border-color: rgba(255,255,255,.18); }
+
+/* ---------------------------------------------------------------
+   10. Modals (settings & search)
+---------------------------------------------------------------- */
+.settings-modal,
+.search-modal {
+  background: rgba(0,0,0,.35) !important;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.settings-modal-content,
+.search-modal-content {
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-2xl) !important;
+  box-shadow: var(--ap-shadow-card) !important;
+  padding: var(--ap-s-6) !important;
+  max-width: 640px !important;
+  width: 92vw;
+}
+.settings-modal-header,
+.search-modal-header {
+  border-bottom: 1px solid var(--ap-ink-08) !important;
+  padding-bottom: var(--ap-s-4);
+  margin-bottom: var(--ap-s-4);
+  display: flex;
+  align-items: center;
+  gap: var(--ap-s-3);
+}
+.settings-modal-title {
+  font-family: var(--ap-font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+.settings-modal-close,
+.search-modal-close {
+  background: var(--ap-surface-2) !important;
+  border: none !important;
+  width: 28px; height: 28px;
+  border-radius: 50% !important;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  margin-left: auto;
+  color: var(--ap-ink-64) !important;
+  transition: background var(--ap-dur-fast) var(--ap-ease);
+}
+.settings-modal-close:hover,
+.search-modal-close:hover { background: var(--ap-surface-3) !important; color: var(--ap-ink) !important; }
+
+:root[data-theme="dark"] .settings-modal-content,
+:root[data-theme="dark"] .search-modal-content {
+  background: #1d1d1f !important;
+  border-color: var(--ap-ink-08) !important;
+}
+
+/* Settings sections inside the modal */
+.settings-section {
+  background: var(--ap-surface-2);
+  border: 1px solid var(--ap-ink-08);
+  border-radius: var(--ap-r-lg) !important;
+  padding: var(--ap-s-4) !important;
+  margin-bottom: var(--ap-s-4) !important;
+  box-shadow: none !important;
+}
+.settings-section .sidebar-title {
+  padding: 0 0 var(--ap-s-2) 0;
+  font-size: 13px !important;
+  text-transform: none !important;
+  letter-spacing: -0.01em !important;
+  color: var(--ap-ink) !important;
+  font-weight: 600 !important;
+}
+
+.voice-controls,
+.display-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ap-s-3);
+}
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: var(--ap-s-3);
+  min-height: 32px;
+}
+.control-group.full-width { flex-direction: column; align-items: stretch; gap: 6px; }
+.control-group .control-label { color: var(--ap-ink-80); font-size: 13px; }
+.control-group .control-label .label-text { letter-spacing: -0.008em; }
+
+/* Checkbox group — row with spacing */
+.control-group.checkbox-group { gap: var(--ap-s-2); }
+.control-group.checkbox-group .control-label {
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+}
+
+/* Select — Apple chevron */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image:
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20'%3E%3Cpath d='M9.558 13.442c.244.244.64.244.884 0l5.4-5.4a.625.625 0 1 0-.884-.884L10 12.116 5.042 7.158a.625.625 0 0 0-.884.884z' fill='rgba(29,29,31,.64)'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px !important;
+}
+:root[data-theme="dark"] select {
+  background-image:
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 20 20'%3E%3Cpath d='M9.558 13.442c.244.244.64.244.884 0l5.4-5.4a.625.625 0 1 0-.884-.884L10 12.116 5.042 7.158a.625.625 0 0 0-.884.884z' fill='rgba(245,245,247,.64)'/%3E%3C/svg%3E");
+}
+
+/* ---------------------------------------------------------------
+   11. Search modal
+---------------------------------------------------------------- */
+.search-modal-input {
+  flex: 1;
+  background: transparent !important;
+  border: none !important;
+  font-size: 17px !important;
+  padding: 10px 0 !important;
+  color: var(--ap-ink) !important;
+}
+.search-modal-input:focus { outline: none; box-shadow: none; }
+.search-empty-state { color: var(--ap-ink-48); text-align: center; padding: var(--ap-s-8); }
+
+/* ---------------------------------------------------------------
+   12. Dropdown menus
+---------------------------------------------------------------- */
+.new-doc-dropdown-menu {
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-lg) !important;
+  box-shadow: var(--ap-shadow-3) !important;
+  padding: 4px !important;
+  min-width: 180px;
+}
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px !important;
+  border-radius: var(--ap-r-sm) !important;
+  color: var(--ap-ink) !important;
+  font-size: 14px !important;
+  transition: background var(--ap-dur-fast) var(--ap-ease);
+}
+.dropdown-item:hover {
+  background: var(--ap-ink-08) !important;
+  text-decoration: none !important;
+}
+
+/* ---------------------------------------------------------------
+   13. PWA toast
+---------------------------------------------------------------- */
+.pwa-toast {
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-xl) !important;
+  box-shadow: var(--ap-shadow-card) !important;
+  color: var(--ap-ink) !important;
+  padding: var(--ap-s-4) !important;
+}
+.pwa-toast__title { font-family: var(--ap-font-display); font-weight: 600; font-size: 15px; }
+.pwa-toast__message { color: var(--ap-ink-64); font-size: 13px; }
+.pwa-toast__progress { background: var(--ap-ink-08); border-radius: 999px; height: 4px; overflow: hidden; }
+.pwa-toast__progress-bar { background: var(--ap-blue); height: 100%; }
+.pwa-toast__close {
+  background: transparent !important; border: none !important;
+  color: var(--ap-ink-48) !important; border-radius: 50% !important;
+  width: 24px; height: 24px;
+}
+.pwa-toast__close:hover { background: var(--ap-ink-08) !important; color: var(--ap-ink) !important; }
+
+/* ---------------------------------------------------------------
+   14. Scrollbar (refined)
+---------------------------------------------------------------- */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  transition: background var(--ap-dur) var(--ap-ease);
+}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
+
+/* ---------------------------------------------------------------
+   15. Focus ring (global)
+---------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--ap-blue);
+  outline-offset: 2px;
+  border-radius: var(--ap-r-sm);
+}
+
+/* ---------------------------------------------------------------
+   15.5. Dropdowns / popovers
+   The sticky header creates a stacking context that can trap the
+   dropdown beneath the editor/content panels. Escape via isolation
+   + very high z-index, and keep Apple chrome on the outer shell.
+---------------------------------------------------------------- */
+.user-profile-container {
+  position: relative;
+  z-index: 9999;       /* own container above editor */
+  isolation: isolate;   /* root its own stacking context */
+}
+
+/* Outer menu container — Apple surface + maximum z-index */
+.user-dropdown-menu {
+  z-index: 99999 !important;
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-lg) !important;
+  box-shadow: var(--ap-shadow-3) !important;
+}
+.new-doc-dropdown-menu {
+  z-index: 99999 !important;
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-lg) !important;
+  box-shadow: var(--ap-shadow-3) !important;
+}
+
+/* Header inside dropdown — lighter Apple feel, no gradient */
+.user-dropdown-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--ap-ink-08) !important;
+}
+
+/* Login/Firebase removed — hide sync button */
+#syncDataBtn { display: none !important; }
+
+/* Force theme & lang submenu-parent rows visible (in case editor
+   overlay paints them out). Keep styles.css internals intact, just
+   guarantee display + text color. */
+#userThemeBtn,
+#userLangBtn,
+#userDataManagementBtn {
+  display: flex !important;
+  color: var(--text) !important;
+  background: transparent !important;
+}
+#userThemeBtn > span,
+#userLangBtn > span,
+#userDataManagementBtn > span {
+  color: var(--text) !important;
+}
+
+/* Defensively drop the editor toolbar and content-scroll-area
+   out of any competing stacking context. Make sure nothing inside
+   them can outrank a z-index: 99999 dropdown. */
+.content-scroll-area,
+#content,
+.EasyMDEContainer,
+.EasyMDEContainer .CodeMirror,
+.EasyMDEContainer .editor-toolbar {
+  z-index: auto !important;
+}
+
+:root[data-theme="dark"] .user-dropdown-menu,
+:root[data-theme="dark"] .new-doc-dropdown-menu {
+  background: #1d1d1f !important;
+  border-color: var(--ap-ink-08) !important;
+}
+
+/* ---------------------------------------------------------------
+   16. Gemini settings panel (appended by tts.js)
+---------------------------------------------------------------- */
+#geminiSettingsSection {
+  background: linear-gradient(180deg, rgba(0,113,227,.04), transparent) !important;
+  border: 1px solid rgba(0,113,227,.18) !important;
+}
+#geminiSettingsSection .sidebar-title::before {
+  content: "✦ ";
+  color: var(--ap-blue);
+}
+#geminiApiKeyInput,
+#geminiStyleInput {
+  font-family: var(--ap-font-mono) !important;
+  font-size: 13px !important;
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-08) !important;
+  border-radius: var(--ap-r-md) !important;
+  padding: 10px 12px !important;
+}
+#geminiApiKeyStatus {
+  color: var(--ap-ink-64) !important;
+  font-size: 12px !important;
+}
+
+/* ---------------------------------------------------------------
+   17. Motion polish
+---------------------------------------------------------------- */
+button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item {
+  transition-timing-function: var(--ap-ease);
+  transition-duration: var(--ap-dur-fast);
+}
+
+/* When settings modal opens, smooth entrance */
+.settings-modal.show .settings-modal-content,
+.search-modal.show .search-modal-content {
+  animation: apSheetIn var(--ap-dur-slow) var(--ap-ease-spring);
+}
+@keyframes apSheetIn {
+  from { opacity: 0; transform: translateY(12px) scale(.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ---------------------------------------------------------------
+   18. Responsive (mobile / tablet) — layout collapse
+---------------------------------------------------------------- */
+@media (max-width: 980px) {
+  /* Tablets: slightly smaller base font */
+  body { font-size: 15px; }
+}
+
+@media (max-width: 768px) {
+  /* Mobile: lighten heavy Apple effects */
+  body { font-size: 14px; line-height: 1.45; }
+  h1 { font-size: 28px; }
+  h2 { font-size: 22px; }
+  h3 { font-size: 18px; }
+
+  /* Lighter glass (backdrop-filter is expensive on mobile GPU) */
+  .main-header {
+    -webkit-backdrop-filter: saturate(150%) blur(10px);
+    backdrop-filter: saturate(150%) blur(10px);
+  }
+
+  /* Token pills tighter on mobile */
+  .token-pill .token-kanji { font-size: 16px; }
+  .token-pill .token-reading,
+  .token-pill .token-romaji { font-size: 10px; }
+
+  /* Dropdowns full-width-ish on narrow screens */
+  .user-dropdown-menu,
+  .new-doc-dropdown-menu {
+    min-width: 200px !important;
+    max-width: calc(100vw - 24px);
+  }
+
+  /* Settings modal: edge-to-edge on mobile */
+  .settings-modal-content,
+  .search-modal-content {
+    max-width: 100vw !important;
+    margin: 0 !important;
+    border-radius: var(--ap-r-lg) !important;
+  }
+
+  /* Range thumb grows on touch (≥44px touch target via padding) */
+  input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; }
+  input[type="range"]::-moz-range-thumb { width: 22px; height: 22px; }
+
+  /* Buttons get touch-friendly min-size */
+  .theme-icon-btn,
+  .btn-new,
+  .btn-new-dropdown,
+  .user-avatar-btn {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Very small screens: drop backdrop-filter entirely (fallback solid bg) */
+  .main-header {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--ap-surface) !important;
+  }
+  :root[data-theme="dark"] .main-header {
+    background: #1d1d1f !important;
+  }
+
+  /* Reduce motion on small screens */
+  *, *::before, *::after {
+    transition-duration: 80ms !important;
+    animation-duration: 160ms !important;
+  }
+}
+
+/* Respect user reduced-motion preference everywhere */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   19. Selection & highlight
+---------------------------------------------------------------- */
+::selection {
+  background: rgba(0,113,227,.20);
+  color: inherit;
+}
+:root[data-theme="dark"] ::selection {
+  background: rgba(41,151,255,.28);
+}
+
+/* Fine details */
+hr { border: none; border-top: 1px solid var(--ap-ink-08); margin: var(--ap-s-4) 0; }
+code, kbd, pre { font-family: var(--ap-font-mono); }
+kbd {
+  background: var(--ap-surface-2);
+  border: 1px solid var(--ap-ink-08);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}

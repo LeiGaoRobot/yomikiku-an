@@ -1,0 +1,28 @@
+{
+  "name": "yomikiku-an",
+  "version": "1.0.0",
+  "description": "YomiKiku-an（読み聞く庵）— 日语阅读与听力练习工具",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "dev": "python3 -m http.server 8000",
+    "serve": "python3 -m http.server 8000"
+  },
+  "dependencies": {
+    "jmdict-simplified-node": "^1.1.2",
+    "kuromoji": "^0.1.2",
+    "kuroshiro": "^1.2.0",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "keywords": [
+    "japanese",
+    "morphological-analysis",
+    "tts",
+    "learning"
+  ],
+  "author": "Lei Gao",
+  "license": "MIT"
+}
