@@ -74,6 +74,9 @@ export async function analyzeDifficulty(text) {
 
 function pickLevel(vocab, kanji) {
   const total = Object.values(vocab).reduce((a, b) => a + b, 0) || 1;
+  // If classifier couldn't bucket most tokens (dict not loaded, or very rare text),
+  // don't misreport as beginner — return n/a so UI can hide the badge.
+  if ((vocab.unknown || 0) / total > 0.9) return 'n/a';
   const share = (bucket) => bucket.reduce((a, k) => a + (vocab[k] || 0), 0) / total;
   if (share(['N1']) > 0.05 || (kanji.N1 || 0) > 3) return 'n1';
   if (share(['N1', 'N2']) > 0.1) return 'n2';
