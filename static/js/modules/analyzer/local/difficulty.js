@@ -2,38 +2,13 @@
 // Kuromoji accessor: the plan assumed `window.kuromojiReady` but this project
 // does NOT expose that. Kuromoji is loaded as a classic script at
 // `static/libs/kuromoji.js` which sets `window.kuromoji` (with `.builder()`).
-// `static/segmenter.js` builds its own tokenizer inside `JapaneseSegmenter`.
-// Here we build-and-cache our own tokenizer via `window.kuromoji.builder()`
-// — lighter than spinning up the full `JapaneseSegmenter` (no kuroshiro).
+// The shared `./tokenizer.js` helper memoizes a single builder build and is
+// reused across analyzer/local modules (difficulty, syntax, ...).
 import { classifyWord } from './jlpt-vocab.js';
 import { kanjiGrade } from './jlpt-kanji.js';
+import { tokenize } from './tokenizer.js';
 
 const JAPANESE_RE = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/;
-const DIC_PATH = '/static/libs/dict/';
-
-let tokenizerPromise = null;
-
-function buildTokenizer() {
-  if (tokenizerPromise) return tokenizerPromise;
-  tokenizerPromise = new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !window.kuromoji || typeof window.kuromoji.builder !== 'function') {
-      reject(new Error('kuromoji not loaded on window'));
-      return;
-    }
-    window.kuromoji.builder({ dicPath: DIC_PATH }).build((err, tokenizer) => {
-      if (err) reject(err);
-      else resolve(tokenizer);
-    });
-  });
-  // If the build fails, clear the cached promise so a later call can retry.
-  tokenizerPromise.catch(() => { tokenizerPromise = null; });
-  return tokenizerPromise;
-}
-
-async function tokenize(text) {
-  const tokenizer = await buildTokenizer();
-  return tokenizer.tokenize(text);
-}
 
 export async function analyzeDifficulty(text) {
   if (!text || !JAPANESE_RE.test(text)) {
