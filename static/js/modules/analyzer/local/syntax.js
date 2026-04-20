@@ -9,8 +9,13 @@
 //
 // Rule order (first match wins on the initial pass; rules 4 and 5 may reassign
 // afterwards):
-//   1. Conjunction       — pos starts with 接続詞, OR 接続助詞 particle
-//                          (が/ので/から/て/けど/のに)
+//   1. Conjunction       — pos starts with 接続詞, OR 接続助詞 particle.
+//                          Unconditional: ので/から/て (always post-clause).
+//                          Ambiguous (が/けど/のに): conjunction only when the
+//                          previous token is 動詞/形容詞/助動詞 (clause end);
+//                          otherwise fall through so rule 2 can retro-tag the
+//                          preceding 名詞 as subject (が) or the particle stays
+//                          `other` (けど/のに).
 //   2. Subject marker    — current token is 助詞 は/が → tag PREVIOUS token
 //                          as subject (unless it was already `conjunction`)
 //   3. Object marker     — current token is 助詞 を     → tag PREVIOUS token
@@ -23,7 +28,8 @@
 
 import { tokenize } from './tokenizer.js';
 
-const CONJ_PARTICLE_SURFACES = new Set(['が', 'ので', 'から', 'て', 'けど', 'のに']);
+const CONJ_PARTICLE_UNCONDITIONAL = new Set(['ので', 'から', 'て']);
+const CONJ_PARTICLE_AMBIGUOUS = new Set(['が', 'けど', 'のに']);
 
 function startsWith(pos, prefix) {
   return typeof pos === 'string' && pos.startsWith(prefix);
@@ -65,9 +71,25 @@ export async function analyzeSyntax(text) {
       tokens[i].role = 'conjunction';
       continue;
     }
-    if (isParticle(t) && CONJ_PARTICLE_SURFACES.has(surface)) {
+    if (isParticle(t) && CONJ_PARTICLE_UNCONDITIONAL.has(surface)) {
       tokens[i].role = 'conjunction';
       continue;
+    }
+    if (isParticle(t) && CONJ_PARTICLE_AMBIGUOUS.has(surface)) {
+      // が/けど/のに are conjunctive only after a clause-ending 動詞/形容詞/助動詞.
+      // After a 名詞/代名詞 (etc.), fall through so rule 2 can retro-tag the
+      // preceding noun as subject (が) or leave the particle as `other`.
+      const prev = i > 0 ? raw[i - 1] : null;
+      const prevIsClauseEnd = prev && (
+        startsWith(prev.pos, '動詞') ||
+        startsWith(prev.pos, '形容詞') ||
+        startsWith(prev.pos, '助動詞')
+      );
+      if (prevIsClauseEnd) {
+        tokens[i].role = 'conjunction';
+        continue;
+      }
+      // else: fall through to rules 2/3.
     }
 
     // Rule 2 — subject marker は/が tags the previous token

@@ -36,12 +36,14 @@
       'これは本です。',
       '彼がりんごを食べた。',
       'だから行きません。',
+      '雨が降ったが、出かけた。',
     ];
 
     const expectations = [
       'は marks これ as subject; です is predicate.',
       '彼 = subject (が), りんご = object (を), 食べた (食べ/た) = predicate at end.',
       'だから = conjunction; 行き / ません = predicate at end.',
+      'First が (after 雨/名詞) → subject marker so 雨 is subject; second が (after 降っ/動詞 +た/助動詞) → conjunction; final 出かけ/た → predicate at end.',
     ];
 
     function escapeHtml(s) {
