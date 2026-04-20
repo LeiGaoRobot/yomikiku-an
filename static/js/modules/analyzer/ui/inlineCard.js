@@ -54,6 +54,9 @@ function buildShell() {
   const card = el('div', 'ap-analyzer-card');
   card.setAttribute('role', 'region');
 
+  // Stable per-card id used to wire tab<->panel ARIA references.
+  const cardId = Math.random().toString(36).slice(2, 9);
+
   const tabs = el('div', 'ap-analyzer-card__tabs');
   tabs.setAttribute('role', 'tablist');
 
@@ -61,7 +64,11 @@ function buildShell() {
     const btn = el('button', `ap-analyzer-card__tab ap-analyzer-card__tab--${id}`, label);
     btn.type = 'button';
     btn.dataset.tab = id;
+    btn.id = `card_${cardId}_tab_${id}`;
     btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-controls', `card_${cardId}_panel_${id}`);
+    // Roving tabindex — only the active tab is in the focus order.
+    btn.setAttribute('tabindex', '-1');
     return btn;
   };
   const tabStructure = mkTab('structure', t('analyzer.tab.structure', '結構'));
@@ -71,16 +78,18 @@ function buildShell() {
   tabs.appendChild(tabExplanation);
   tabs.appendChild(tabKeywords);
 
+  const mkPanel = (id, extraClass) => {
+    const panel = el('div', `ap-analyzer-card__panel ap-analyzer-card__panel--${id}`);
+    panel.dataset.panel = id;
+    panel.id = `card_${cardId}_panel_${id}`;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', `card_${cardId}_tab_${id}`);
+    return panel;
+  };
   const body = el('div', 'ap-analyzer-card__body');
-  const panelStructure = el('div', 'ap-analyzer-card__panel ap-analyzer-card__panel--structure');
-  panelStructure.dataset.panel = 'structure';
-  panelStructure.setAttribute('role', 'tabpanel');
-  const panelExplanation = el('div', 'ap-analyzer-card__panel ap-analyzer-card__panel--explanation');
-  panelExplanation.dataset.panel = 'explanation';
-  panelExplanation.setAttribute('role', 'tabpanel');
-  const panelKeywords = el('div', 'ap-analyzer-card__panel ap-analyzer-card__panel--keywords');
-  panelKeywords.dataset.panel = 'keywords';
-  panelKeywords.setAttribute('role', 'tabpanel');
+  const panelStructure = mkPanel('structure');
+  const panelExplanation = mkPanel('explanation');
+  const panelKeywords = mkPanel('keywords');
   body.appendChild(panelStructure);
   body.appendChild(panelExplanation);
   body.appendChild(panelKeywords);
@@ -250,6 +259,8 @@ export function mountCard(sentenceEl, sentenceText, context) {
       const isActive = key === name;
       tabs[key].classList.toggle('ap-analyzer-card__tab--active', isActive);
       tabs[key].setAttribute('aria-selected', isActive ? 'true' : 'false');
+      // Roving tabindex: active tab participates in tab order, others removed.
+      tabs[key].setAttribute('tabindex', isActive ? '0' : '-1');
       panels[key].classList.toggle('ap-analyzer-card__panel--active', isActive);
     }
     if (name === 'explanation' && !explanationLoaded && !explanationLoading) {
@@ -264,6 +275,26 @@ export function mountCard(sentenceEl, sentenceText, context) {
   for (const key of Object.keys(tabs)) {
     tabs[key].addEventListener('click', () => setActiveTab(key));
   }
+
+  // ARIA tab keyboard pattern — Left/Right cycles, Home/End jump to ends.
+  const tabOrder = ['structure', 'explanation', 'keywords'];
+  const tablistEl = tabs.structure.parentNode;
+  tablistEl.addEventListener('keydown', (e) => {
+    const key = e.key;
+    if (key !== 'ArrowLeft' && key !== 'ArrowRight' && key !== 'Home' && key !== 'End') return;
+    const idx = tabOrder.indexOf(activeTab);
+    if (idx < 0) return;
+    let next = idx;
+    if (key === 'ArrowLeft') next = (idx - 1 + tabOrder.length) % tabOrder.length;
+    else if (key === 'ArrowRight') next = (idx + 1) % tabOrder.length;
+    else if (key === 'Home') next = 0;
+    else if (key === 'End') next = tabOrder.length - 1;
+    if (next === idx) { e.preventDefault(); return; }
+    e.preventDefault();
+    const nextKey = tabOrder[next];
+    setActiveTab(nextKey);
+    try { tabs[nextKey].focus(); } catch (_) {}
+  });
 
   // ---- Structure (eager, local) --------------------------------------------
   panels.structure.appendChild(loading());
@@ -329,6 +360,9 @@ export function mountCard(sentenceEl, sentenceText, context) {
   // ---- Pin / Unpin ---------------------------------------------------------
   let pinHash = null;
   let pinned = false;
+  // Synchronous lock — `pinBtn.disabled` is the visual indicator, this boolean
+  // is the truth that blocks rapid double-click races (mirrors `explanationLoading`).
+  let pinPending = false;
 
   function paintPin() {
     pinBtn.textContent = pinned
@@ -356,31 +390,39 @@ export function mountCard(sentenceEl, sentenceText, context) {
   paintPin();
 
   pinBtn.addEventListener('click', async () => {
-    if (destroyed) return;
+    if (pinPending) return;
+    pinPending = true;
+    if (destroyed) { pinPending = false; return; }
     const docId = activeDocId();
-    if (!docId || !pinHash) return;
+    if (!docId || !pinHash) { pinPending = false; return; }
     pinBtn.disabled = true;
     try {
       if (pinned) {
         await unpin(docId, pinHash);
+        if (destroyed) return;
         pinned = false;
+        paintPin();
       } else {
         await pin(docId, pinHash, text, explanationResult || { pinnedSyntaxOnly: true });
+        if (destroyed) return;
         pinned = true;
+        paintPin();
       }
-      paintPin();
     } catch (err) {
       const msg = err && err.message;
       if (msg === 'PIN_LIMIT') {
         // Inline notice — no modal dependency.
-        const note = el('div', 'ap-analyzer-card__pin-note', t('analyzer.pin.limit', '已达固化上限(200)，请先清理'));
-        pinBtn.parentNode.appendChild(note);
-        setTimeout(() => { try { note.remove(); } catch (_) {} }, 4000);
+        if (!destroyed && pinBtn.parentNode) {
+          const note = el('div', 'ap-analyzer-card__pin-note', t('analyzer.pin.limit', '已达固化上限(200)，请先清理'));
+          pinBtn.parentNode.appendChild(note);
+          setTimeout(() => { try { note.remove(); } catch (_) {} }, 4000);
+        }
       } else {
         // eslint-disable-next-line no-console
         console.warn('[analyzer/ui] pin toggle failed', err);
       }
     } finally {
+      pinPending = false;
       if (!destroyed) pinBtn.disabled = false;
     }
   });
