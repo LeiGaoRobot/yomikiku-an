@@ -963,6 +963,16 @@ const headerSpeedValue = $('headerSpeedValue');
   // Token pills / ruby tokens / play-line button keep their existing click
   // behaviour because we bail out when the target is inside them.
   if (content) {
+    // Clone the sentence element and strip any ruby annotations before reading
+    // text, so furigana render mode doesn't leak kana readings (e.g.
+    // `東京とうきょうに住む`) into the LLM prompt.
+    function extractSentenceText(el) {
+      if (!el) return '';
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('rt').forEach((rt) => rt.remove());
+      return (clone.textContent || '').trim();
+    }
+
     content.addEventListener('click', async (ev) => {
       // Don't hijack text selection.
       if (((window.getSelection && window.getSelection()) || { toString: () => '' }).toString().length > 0) return;
@@ -980,7 +990,7 @@ const headerSpeedValue = $('headerSpeedValue');
         return;
       }
 
-      const text = (sentenceEl.textContent || '').trim();
+      const text = extractSentenceText(sentenceEl);
       if (!text) return;
 
       // Neighbour lines supply context to the LLM prompt. Paragraph/empty-line
@@ -989,13 +999,13 @@ const headerSpeedValue = $('headerSpeedValue');
       const prevSib = sentenceEl.previousElementSibling;
       const nextSib = sentenceEl.nextElementSibling;
       const prev = (prevSib && prevSib.classList && prevSib.classList.contains('line-container'))
-        ? (prevSib.textContent || '').trim() : '';
+        ? extractSentenceText(prevSib) : '';
       const next = (nextSib && nextSib.classList && nextSib.classList.contains('line-container'))
-        ? (nextSib.textContent || '').trim() : '';
+        ? extractSentenceText(nextSib) : '';
       const context = { prev: prev || undefined, next: next || undefined };
 
       try {
-        const mod = await import('./js/modules/analyzer/ui/inlineCard.js');
+        const mod = await import('./static/js/modules/analyzer/ui/inlineCard.js');
         if (sentenceEl.__analyzerCard) return; // a concurrent click beat us
         sentenceEl.__analyzerCard = mod.mountCard(sentenceEl, text, context);
       } catch (err) {
@@ -4236,8 +4246,22 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
   }
 
+  // Tear down any live analyzer cards hanging off .line-container nodes before
+  // we blow away the content subtree, so in-flight requests abort cleanly.
+  function teardownLiveAnalyzerCards() {
+    if (!content) return;
+    content.querySelectorAll('.line-container').forEach((el) => {
+      if (el.__analyzerCard) {
+        try { el.__analyzerCard.destroy(); } catch (_) {}
+        el.__analyzerCard = null;
+      }
+    });
+  }
+
   function showEmptyState() {
     clearReadingLineHighlight();
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = `
       <div style="text-align: center; color: #a0aec0; padding: 2rem;">
         <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.5;" viewBox="0 0 24 24">
@@ -4251,6 +4275,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   function showLoadingState() {
     clearReadingLineHighlight();
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = `
       <div style="text-align: center; color: #667eea; padding: 2rem;">
         <div class="loading" style="margin: 0 auto 1rem;"></div>
@@ -4262,6 +4288,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   function showErrorState(message) {
     clearReadingLineHighlight();
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = `
       <div style="text-align: center; color: #e53e3e; padding: 2rem;">
         <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.7;" viewBox="0 0 24 24">
@@ -4600,6 +4628,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       `;
     }).filter(html => html).join('');
 
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = html;
     syncReadingLineAttributes(isReadingMode);
   }
