@@ -13,6 +13,6 @@
   <!-- 墨迹波纹（笔触曲线） -->
   <path d="M20 80c22-18 48-22 74-14" stroke="url(#ink)" stroke-width="7" stroke-linecap="round"/>
   <path d="M24 96c26-14 54-16 84-6" stroke="#0B1623" opacity=".8" stroke-width="4" stroke-linecap="round"/>
-  <!-- 简化汉字F形意象（Fudoki首字母） -->
+  <!-- 幾何筆画マーク -->
   <path d="M36 30v42m0-28h20m-20 16h16" stroke="#0B1623" stroke-width="4" stroke-linecap="round"/>
 </svg>
