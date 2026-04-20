@@ -40,6 +40,8 @@
     "static/js/modules/analyzer/providers/registry.js",
     "static/js/modules/analyzer/providers/mock.js",
     "static/js/modules/analyzer/providers/gemini.js",
+    "static/js/modules/analyzer/ui/inlineCard.js",
+    "static/js/modules/analyzer/ui/inlineCard.css",
     "static/favicon.svg",
     "static/logo.png",
     "static/apple-touch-icon.png",

@@ -640,3 +640,40 @@
     padding-right: 70px !important;
   }
 }
+
+/* ===============================================
+   Reading Analyzer inline card — mobile (T11)
+   - ≤768px: tap targets ≥44px (Apple HIG / WCAG 2.2)
+   - ≤480px: tabs become horizontally scrollable so the
+     three pills don't wrap on narrow phones
+   =============================================== */
+@media (max-width: 768px) {
+  .ap-analyzer-card__tab,
+  .ap-analyzer-card__pin,
+  .ap-analyzer-card__retry {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ap-analyzer-card__tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .ap-analyzer-card__tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ap-analyzer-card__tab {
+    flex: 0 0 auto;
+  }
+
+  .ap-analyzer-card__body {
+    padding: 10px 12px;
+  }
+}
