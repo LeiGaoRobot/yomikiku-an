@@ -24,6 +24,8 @@
   <link rel="stylesheet" href="static/theme-apple.css">
   <!-- Reading Analyzer inline card (T11) — must come after theme-apple.css so it can read its tokens -->
   <link rel="stylesheet" href="static/js/modules/analyzer/ui/inlineCard.css">
+  <!-- Reading Analyzer difficulty badge + list swatch (T13 + T14) -->
+  <link rel="stylesheet" href="static/js/modules/analyzer/ui/badge.css">
   <!-- 移动端样式：仅在移动设备加载，优先级高于主样式 -->
   <link rel="stylesheet" href="static/mobile.css" media="(max-width: 768px)">
   <link rel="icon" type="image/png" href="static/logo.png">
@@ -233,6 +235,8 @@
               </div>
             <span class="editor-date" id="editorDocDate" title="创建日期"></span>
             <span class="editor-count" id="editorCharCount" title="字数">0 字</span>
+            <!-- Reading Analyzer difficulty badge mount (T13) -->
+            <span id="diffBadgeMount" class="diff-badge-mount"></span>
             <button type="button" class="editor-star-toggle theme-icon-btn" id="editorStarToggle" aria-pressed="false" title="加星">☆</button>
             
             <button class="theme-icon-btn" id="editorDeleteBtn" aria-label="删除文档" title="删除文档">

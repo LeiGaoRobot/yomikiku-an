@@ -1014,6 +1014,49 @@ const headerSpeedValue = $('headerSpeedValue');
     });
   }
 
+  // --- Reading Analyzer: header difficulty badge (T13) ----------------------
+  // The badge lives in the main-header next to editorCharCount (#diffBadgeMount).
+  // `wireDifficultyBadge` lazy-imports the module on first call; subsequent
+  // `refreshDifficultyBadge` calls reuse the instance. The instance's own
+  // `update(doc)` handles both cached-render and background compute, so this
+  // layer stays thin — it only needs to know which doc is active.
+  let diffBadge = null;
+  let diffBadgeWiring = false;
+  function wireDifficultyBadge() {
+    if (diffBadge || diffBadgeWiring) { refreshDifficultyBadge(); return; }
+    const mount = document.getElementById('diffBadgeMount');
+    if (!mount) return;
+    diffBadgeWiring = true;
+    import('./static/js/modules/analyzer/ui/badge.js').then(({ mountBadge }) => {
+      try {
+        diffBadge = mountBadge(mount);
+        refreshDifficultyBadge();
+      } catch (err) {
+        console.warn('[analyzer] mountBadge failed', err);
+      } finally {
+        diffBadgeWiring = false;
+      }
+    }).catch((err) => {
+      diffBadgeWiring = false;
+      console.warn('[analyzer] badge import failed', err);
+    });
+  }
+  function refreshDifficultyBadge() {
+    if (!diffBadge) { wireDifficultyBadge(); return; }
+    try {
+      const dm = window.documentManager;
+      if (!dm || typeof dm.getAllDocuments !== 'function') { diffBadge.update(null); return; }
+      const activeId = typeof dm.getActiveId === 'function' ? dm.getActiveId() : null;
+      const doc = dm.getAllDocuments().find((d) => d && d.id === activeId);
+      diffBadge.update(doc || null);
+    } catch (err) {
+      console.warn('[analyzer] refreshDifficultyBadge failed', err);
+    }
+  }
+  // Expose so the DocumentManager hook inside `loadActiveDocument` can call
+  // it without needing to reach into module-private identifiers.
+  window.__yomikikuanRefreshDifficultyBadge = refreshDifficultyBadge;
+
   function t(key) {
     const dict = I18N[currentLang] || I18N.ja;
     return dict[key] || key;
@@ -3329,6 +3372,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       }
       // 更新顶部工具栏显示
       try { updateEditorToolbar(); } catch (_) {}
+      // Reading Analyzer — refresh header difficulty badge for new active doc (T13)
+      try { if (typeof window.__yomikikuanRefreshDifficultyBadge === 'function') window.__yomikikuanRefreshDifficultyBadge(); } catch (_) {}
     }
 
     // 排序偏好：读取、保存并更新按钮标签
@@ -3435,6 +3480,14 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         });
         
         documentList.appendChild(docItem);
+
+        // Reading Analyzer — decorate list item with difficulty swatch (T14)
+        // Lazy import so the swatch module doesn't block the first list
+        // paint; decorateListItem itself schedules analyzeDocument via
+        // requestIdleCallback when a doc has no cached difficulty yet.
+        import('./static/js/modules/analyzer/ui/listSwatch.js')
+          .then(({ decorateListItem }) => decorateListItem(docItem, doc))
+          .catch((err) => console.warn('[analyzer] listSwatch failed', err));
       });
 
       // 如果没有活动文档且有文档存在，激活第一个
@@ -5951,6 +6004,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   // 将 documentManager 暴露到全局作用域，供同步等功能使用
   window.documentManager = documentManager;
+
+  // Reading Analyzer — mount header difficulty badge once documentManager
+  // is global so refresh() can reach it via window.documentManager (T13).
+  try { wireDifficultyBadge(); } catch (_) {}
 
   // 注入示例文章（异步），然后刷新列表以反映"示例文章"文件夹
   try {
