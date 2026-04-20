@@ -5,12 +5,12 @@
 // Public API:
 //   mountCard(sentenceEl, sentenceText, context) -> { destroy(), el }
 //
-// `destroy()` removes the DOM and aborts the local AbortController. NOTE: in
-// the current API surface, `window.YomikikuanAnalyzer.expandSentence(...)` does
-// NOT accept an AbortSignal, so a request still in flight will resolve into a
-// noop branch that checks `destroyed` before touching DOM. T12 is expected to
-// extend `expandSentence` to forward `signal`; until then, "destroy mid-fetch"
-// just means the result is silently discarded (not actually cancelled).
+// `destroy()` removes the DOM and aborts the local AbortController. The
+// signal is threaded through `window.YomikikuanAnalyzer.expandSentence(...)`
+// so an in-flight Gemini request is cancelled when the card is destroyed.
+// `destroyed` is still checked after the await because cache hits can resolve
+// instantly (no abort opportunity) and because `analyzeSyntax` on the Structure
+// tab runs synchronously off the same text path.
 //
 // All visible text routed through window.YomikikuanGetText(key, fallback).
 // If that helper is unavailable the call sites fall back to the literal
@@ -319,13 +319,13 @@ export function mountCard(sentenceEl, sentenceText, context) {
     panels.explanation.textContent = '';
     panels.explanation.appendChild(loading());
     try {
-      // NOTE: analyzer.expandSentence currently doesn't accept signal — see
-      // file-level comment. When T12 extends the signature, pass ctrl.signal.
+      // T12: expandSentence now accepts an AbortSignal. ctrl.signal aborts
+      // on destroy() so closing the card cancels any in-flight Gemini call.
       const api = window && window.YomikikuanAnalyzer;
       if (!api || typeof api.expandSentence !== 'function') {
         throw new Error('NO_PROVIDER');
       }
-      const result = await api.expandSentence(sentenceEl, text, context);
+      const result = await api.expandSentence(sentenceEl, text, context, ctrl.signal);
       if (destroyed) return;
       explanationResult = result || null;
       explanationLoaded = true;

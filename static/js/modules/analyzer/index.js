@@ -29,9 +29,12 @@ const api = {
     const difficulty = await analyzeDifficulty(doc.content);
     return { difficulty };
   },
-  async expandSentence(sentenceEl, text, context) {
-    // UI mounting comes in T12; for now just return the analysis payload.
-    return await runAnalyze(text, context);
+  async expandSentence(sentenceEl, text, context, signal) {
+    // Signal allows the inline card's AbortController to cancel the
+    // in-flight provider call when the user closes the card before the
+    // Gemini round-trip completes. Cache lookups are not cancellable
+    // (they're fast and local), which is fine.
+    return await runAnalyze(text, context, signal);
   },
   async glossWord(word, sentence, signal) {
     const provider = getActive();

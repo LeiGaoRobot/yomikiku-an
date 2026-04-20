@@ -956,6 +956,54 @@ const headerSpeedValue = $('headerSpeedValue');
     content.addEventListener('scroll', repositionActiveDetails, { passive: true });
   }
 
+  // --- Reading Analyzer: sentence-click handler (T12) -----------------------
+  // Mounts the inline analyzer card below a clicked line (the codebase treats
+  // a single source line as the sentence unit — see `.line-container` render
+  // at the tokens block below). Strictly additive: no playback state touched.
+  // Token pills / ruby tokens / play-line button keep their existing click
+  // behaviour because we bail out when the target is inside them.
+  if (content) {
+    content.addEventListener('click', async (ev) => {
+      // Don't hijack text selection.
+      if (((window.getSelection && window.getSelection()) || { toString: () => '' }).toString().length > 0) return;
+      // Don't re-fire when clicking inside an already-mounted card.
+      if (ev.target.closest && ev.target.closest('.ap-analyzer-card')) return;
+      // Let token-level handlers and the per-line play button win.
+      if (ev.target.closest && ev.target.closest('.token-pill, .ruby-token, .play-line-btn, .token-details')) return;
+      const sentenceEl = ev.target.closest && ev.target.closest('.line-container');
+      if (!sentenceEl || !content.contains(sentenceEl)) return;
+
+      // Toggle: second click on the same line destroys the card.
+      if (sentenceEl.__analyzerCard) {
+        try { sentenceEl.__analyzerCard.destroy(); } catch (_) {}
+        sentenceEl.__analyzerCard = null;
+        return;
+      }
+
+      const text = (sentenceEl.textContent || '').trim();
+      if (!text) return;
+
+      // Neighbour lines supply context to the LLM prompt. Paragraph/empty-line
+      // boundaries are already filtered out at render time, so siblings that
+      // are `.line-container` are legitimate adjacent sentences.
+      const prevSib = sentenceEl.previousElementSibling;
+      const nextSib = sentenceEl.nextElementSibling;
+      const prev = (prevSib && prevSib.classList && prevSib.classList.contains('line-container'))
+        ? (prevSib.textContent || '').trim() : '';
+      const next = (nextSib && nextSib.classList && nextSib.classList.contains('line-container'))
+        ? (nextSib.textContent || '').trim() : '';
+      const context = { prev: prev || undefined, next: next || undefined };
+
+      try {
+        const mod = await import('./js/modules/analyzer/ui/inlineCard.js');
+        if (sentenceEl.__analyzerCard) return; // a concurrent click beat us
+        sentenceEl.__analyzerCard = mod.mountCard(sentenceEl, text, context);
+      } catch (err) {
+        console.warn('[analyzer] mountCard failed', err);
+      }
+    });
+  }
+
   function t(key) {
     const dict = I18N[currentLang] || I18N.ja;
     return dict[key] || key;
