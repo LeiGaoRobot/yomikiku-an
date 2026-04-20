@@ -8,27 +8,43 @@
 'use strict';
 
 const CACHE_PREFIX = 'yomikikuan-cache';
-const CACHE_VERSION = 'v1';
+// ⚠️ Bump this on every deploy that changes ANY cached asset. Activate handler
+// purges every bucket under CACHE_PREFIX whose name doesn't match CACHE_NAME.
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 
 // Resolve fallback HTML relative to SW scope
 const FALLBACK_HTML_URL = new URL('index.html', self.registration.scope).toString();
 
+// NOTE: deliberately do NOT call self.skipWaiting() here. Letting the new
+// worker wait means the currently-running page keeps its old controller until
+// the user explicitly accepts the update (UI posts 'SKIP_WAITING'). Auto-
+// activating mid-session would leave the running page with stale JS/CSS while
+// the new SW serves fresh assets to later requests — exactly the split-state
+// bug that forced manual Unregister + hard-reload during development.
 self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting());
+  // no-op — update activation is user-confirmed via 'SKIP_WAITING' message.
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const keys = await caches.keys();
-    // Remove stale caches: old brand prefix (fudoki-cache) + older versions of current prefix
+    // Purge stale caches: older versions of current prefix + legacy fudoki-cache buckets
     await Promise.all(
       keys
         .filter((key) => (key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME) || key.startsWith('fudoki-cache'))
         .map((key) => caches.delete(key))
     );
+    // Claim so any windows opened AFTER activation are controlled immediately.
     await self.clients.claim();
   })());
+});
+
+// Promote a waiting worker once the user has acknowledged the update in UI.
+self.addEventListener('message', (event) => {
+  if (event && event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Fetch strategy

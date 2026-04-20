@@ -547,6 +547,14 @@
             <select id="headerVoiceSelect">
               <option value="">音声を選択...</option>
             </select>
+            <button type="button" class="theme-icon-btn ruby-toggle-btn" id="rubyModeToggle" aria-pressed="false" aria-label="ふりがな表示" title="ふりがな (ルビ) 表示">
+              <span class="ruby-toggle-label" aria-hidden="true">
+                <ruby>漢<rt>あ</rt></ruby>
+              </span>
+            </button>
+            <button type="button" class="theme-icon-btn kana-toggle-btn" id="readingScriptToggle" aria-label="仮名切り替え" title="ひらがな / カタカナ 切替">
+              <span class="kana-toggle-label" aria-hidden="true">ア</span>
+            </button>
           </div>
           <input type="range" id="headerVolume" class="play-volume" min="0" max="1" step="0.05" value="1" aria-label="音量" title="音量">
         </div>

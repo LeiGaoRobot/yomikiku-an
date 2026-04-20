@@ -157,7 +157,36 @@
   idbPruneExpired();
 
   // ----------------- Gemini fetch + memory cache -----------------
-  const audioCache = new Map();   // key -> object URL (session-scoped)
+  // LRU cap on in-memory Blob URLs. Each entry is a decoded WAV object URL
+  // (~50–200 KB worth of GPU/audio-element reference). Long edit sessions
+  // could otherwise accumulate hundreds and leak memory. IDB (30-day TTL)
+  // remains the cold store — evicting from the Map just forces a cheap
+  // IDB re-hydrate on next replay.
+  const AUDIO_CACHE_MAX = 50;
+  const audioCache = (() => {
+    const map = new Map(); // insertion order = LRU order (oldest first)
+    return {
+      has(k) { return map.has(k); },
+      get(k) {
+        if (!map.has(k)) return undefined;
+        const v = map.get(k);
+        map.delete(k); map.set(k, v); // touch → most-recent
+        return v;
+      },
+      set(k, v) {
+        if (map.has(k)) map.delete(k);
+        map.set(k, v);
+        while (map.size > AUDIO_CACHE_MAX) {
+          const oldestKey = map.keys().next().value;
+          const oldestUrl = map.get(oldestKey);
+          map.delete(oldestKey);
+          try { if (oldestUrl) URL.revokeObjectURL(oldestUrl); } catch (_) {}
+        }
+        return v;
+      },
+      get size() { return map.size; },
+    };
+  })();
   const inflight = new Map();
 
   async function geminiSynth(text, voiceName) {
@@ -217,6 +246,22 @@
     return p;
   }
   window.__geminiSynth = geminiSynth;
+
+  // Read-ahead: warm the next segment's audio while the current one plays.
+  // Idempotent (audioCache + inflight Maps dedupe). Silent on error — this
+  // is a speculative fetch; real playback will surface errors if needed.
+  window.__prefetchGeminiTTS = function (text) {
+    try {
+      if (getEngine() !== 'gemini') return;
+      const t = (text == null) ? '' : String(text).trim();
+      if (!t) return;
+      let apiKey = null;
+      try { apiKey = localStorage.getItem(API_KEY_LS); } catch (_) {}
+      if (!apiKey) return; // don't prompt; stay silent for a prefetch
+      const voiceName = resolveVoiceName();
+      geminiSynth(t, voiceName).catch(() => { /* silent */ });
+    } catch (_) { /* silent */ }
+  };
 
   // Wire native voiceschanged → refresh list when in Web Speech mode
   try {
@@ -352,233 +397,17 @@
     return String(raw).replace(/^gemini:/, '');
   }
 
-  window.safeCancelCurrentUtterance = function () {
-    Engine.token++;
-    teardownAudio();
-    window.currentUtterance = null;
-  };
+  // NOTE: 播放状态机由 main-js.js 独占（本地 speakWithPauses/playSegments/
+  // playAllText/stopSpeaking）。tts.js 只提供引擎选择、声音列表、Gemini 合成
+  // 和 speechSynthesis shim（把 utterance 透明路由到 Gemini 或 Web Speech）。
+  // 早期版本在这里镜像定义过 window.stopSpeaking / speakWithPauses / restart*
+  // 等函数，但它们依赖 main-js.js 从未 export 的 PLAY_STATE / setHeaderProgress
+  // / updatePlayButtonStates 等局部符号，调用即抛 TypeError —— 已移除。
 
-  window.stopSpeaking = function () {
-    Engine.token++;
-    teardownAudio();
-    window.isPlaying = false;
-    window.isPaused = false;
-    window.currentUtterance = null;
-    window.currentPlayingText = null;
-    window.clearTokenHighlight && window.clearTokenHighlight();
-    window.clearProgressTimer && window.clearProgressTimer();
-    window.updatePlayButtonStates && window.updatePlayButtonStates();
-  };
-
-  window.restartPlaybackWithNewSettings = function () {
-    if (!window.isPlaying || !window.currentSegments) return;
-    try {
-      const segmentIndex = window.currentSegmentIndex || 0;
-      Engine.token++;
-      teardownAudio();
-      window.clearProgressTimer();
-      window.playSegments(window.currentSegments, segmentIndex, undefined);
-    } catch (e) { console.error(e); }
-  };
-
-  // Gemini 返回整段音频，无法按字符精确定位；从当前段起点重播。
-  window.restartCurrentSegmentAt = function () {
-    if (!window.currentSegments) return;
-    Engine.token++;
-    teardownAudio();
-    window.playSegments(window.currentSegments, window.currentSegmentIndex || 0, undefined);
-  };
-
-  window.speakWithPauses = function (text, rateOverride) {
-    if (window.isPlaying) { window.stopSpeaking(); return; }
-    const stripped = String(text || '')
-      .replace(/（[^）]*）|\([^)]*\)/g, '')
-      .replace(/[\s\u00A0]+/g, ' ')
-      .trim();
-    if (!stripped) return;
-    const segments = (window.splitTextByPunctuation ? window.splitTextByPunctuation(stripped) : [{ text: stripped, pause: 0 }]);
-    window.currentPlayingText = stripped;
-    const charPrefix = [0];
-    for (let i = 0; i < segments.length; i++) charPrefix.push(charPrefix[charPrefix.length - 1] + (segments[i].text || '').length);
-    window.PLAY_STATE = { totalSegments: segments.length, totalChars: charPrefix[charPrefix.length - 1], charPrefix, current: 0 };
-    window.setHeaderProgress(0);
-    window.playSegments(segments, 0, rateOverride);
-  };
-
-  window.playSegments = async function playSegments(segments, index, rateOverride) {
-    if (index >= segments.length) {
-      window.isPlaying = false;
-      window.currentUtterance = null;
-      window.updatePlayButtonStates && window.updatePlayButtonStates();
-      if (window.repeatPlayCheckbox && window.repeatPlayCheckbox.checked && window.currentPlayingText) {
-        setTimeout(() => {
-          if (window.repeatPlayCheckbox && window.repeatPlayCheckbox.checked && window.currentPlayingText && !window.isPlaying) {
-            window.speakWithPauses(window.currentPlayingText, rateOverride);
-          }
-        }, 1000);
-      } else {
-        window.currentPlayingText = null;
-        window.clearTokenHighlight && window.clearTokenHighlight();
-      }
-      return;
-    }
-
-    const segment = segments[index];
-    window.currentSegments = segments;
-    window.currentSegmentIndex = index;
-    window.currentSegmentText = segment.text || '';
-    window.lastBoundaryCharIndex = 0;
-    window.segmentStartTs = 0;
-
-    const token = ++Engine.token;
-    teardownAudio();
-
-    // ---- Engine: Web Speech API fallback ----
-    if (getEngine() === 'web' && window.speechSynthesisNative) {
-      const synth = window.speechSynthesisNative;
-      try { synth.cancel(); } catch (_) {}
-      const utter = new SpeechSynthesisUtterance(segment.text);
-      const rateVal = typeof rateOverride === 'number' ? rateOverride : (window.rate || 1);
-      utter.rate = Math.max(0.5, Math.min(2, Number(rateVal) || 1));
-      utter.volume = getSafeVolume();
-      utter.pitch = 1.0;
-      const pick = resolveVoiceName();
-      const voices = synth.getVoices() || [];
-      const matched = voices.find(v => v.name === pick || v.voiceURI === pick) ||
-                      voices.find(v => (v.lang || '').toLowerCase().startsWith('ja'));
-      if (matched) { utter.voice = matched; utter.lang = matched.lang || 'ja-JP'; }
-      else { utter.lang = 'ja-JP'; }
-      window.currentUtterance = utter;
-      currentWebUtter = utter;
-      utter.onstart = () => {
-        if (token !== Engine.token) return;
-        window.isPlaying = true; window.isPaused = false;
-        window.PLAY_STATE.current = index;
-        window.segmentStartTs = Date.now();
-        window.updatePlayButtonStates && window.updatePlayButtonStates();
-      };
-      utter.onboundary = (event) => {
-        if (token !== Engine.token) return;
-        const segLen = Math.max(1, (segment.text || '').length);
-        const charIdx = typeof event.charIndex === 'number' ? event.charIndex : 0;
-        window.lastBoundaryCharIndex = charIdx;
-        const passed = (window.PLAY_STATE.charPrefix[index] || 0) + Math.min(segLen, charIdx);
-        if (window.PLAY_STATE.totalChars > 0) {
-          window.setHeaderProgress(Math.max(0, Math.min(1, passed / window.PLAY_STATE.totalChars)));
-        }
-      };
-      utter.onend = () => {
-        if (token !== Engine.token) return;
-        const nextIndex = index + 1;
-        const nextChars = window.PLAY_STATE.charPrefix[nextIndex] || window.PLAY_STATE.totalChars;
-        if (window.PLAY_STATE.totalChars > 0) {
-          window.setHeaderProgress(Math.max(0, Math.min(1, nextChars / window.PLAY_STATE.totalChars)));
-        }
-        setTimeout(() => { window.playSegments(segments, nextIndex, rateOverride); }, segment.pause || 0);
-      };
-      utter.onerror = () => {
-        if (token !== Engine.token) return;
-        window.isPlaying = false; window.currentUtterance = null; window.currentPlayingText = null;
-        window.clearTokenHighlight && window.clearTokenHighlight();
-        window.clearProgressTimer && window.clearProgressTimer();
-        window.setHeaderProgress(0);
-        window.updatePlayButtonStates && window.updatePlayButtonStates();
-      };
-      try { synth.speak(utter); } catch (e) { console.error('Web Speech failed:', e); }
-      return;
-    }
-
-    // ---- Engine: Gemini (default) ----
-    const voiceName = resolveVoiceName();
-    let url;
-    try {
-      url = await geminiSynth(segment.text, voiceName);
-    } catch (e) {
-      if (token !== Engine.token) return;
-      console.error('Gemini TTS failed:', e);
-      if (typeof window.showNotification === 'function') {
-        window.showNotification('Gemini TTS: ' + (e && e.message ? e.message : String(e)), 'error');
-      }
-      window.isPlaying = false;
-      window.currentUtterance = null;
-      window.clearTokenHighlight && window.clearTokenHighlight();
-      window.clearProgressTimer && window.clearProgressTimer();
-      window.setHeaderProgress(0);
-      window.updatePlayButtonStates && window.updatePlayButtonStates();
-      return;
-    }
-    if (token !== Engine.token) return;
-
-    const audio = new Audio(url);
-    audio.preload = 'auto';
-    const vol = getSafeVolume();
-    audio.volume = Number.isFinite(vol) ? vol : 1;
-    const rateVal = typeof rateOverride === 'number' ? rateOverride : (window.rate || 1);
-    try { audio.playbackRate = Math.max(0.25, Math.min(4, Number(rateVal) || 1)); } catch (_) {}
-    try { audio.preservesPitch = true; } catch (_) {}
-    Engine.audio = audio;
-    window.currentUtterance = audio;
-
-    audio.onplay = () => {
-      if (token !== Engine.token) return;
-      window.isPlaying = true;
-      window.isPaused = false;
-      window.PLAY_STATE.current = index;
-      window.segmentStartTs = Date.now();
-      window.updatePlayButtonStates && window.updatePlayButtonStates();
-    };
-    audio.onpause = () => {
-      if (token !== Engine.token) return;
-      if (!audio.ended) {
-        window.isPaused = true;
-        window.updatePlayButtonStates && window.updatePlayButtonStates();
-      }
-    };
-    audio.ontimeupdate = () => {
-      if (token !== Engine.token) return;
-      const dur = (audio.duration && isFinite(audio.duration))
-        ? audio.duration
-        : window.estimateSegmentDuration(segment.text, rateVal);
-      const frac = dur > 0 ? Math.max(0, Math.min(1, audio.currentTime / dur)) : 0;
-      const segLen = Math.max(1, (segment.text || '').length);
-      window.lastBoundaryCharIndex = Math.round(frac * segLen);
-      const passedChars = (window.PLAY_STATE.charPrefix[index] || 0) + Math.round(frac * segLen);
-      if (window.PLAY_STATE.totalChars > 0) {
-        window.setHeaderProgress(Math.max(0, Math.min(1, passedChars / window.PLAY_STATE.totalChars)));
-      }
-    };
-    audio.onended = () => {
-      if (token !== Engine.token) return;
-      const nextIndex = index + 1;
-      const nextChars = window.PLAY_STATE.charPrefix[nextIndex] || window.PLAY_STATE.totalChars;
-      if (window.PLAY_STATE.totalChars > 0) {
-        window.setHeaderProgress(Math.max(0, Math.min(1, nextChars / window.PLAY_STATE.totalChars)));
-      }
-      setTimeout(() => { window.playSegments(segments, nextIndex, rateOverride); }, segment.pause || 0);
-    };
-    audio.onerror = () => {
-      if (token !== Engine.token) return;
-      console.warn('Gemini TTS audio element error');
-      window.isPlaying = false;
-      window.currentUtterance = null;
-      window.currentPlayingText = null;
-      window.clearTokenHighlight && window.clearTokenHighlight();
-      window.clearProgressTimer && window.clearProgressTimer();
-      window.setHeaderProgress(0);
-      window.updatePlayButtonStates && window.updatePlayButtonStates();
-    };
-
-    try { await audio.play(); }
-    catch (e) { if (token === Engine.token) console.error('Audio play failed:', e); }
-  };
-
-  window.speak = function (text, rateOverride) { window.speakWithPauses(text, rateOverride); };
 
   // ----------------- speechSynthesis shim (preserving native) -----------------
   // Save native reference for Web Speech fallback engine use.
   try { window.speechSynthesisNative = window.speechSynthesis; } catch (_) {}
-
-  let currentWebUtter = null;
 
   const shim = {
     pause()  {
@@ -598,7 +427,66 @@
       teardownAudio();
       try { if (window.speechSynthesisNative) window.speechSynthesisNative.cancel(); } catch (_) {}
     },
-    speak()  { /* noop: 路由走 window.speak */ },
+    speak(utter) {
+      // Route a classic SpeechSynthesisUtterance:
+      //  - web engine: forward to native speechSynthesis
+      //  - gemini engine: synthesize via Gemini, play via Audio, bridge
+      //    the utterance's onstart/onend/onerror so legacy callers in
+      //    main-js.js (playSegments) keep their state machine intact.
+      if (!utter) return;
+      if (getEngine() === 'web' && window.speechSynthesisNative) {
+        try { window.speechSynthesisNative.speak(utter); }
+        catch (e) { try { utter.onerror && utter.onerror({ error: String(e) }); } catch (_) {} }
+        return;
+      }
+      const text = (utter.text != null) ? String(utter.text) : '';
+      if (!text) return;
+      const rateVal = (typeof utter.rate === 'number' && utter.rate > 0) ? utter.rate : (window.rate || 1);
+      const volVal = (typeof utter.volume === 'number') ? utter.volume : getSafeVolume();
+      const voiceName = resolveVoiceName();
+      Engine.token++;
+      teardownAudio();
+      const token = Engine.token;
+      (async () => {
+        let url;
+        try {
+          url = await geminiSynth(text, voiceName);
+        } catch (e) {
+          if (token !== Engine.token) return;
+          console.error('Gemini TTS failed:', e);
+          if (typeof window.showNotification === 'function') {
+            window.showNotification('Gemini TTS: ' + (e && e.message ? e.message : String(e)), 'error');
+          }
+          try { utter.onerror && utter.onerror({ error: (e && e.message) || String(e) }); } catch (_) {}
+          return;
+        }
+        if (token !== Engine.token) return;
+        const audio = new Audio(url);
+        audio.preload = 'auto';
+        audio.volume = Number.isFinite(volVal) ? Math.max(0, Math.min(1, volVal)) : 1;
+        try { audio.playbackRate = Math.max(0.25, Math.min(4, Number(rateVal) || 1)); } catch (_) {}
+        try { audio.preservesPitch = true; } catch (_) {}
+        Engine.audio = audio;
+        audio.onplay = () => {
+          if (token !== Engine.token) return;
+          try { utter.onstart && utter.onstart({}); } catch (_) {}
+        };
+        audio.onended = () => {
+          if (token !== Engine.token) return;
+          try { utter.onend && utter.onend({}); } catch (_) {}
+        };
+        audio.onerror = () => {
+          if (token !== Engine.token) return;
+          try { utter.onerror && utter.onerror({ error: 'audio_error' }); } catch (_) {}
+        };
+        try { await audio.play(); }
+        catch (e) {
+          if (token !== Engine.token) return;
+          console.error('Audio play failed:', e);
+          try { utter.onerror && utter.onerror({ error: 'autoplay_blocked' }); } catch (_) {}
+        }
+      })();
+    },
     getVoices() { return listVoicesFiltered(); },
     get speaking() {
       if (getEngine() === 'web' && window.speechSynthesisNative) {
@@ -695,35 +583,6 @@
     window.updatePauseButtonIcon(document.getElementById('headerPauseToggle'), window.isPlaying, window.isPaused);
     document.querySelectorAll('.play-line-btn').forEach(btn => window.updateButtonIcon(btn, window.isPlaying));
     document.querySelectorAll('.play-token-btn').forEach(btn => window.updateButtonIcon(btn, window.isPlaying));
-  };
-
-  // ----------------- Line/all playback -----------------
-  window.playLine = window.playLine || function (lineIndex) {
-    if (window.isPlaying) { window.stopSpeaking(); return; }
-    const lineContainer = document.querySelectorAll('.line-container')[lineIndex];
-    if (lineContainer) {
-      const tokens = lineContainer.querySelectorAll('.token-pill');
-      const lineText = Array.from(tokens).map(token => {
-        const tokenDataAttr = token.getAttribute('data-token');
-        if (tokenDataAttr) {
-          try {
-            const tokenData = JSON.parse(tokenDataAttr);
-            let textToSpeak = tokenData.reading || tokenData.surface || '';
-            if (tokenData.surface === 'は' && tokenData.pos && Array.isArray(tokenData.pos) && tokenData.pos[0] === '助詞' && typeof window.isHaParticleReadingEnabled === 'function' && window.isHaParticleReadingEnabled()) {
-              textToSpeak = 'わ';
-            }
-            return textToSpeak;
-          } catch (e) {
-            const kanjiEl = token.querySelector('.token-kanji');
-            return kanjiEl ? kanjiEl.textContent : '';
-          }
-        } else {
-          const kanjiEl = token.querySelector('.token-kanji');
-          return kanjiEl ? kanjiEl.textContent : '';
-        }
-      }).join('');
-      window.speak(lineText);
-    }
   };
 
   // ----------------- Settings panel injection -----------------
@@ -861,44 +720,4 @@
     initSettingsInjection();
   }
 
-  window.playAllText = window.playAllText || function () {
-    if (window.isPlaying) { window.stopSpeaking(); return; }
-    const content = document.getElementById('content');
-    if (content && content.innerHTML.trim()) {
-      const tokens = content.querySelectorAll('.token-pill');
-      if (tokens.length > 0) {
-        const readingText = Array.from(tokens).map(token => {
-          const tokenDataAttr = token.getAttribute('data-token');
-          if (tokenDataAttr) {
-            try {
-              const tokenData = JSON.parse(tokenDataAttr);
-              let textToSpeak = tokenData.reading || tokenData.surface || '';
-              if (tokenData.surface === 'は' && tokenData.pos && Array.isArray(tokenData.pos) && tokenData.pos[0] === '助詞' && typeof window.isHaParticleReadingEnabled === 'function' && window.isHaParticleReadingEnabled()) {
-                textToSpeak = 'わ';
-              }
-              return textToSpeak;
-            } catch (e) {
-              const kanjiEl = token.querySelector('.token-kanji');
-              return kanjiEl ? kanjiEl.textContent : '';
-            }
-          } else {
-            const kanjiEl = token.querySelector('.token-kanji');
-            return kanjiEl ? kanjiEl.textContent : '';
-          }
-        }).join('');
-        if (!/[。！？]/.test(readingText)) {
-          const textInput = document.getElementById('textInput');
-          const text = textInput ? textInput.value.trim() : '';
-          if (text) { window.speak(text); return; }
-        }
-        window.speak(readingText); return;
-      }
-    }
-    const textInput = document.getElementById('textInput');
-    const text = textInput ? textInput.value.trim() : '';
-    if (text) { window.speak(text); }
-    else if (typeof window.showNotification === 'function') {
-      window.showNotification(t('pleaseInputText') || '请先输入文本', 'warning');
-    }
-  };
 })();

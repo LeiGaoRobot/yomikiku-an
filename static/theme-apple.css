@@ -36,7 +36,7 @@
   --ap-shadow-1:        0 1px 2px rgba(0,0,0,.04);
   --ap-shadow-2:        0 4px 16px rgba(0,0,0,.06);
   --ap-shadow-3:        0 12px 40px rgba(0,0,0,.10);
-  --ap-shadow-card:     3px 5px 30px rgba(0,0,0,.18);
+  --ap-shadow-card:     3px 5px 30px 0px rgba(0,0,0,.22);
 
   /* Radii */
   --ap-r-xs:  5px;
@@ -529,91 +529,54 @@ input[type="checkbox"] {
 }
 
 /* ---------------------------------------------------------------
-   9. Token pills (morphological tokens — Apple refinement)
+   9. Token pills — color/typography only. LAYOUT is owned by
+   static/styles.css (.line-container, .token-pill, .token-content,
+   .token-kana/.token-romaji/.token-kanji/.token-pos). Do NOT override
+   display/flex-direction/align-items/padding here — that collides with
+   the default vertical stack and makes the reading rows disappear.
 ---------------------------------------------------------------- */
-.line-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: stretch;
-  margin-bottom: var(--ap-s-3);
-  padding: var(--ap-s-2) 0;
-}
 .token-pill {
   background: var(--ap-surface);
-  border: 1px solid var(--ap-ink-08);
   border-radius: var(--ap-r-md);
-  padding: 6px 10px;
   box-shadow: var(--ap-shadow-1);
   transition: transform var(--ap-dur-fast) var(--ap-ease),
-              box-shadow var(--ap-dur-fast) var(--ap-ease),
-              border-color var(--ap-dur-fast) var(--ap-ease);
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-  cursor: pointer;
+              box-shadow var(--ap-dur-fast) var(--ap-ease);
 }
 .token-pill:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--ap-shadow-2);
-  border-color: var(--ap-ink-24);
 }
 .token-pill.playing {
-  border-color: var(--ap-blue);
+  border-color: var(--ap-blue) !important;
   box-shadow: 0 0 0 3px rgba(0,113,227,.18), var(--ap-shadow-2);
   background: rgba(0,113,227,.04);
 }
+
+/* Typography only — no layout. */
 .token-pill .token-kanji {
   font-family: var(--ap-font-display);
-  font-size: 17px;
   font-weight: 500;
   letter-spacing: -0.012em;
   color: var(--ap-ink);
-  line-height: 1.25;
 }
-.token-pill .token-reading,
+.token-pill .token-kana,
 .token-pill .token-romaji {
   font-family: var(--ap-font-text);
-  font-size: 11px;
   letter-spacing: 0;
   color: var(--ap-ink-48);
-  line-height: 1.3;
-  margin-top: 2px;
 }
 .token-pill .token-pos {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px 5px;
-  border-radius: 4px;
-  margin-top: 4px;
-  background: var(--ap-ink-08);
+  font-family: var(--ap-font-text);
   color: var(--ap-ink-64);
-}
-
-/* POS color tints (restrained Apple palette) */
-.token-pill[data-pos="名詞"]     { --pos-bg: rgba(0,113,227,.08); --pos-fg: #0071e3; }
-.token-pill[data-pos="動詞"]     { --pos-bg: rgba(48,209,88,.10); --pos-fg: #1f8a3e; }
-.token-pill[data-pos="形容詞"]   { --pos-bg: rgba(255,159,10,.12); --pos-fg: #b76e00; }
-.token-pill[data-pos="副詞"]     { --pos-bg: rgba(175,82,222,.10); --pos-fg: #813fc9; }
-.token-pill[data-pos="助詞"]     { --pos-bg: rgba(255,59,48,.08);  --pos-fg: #c2352b; }
-.token-pill[data-pos="感動詞"]   { --pos-bg: rgba(255,214,10,.16); --pos-fg: #8a6b00; }
-.token-pill[data-pos]::before {
-  display: none; /* color applied via .token-pos bg below */
-}
-.token-pill[data-pos] .token-pos {
-  background: var(--pos-bg, var(--ap-ink-08));
-  color: var(--pos-fg, var(--ap-ink-64));
 }
 
 :root[data-theme="dark"] .token-pill {
   background: #1d1d1f;
-  border-color: var(--ap-ink-08);
   box-shadow: none;
 }
-:root[data-theme="dark"] .token-pill:hover { background: #252527; border-color: rgba(255,255,255,.18); }
+:root[data-theme="dark"] .token-pill:hover {
+  background: #252527;
+}
 
 /* ---------------------------------------------------------------
    10. Modals (settings & search)
@@ -1014,6 +977,179 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
 }
 :root[data-theme="dark"] ::selection {
   background: rgba(41,151,255,.28);
+}
+
+/* ---------------------------------------------------------------
+   SW update toast — bottom-right, Apple surface, refresh CTA in blue
+---------------------------------------------------------------- */
+.ap-update-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  gap: var(--ap-s-3);
+  max-width: 420px;
+  padding: 12px 14px 12px 16px;
+  background: var(--ap-surface);
+  border: 1px solid var(--ap-ink-08);
+  border-radius: var(--ap-r-lg);
+  box-shadow: var(--ap-shadow-card);
+  font-family: var(--ap-font-text);
+  color: var(--ap-ink);
+  animation: apSheetIn var(--ap-dur-slow) var(--ap-ease-spring);
+}
+.ap-update-toast__body { flex: 1; min-width: 0; }
+.ap-update-toast__title {
+  font-family: var(--ap-font-display);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--ap-ink);
+  line-height: 1.3;
+}
+.ap-update-toast__desc {
+  font-size: 12px;
+  color: var(--ap-ink-64);
+  letter-spacing: -0.008em;
+  margin-top: 2px;
+}
+.ap-update-toast__refresh {
+  background: var(--ap-blue);
+  color: #fff;
+  border: 1px solid transparent;
+  border-radius: var(--ap-r-sm);
+  padding: 6px 14px;
+  font-family: var(--ap-font-text);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  cursor: pointer;
+  transition: background var(--ap-dur-fast) var(--ap-ease), transform var(--ap-dur-fast) var(--ap-ease);
+  flex: 0 0 auto;
+}
+.ap-update-toast__refresh:hover { background: var(--ap-blue-hover); }
+.ap-update-toast__refresh:active { background: var(--ap-blue-press); transform: scale(0.98); }
+.ap-update-toast__dismiss {
+  background: transparent;
+  border: none;
+  color: var(--ap-ink-48);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  transition: background var(--ap-dur-fast) var(--ap-ease), color var(--ap-dur-fast) var(--ap-ease);
+  flex: 0 0 auto;
+}
+.ap-update-toast__dismiss:hover { background: var(--ap-ink-08); color: var(--ap-ink); }
+:root[data-theme="dark"] .ap-update-toast {
+  background: #1d1d1f;
+  border-color: var(--ap-ink-08);
+}
+@media (max-width: 480px) {
+  .ap-update-toast {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    max-width: none;
+  }
+}
+
+/* Header toggle button for ふりがな mode */
+.ruby-toggle-btn .ruby-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.ruby-toggle-btn .ruby-toggle-label ruby {
+  font-family: var(--ap-font-display), "Hiragino Mincho Pro", "Yu Mincho", serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  ruby-position: over;
+  ruby-align: center;
+}
+.ruby-toggle-btn .ruby-toggle-label rt {
+  font-size: 0.55em;
+  font-weight: 400;
+  line-height: 1;
+  color: inherit;
+}
+.ruby-toggle-btn.is-active {
+  background: rgba(0,113,227,.10) !important;
+  color: var(--ap-blue) !important;
+}
+.ruby-toggle-btn.is-active:hover {
+  background: rgba(0,113,227,.16) !important;
+}
+:root[data-theme="dark"] .ruby-toggle-btn.is-active {
+  background: rgba(41,151,255,.16) !important;
+  color: var(--ap-link-dark) !important;
+}
+
+/* ---------------------------------------------------------------
+   20. ふりがな (ルビ) 模式 — 连续排版 + 汉字上方假名注音
+---------------------------------------------------------------- */
+.line-container.ruby-line {
+  display: block;
+  padding: 6px 0 10px;
+  line-height: 2.2;
+  font-family: var(--ap-font-display), "Hiragino Mincho Pro", "Yu Mincho", serif;
+  font-size: 22px;
+  letter-spacing: 0.02em;
+  color: var(--ap-ink);
+  border-bottom: none;
+  position: relative;
+}
+.line-container.ruby-line .ruby-token {
+  display: inline;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  transition: background var(--ap-dur-fast) var(--ap-ease), color var(--ap-dur-fast) var(--ap-ease);
+  border-radius: 3px;
+}
+.line-container.ruby-line .ruby-token:hover {
+  background: rgba(0,113,227,.08);
+  color: var(--ap-blue);
+}
+.line-container.ruby-line .ruby-token.playing {
+  background: rgba(0,113,227,.14);
+  color: var(--ap-blue);
+}
+.line-container.ruby-line ruby {
+  ruby-align: center;
+  ruby-position: over;
+}
+.line-container.ruby-line rt {
+  font-family: var(--ap-font-text);
+  font-size: 0.42em;
+  font-weight: 400;
+  color: var(--ap-ink-64);
+  letter-spacing: 0;
+  line-height: 1;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.line-container.ruby-line .play-line-btn {
+  vertical-align: middle;
+  margin-left: 8px;
+}
+:root[data-theme="dark"] .line-container.ruby-line rt { color: var(--ap-ink-64); }
+:root[data-theme="dark"] .line-container.ruby-line .ruby-token:hover {
+  background: rgba(41,151,255,.16);
+  color: var(--ap-link-dark);
 }
 
 /* Fine details */

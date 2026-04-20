@@ -453,6 +453,22 @@
     font-size: 11px;
     padding: 3px 6px;
   }
+
+  /* 新加的 ふりがな / 假名切换按钮在 480px 以下保持可触达大小，不被压缩 */
+  #rubyModeToggle,
+  #readingScriptToggle {
+    flex: 0 0 auto;
+    min-width: 32px;
+    width: 32px;
+    height: 32px;
+    padding: 4px !important;
+  }
+  #rubyModeToggle .ruby-toggle-label ruby { font-size: 12px; }
+  #readingScriptToggle .kana-toggle-label { font-size: 13px; font-weight: 600; }
+
+  /* 480px 以下隐藏多余的速度数字（滑杆位置已能表达），给右侧腾空间 */
+  #headerSpeedValue { display: none; }
+  #headerSpeedRange { width: 72px; }
   
   /* 超小屏幕下字体控制栏优化 */
   .input-font-controls {

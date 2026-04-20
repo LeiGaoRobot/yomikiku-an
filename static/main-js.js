@@ -1,4 +1,84 @@
 (() => {
+  // ================================================================
+  // Service Worker update watcher — runs before anything else so a
+  // fresh tab picks up deploys automatically.
+  //   • Registers ./service-worker.js (idempotent).
+  //   • When a new SW reaches 'installed' while one is controlling,
+  //     shows an Apple-style toast with "刷新" button.
+  //   • User clicks → postMessage 'SKIP_WAITING' → waiting worker
+  //     activates → controllerchange → page reloads once (guarded
+  //     via sessionStorage flag to prevent reload loops).
+  //   • Also triggers reg.update() on tab-focus / every 30 min.
+  // ================================================================
+  if ('serviceWorker' in navigator) {
+    const RELOAD_FLAG = 'yomikikuan_sw_reloading';
+    let updateToast = null;
+
+    const showUpdateToast = (waitingWorker) => {
+      if (!waitingWorker || updateToast) return;
+      const el = document.createElement('div');
+      el.className = 'ap-update-toast';
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      el.innerHTML = `
+        <div class="ap-update-toast__body">
+          <div class="ap-update-toast__title">新版本已就绪</div>
+          <div class="ap-update-toast__desc">刷新页面以应用最新改动</div>
+        </div>
+        <button type="button" class="ap-update-toast__refresh">刷新</button>
+        <button type="button" class="ap-update-toast__dismiss" aria-label="暂不">✕</button>
+      `;
+      const mount = () => document.body && document.body.appendChild(el);
+      if (document.body) mount();
+      else document.addEventListener('DOMContentLoaded', mount, { once: true });
+      updateToast = el;
+
+      el.querySelector('.ap-update-toast__refresh').addEventListener('click', () => {
+        try { sessionStorage.setItem(RELOAD_FLAG, '1'); } catch (_) {}
+        try { waitingWorker.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
+        // Fallback: some browsers race controllerchange vs. message delivery
+        setTimeout(() => {
+          if (sessionStorage.getItem(RELOAD_FLAG) === '1') window.location.reload();
+        }, 1200);
+      });
+      el.querySelector('.ap-update-toast__dismiss').addEventListener('click', () => {
+        el.remove();
+        updateToast = null;
+      });
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      try {
+        if (sessionStorage.getItem(RELOAD_FLAG) === '1') {
+          sessionStorage.removeItem(RELOAD_FLAG);
+          window.location.reload();
+        }
+      } catch (_) {}
+    });
+
+    navigator.serviceWorker.register('./service-worker.js').then((reg) => {
+      // Already-waiting worker from a prior session
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        showUpdateToast(reg.waiting);
+      }
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateToast(nw);
+          }
+        });
+      });
+      // Opportunistic update checks
+      const tryUpdate = () => { try { reg.update(); } catch (_) {} };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') tryUpdate();
+      });
+      setInterval(tryUpdate, 30 * 60 * 1000);
+    }).catch((err) => { console.warn('[SW] register failed:', err); });
+  }
+
   // 元素选择器 - 适配新的界面结构
   const $ = (id) => document.getElementById(id);
   const textInput = $('textInput');
@@ -2434,6 +2514,125 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     return (v === 'hiragana' || v === 'katakana') ? v : 'katakana';
   }
 
+  // ふりがな(ルビ)表示模式：连续排版 + 汉字上方标注读み方
+  function getRubyMode() {
+    try { return localStorage.getItem('yomikikuan_ruby_mode') === 'true'; }
+    catch (_) { return false; }
+  }
+  function setRubyMode(on) {
+    try {
+      if (on) localStorage.setItem('yomikikuan_ruby_mode', 'true');
+      else localStorage.removeItem('yomikikuan_ruby_mode');
+    } catch (_) {}
+    try { if (typeof analyzeText === 'function') analyzeText(); } catch (_) {}
+  }
+  window.YomikikuanRuby = {
+    isEnabled: getRubyMode,
+    enable: () => setRubyMode(true),
+    disable: () => setRubyMode(false),
+    toggle: () => setRubyMode(!getRubyMode()),
+  };
+
+  function escapeHtmlForRuby(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // 根据 surface + reading 生成 <ruby> 标记：对 surface 按 kanji/kana 切段，
+  // reading 同步剥离对应假名，使「書き出す(かきだす)」→『書』注「か」+『き』+『出』注「だ」+『す』，
+  // 每个汉字段独立生成 ruby，对齐精度显著高于"仅剥首尾"的简化策略。
+  function buildRubyMarkup(surface, reading, script) {
+    const s = String(surface || '');
+    if (!s) return '';
+    const hasKanjiRe = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
+    if (!hasKanjiRe.test(s)) return escapeHtmlForRuby(s);
+
+    const r = normalizeKanaByScript(String(reading || ''), script);
+    if (!r) return escapeHtmlForRuby(s);
+
+    const kanaChar = /[\u3041-\u3096\u30A1-\u30FA\u30FCー]/;
+    const toHira = (x) => normalizeKanaByScript(x, 'hiragana');
+
+    // 1) 切分 surface 为 segments（连续汉字段 | 连续假名段）
+    const segs = []; // { type: 'kanji'|'kana', text: string }
+    let i = 0;
+    while (i < s.length) {
+      const ch = s[i];
+      const isKana = kanaChar.test(ch);
+      let j = i + 1;
+      while (j < s.length && kanaChar.test(s[j]) === isKana) j++;
+      segs.push({ type: isKana ? 'kana' : 'kanji', text: s.slice(i, j) });
+      i = j;
+    }
+
+    // 2) 基于 reading（转平假名后）贪心匹配 kana 段，把剩下的归给相邻 kanji 段
+    const rHira = toHira(r);
+    // 为每个 kana 段在 reading 里定位（必须按顺序从左到右前进，不得回退）
+    const kanaSpans = []; // [{ segIdx, start, end }] in rHira indices
+    let cursor = 0;
+    for (let k = 0; k < segs.length; k++) {
+      if (segs[k].type !== 'kana') continue;
+      const needle = toHira(segs[k].text);
+      if (!needle) continue;
+      const found = rHira.indexOf(needle, cursor);
+      if (found < 0) {
+        // 对齐失败：回退到"整块剥首尾"的简化策略
+        return fallbackRuby(s, r, script);
+      }
+      kanaSpans.push({ segIdx: k, start: found, end: found + needle.length });
+      cursor = found + needle.length;
+    }
+
+    // 3) 按 segs 顺序组装：每个 kanji 段领取"夹在两侧 kana 段之间"的那段 reading
+    let out = '';
+    let rPos = 0; // 当前 reading 消耗位置（用 rHira 的索引，输出时转回原 script）
+    let spanCur = 0;
+    for (let k = 0; k < segs.length; k++) {
+      const seg = segs[k];
+      if (seg.type === 'kana') {
+        const sp = kanaSpans[spanCur++];
+        // 输出原 surface 的 kana 片段（保留片假名 / 长音等原样）
+        out += escapeHtmlForRuby(seg.text);
+        rPos = sp.end;
+        continue;
+      }
+      // kanji 段：reading 消耗到下一个 kana 段起点（或到末尾）
+      const nextKana = kanaSpans[spanCur];
+      const end = nextKana ? nextKana.start : rHira.length;
+      const chunkHira = rHira.slice(rPos, end);
+      if (!chunkHira) {
+        out += escapeHtmlForRuby(seg.text);
+        continue;
+      }
+      const chunk = normalizeKanaByScript(chunkHira, script);
+      out += `<ruby>${escapeHtmlForRuby(seg.text)}<rt>${escapeHtmlForRuby(chunk)}</rt></ruby>`;
+      rPos = end;
+    }
+    return out;
+  }
+
+  // 回退：按首尾假名剥离（原简化策略），保证异常输入仍能渲染
+  function fallbackRuby(s, r, script) {
+    const lead = (s.match(/^[\u3041-\u3096\u30A1-\u30FA\u30FCー]+/) || [''])[0];
+    const rest = s.slice(lead.length);
+    const tail = (rest.match(/[\u3041-\u3096\u30A1-\u30FA\u30FCー]+$/) || [''])[0];
+    const base = rest.slice(0, rest.length - tail.length);
+    if (!base) return escapeHtmlForRuby(s);
+    const toHira = (x) => normalizeKanaByScript(x, 'hiragana');
+    let rb = toHira(r);
+    const leadH = toHira(lead);
+    const tailH = toHira(tail);
+    if (leadH && rb.startsWith(leadH)) rb = rb.slice(leadH.length);
+    if (tailH && rb.endsWith(tailH)) rb = rb.slice(0, rb.length - tailH.length);
+    if (!rb) return escapeHtmlForRuby(s);
+    const rbOut = normalizeKanaByScript(rb, script);
+    return `${escapeHtmlForRuby(lead)}<ruby>${escapeHtmlForRuby(base)}<rt>${escapeHtmlForRuby(rbOut)}</rt></ruby>${escapeHtmlForRuby(tail)}`;
+  }
+
   // 片假名转平假名
   function toHiragana(text) {
     if (!text) return '';
@@ -3746,6 +3945,12 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       } else {
         window.speechSynthesis.speak(utterance);
       }
+      // Read-ahead: warm the next segment's Gemini audio while current plays.
+      // No-op under Web Speech engine or when the helper isn't loaded.
+      if (typeof window.__prefetchGeminiTTS === 'function') {
+        const nextSeg = segments[index + 1];
+        if (nextSeg && nextSeg.text) window.__prefetchGeminiTTS(nextSeg.text);
+      }
     } catch (e) {
       console.error('Speech synthesis failed:', e);
       isPlaying = false;
@@ -4302,7 +4507,13 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           playText = 'わ';
         }
         const sanitizedPlayText = String(playText || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
-        
+
+        // ふりがな模式：输出内联 <ruby>，无 pill 边框、无词性色、无详情层
+        if (getRubyMode()) {
+          const rubyInner = buildRubyMarkup(surface, reading, getReadingScript());
+          return `<span class="ruby-token" data-pos="${posDisplay}" onclick="playToken('${sanitizedPlayText}', event)" title="${escapeHtmlForRuby(surface)}">${rubyInner}</span>`;
+        }
+
         return `
           <span class="token-pill" onclick="toggleTokenDetails(this)" data-token='${JSON.stringify(tokenForUi).replace(/'/g, "&apos;")}' data-pos="${posDisplay}">
             <div class="token-content">
@@ -4328,8 +4539,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         return '';
       }
       
+      const rubyCls = getRubyMode() ? ' ruby-line' : '';
       return `
-        <div class="line-container" data-line-index="${lineIndex}" tabindex="-1">
+        <div class="line-container${rubyCls}" data-line-index="${lineIndex}" tabindex="-1">
           ${lineHtml}
           <button class="play-line-btn" onclick="playLine(${lineIndex})" title="${t('playThisLine')}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -4933,6 +5145,44 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
   }
 
+  // ふりがな(ルビ) 顶栏开关
+  const rubyModeToggle = document.getElementById('rubyModeToggle');
+  if (rubyModeToggle) {
+    const syncRubyToggle = () => {
+      const on = getRubyMode();
+      rubyModeToggle.setAttribute('aria-pressed', String(on));
+      rubyModeToggle.classList.toggle('is-active', on);
+    };
+    syncRubyToggle();
+    rubyModeToggle.addEventListener('click', () => {
+      setRubyMode(!getRubyMode());
+      syncRubyToggle();
+    });
+  }
+
+  // 假名表記切換（ひらがな / カタカナ）
+  const readingScriptToggle = document.getElementById('readingScriptToggle');
+  if (readingScriptToggle) {
+    const kanaLabel = readingScriptToggle.querySelector('.kana-toggle-label');
+    const syncKanaToggle = () => {
+      const script = getReadingScript();
+      const isHira = script === 'hiragana';
+      if (kanaLabel) kanaLabel.textContent = isHira ? 'あ' : 'ア';
+      readingScriptToggle.setAttribute('aria-pressed', String(isHira));
+      readingScriptToggle.title = isHira
+        ? 'ひらがな表示中 · クリックで カタカナ へ'
+        : 'カタカナ表示中 · クリックで ひらがな へ';
+    };
+    syncKanaToggle();
+    readingScriptToggle.addEventListener('click', () => {
+      const next = getReadingScript() === 'hiragana' ? 'katakana' : 'hiragana';
+      try { localStorage.setItem(LS.readingScript, next); } catch (_) {}
+      syncKanaToggle();
+      try { if (typeof updateReadingScriptDisplay === 'function') updateReadingScriptDisplay(); } catch (_) {}
+      try { if (typeof analyzeText === 'function') analyzeText(); } catch (_) {}
+    });
+  }
+
   if (playAllBtn) playAllBtn.addEventListener('click', playAllText);
   if (headerPlayToggle) {
     headerPlayToggle.addEventListener('click', (e) => {
@@ -4943,6 +5193,23 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       }
     });
   }
+
+  // 空格键全局播放 / 暂停（编辑时不触发）
+  document.addEventListener('keydown', (e) => {
+    if (e.code !== 'Space' && e.key !== ' ') return;
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    const ae = document.activeElement;
+    if (ae) {
+      const tag = (ae.tagName || '').toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (ae.isContentEditable) return;
+      // EasyMDE (CodeMirror) focuses a hidden textarea inside .CodeMirror wrapper
+      if (ae.closest && ae.closest('.CodeMirror')) return;
+    }
+    e.preventDefault();
+    if (isPlaying) stopSpeaking();
+    else playAllText();
+  });
 
   // 暂停/恢复按钮
   if (headerPauseToggle) {
