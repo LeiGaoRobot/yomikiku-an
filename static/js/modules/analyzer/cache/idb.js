@@ -1,5 +1,5 @@
 // yomikikuan-analysis IndexedDB store. 30-day TTL, LRU 500 entries.
-const DB_NAME = 'yomikikuan';
+const DB_NAME = 'yomikikuan-analysis';
 const DB_VERSION = 1;
 const STORE = 'analysis';
 const TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -19,7 +19,7 @@ function openDb() {
       }
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => { dbPromise = null; reject(req.error); };
   });
   return dbPromise;
 }
@@ -78,16 +78,21 @@ export async function put(text, providerId, schemaVersion, result) {
 
 async function evictIfNeeded() {
   const db = await openDb();
+  // Best-effort: any IDB error must resolve (never reject) so put() doesn't hang.
   return new Promise((resolve) => {
     const tx = db.transaction(STORE, 'readwrite');
+    tx.onerror = () => resolve();
     const store = tx.objectStore(STORE);
     const countReq = store.count();
+    countReq.onerror = () => resolve();
     countReq.onsuccess = () => {
       const excess = countReq.result - LRU_CAP;
       if (excess <= 0) return resolve();
       const idx = store.index('lastAccess');
       let removed = 0;
-      idx.openCursor().onsuccess = (ev) => {
+      const cursorReq = idx.openCursor();
+      cursorReq.onerror = () => resolve();
+      cursorReq.onsuccess = (ev) => {
         const cur = ev.target.result;
         if (!cur || removed >= excess) return resolve();
         cur.delete();
