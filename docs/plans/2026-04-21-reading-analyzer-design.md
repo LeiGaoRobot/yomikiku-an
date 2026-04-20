@@ -205,3 +205,9 @@ Project has no test framework and intentionally stays zero-build. Testing remain
 - Kanji JLPT grade table sourcing
 - Prompt template for Gemini `analyzeSentence` — iterate during build
 - Inline card CSS — match existing theme-apple.css tokens
+
+## Deviations from original design
+
+### 2026-04-21 — JLPT kanji data source
+
+Original plan cited `tanakh/jlpt-kanji-list` (CC0). That GitHub repository no longer exists (all five raw-file URLs return 404; repo root 404; no forks or mirrors located under the same name). Switched Task 3 to **`davidluzgouveia/kanji-data`** (MIT license, actively maintained, JSON format with explicit JLPT levels). License-compatibility still permissive; schema equivalent once flattened to the `{ [kanji]: level }` shape the analyzer consumes. No impact on the design itself — only the sourcing step changes.
