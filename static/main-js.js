@@ -6751,7 +6751,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         } catch (_) {}
         return {
           app: 'YomiKiku-an',
-          version: 1,
+          version: 2,
           createdAt: new Date().toISOString(),
           data: { documents, activeId, settings }
         };
@@ -8369,7 +8369,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       } catch (_) {}
       return {
         app: 'YomiKiku-an',
-        version: 1,
+        version: 2,
         createdAt: new Date().toISOString(),
         data: { documents, activeId, settings }
       };
