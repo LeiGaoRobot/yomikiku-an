@@ -133,6 +133,23 @@ const I18N = {
     ,importError: 'インポートに失敗しました。'
     ,importConfirmOverwrite: 'インポートすると現在のデータと設定が上書きされます。続行しますか？'
     ,resume: '再開'
+    // ----- Reading Analyzer (T15+T16+T17) -----
+    ,'analyzer.tab.structure': '構造'
+    ,'analyzer.tab.explanation': '解説'
+    ,'analyzer.tab.keywords': '重要語'
+    ,'analyzer.pin': '固定'
+    ,'analyzer.unpin': '固定解除'
+    ,'analyzer.pin.limit': '固定上限(200)。先に削除してください'
+    ,'analyzer.badge.detail': '読解難度'
+    ,'analyzer.needsKey': 'Gemini キーが必要'
+    ,'analyzer.error.quota': 'レート制限。しばらくお待ちください'
+    ,'analyzer.error.generic': '解析失敗。再試行?'
+    ,'analyzer.settings.preanalyze': '再生中に自動解析'
+    ,'analyzer.loading': '解析中…'
+    ,'analyzer.glossBtn': 'AI 文脈訳'
+    ,'analyzer.vocab.heading': '語彙'
+    ,'analyzer.grammar.heading': '文法'
+    ,'analyzer.translation.heading': '訳'
   },
   en: {
     title: '読み聞く庵',
@@ -262,6 +279,23 @@ const I18N = {
     ,importSuccess: 'Backup imported.'
     ,importError: 'Failed to import backup.'
     ,importConfirmOverwrite: 'Import will overwrite current data and settings. Continue?'
+    // ----- Reading Analyzer (T15+T16+T17) -----
+    ,'analyzer.tab.structure': 'Structure'
+    ,'analyzer.tab.explanation': 'Explanation'
+    ,'analyzer.tab.keywords': 'Keywords'
+    ,'analyzer.pin': 'Pin'
+    ,'analyzer.unpin': 'Unpin'
+    ,'analyzer.pin.limit': 'Pin limit reached (200). Remove some first.'
+    ,'analyzer.badge.detail': 'Reading difficulty'
+    ,'analyzer.needsKey': 'Requires Gemini API key'
+    ,'analyzer.error.quota': 'Rate limit hit, try later'
+    ,'analyzer.error.generic': 'Analysis failed. Retry?'
+    ,'analyzer.settings.preanalyze': 'Auto-analyze during playback'
+    ,'analyzer.loading': 'Analyzing…'
+    ,'analyzer.glossBtn': 'AI contextual gloss'
+    ,'analyzer.vocab.heading': 'Vocabulary'
+    ,'analyzer.grammar.heading': 'Grammar'
+    ,'analyzer.translation.heading': 'Translation'
   },
   zh: {
     title: '読み聞く庵',
@@ -391,6 +425,23 @@ const I18N = {
     ,importSuccess: '导入成功。'
     ,importError: '导入失败：文件格式或内容无效。'
     ,importConfirmOverwrite: '导入将覆盖当前数据与设置，是否继续？'
+    // ----- Reading Analyzer (T15+T16+T17) -----
+    ,'analyzer.tab.structure': '结构'
+    ,'analyzer.tab.explanation': '讲解'
+    ,'analyzer.tab.keywords': '重点词'
+    ,'analyzer.pin': '固化'
+    ,'analyzer.unpin': '取消固化'
+    ,'analyzer.pin.limit': '已达固化上限(200)，请先清理'
+    ,'analyzer.badge.detail': '阅读难度'
+    ,'analyzer.needsKey': '需要 Gemini API Key'
+    ,'analyzer.error.quota': '额度超限，稍后再试'
+    ,'analyzer.error.generic': '解析失败，重试？'
+    ,'analyzer.settings.preanalyze': '播放时自动解析'
+    ,'analyzer.loading': '解析中…'
+    ,'analyzer.glossBtn': 'AI 释义'
+    ,'analyzer.vocab.heading': '词汇'
+    ,'analyzer.grammar.heading': '语法'
+    ,'analyzer.translation.heading': '翻译'
   }
 };
 

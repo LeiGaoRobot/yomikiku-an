@@ -4991,7 +4991,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     
     const modal = document.createElement('div');
     modal.className = 'translation-modal';
-    
+
     modal.innerHTML = `
       <div class="translation-modal-content">
         <div class="translation-modal-header">
@@ -5011,10 +5011,106 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
               </div>
             </div>
           `).join('')}
+          <div class="dict-ai-gloss-footer"></div>
         </div>
       </div>
     `;
-    
+
+    // ---- Reading Analyzer T15: AI contextual gloss button ------------------
+    // Adds a single button into the popup footer that calls
+    // window.YomikikuanAnalyzer.glossWord(word, sentence). Sentence is the
+    // surrounding `.line-container` (the codebase's sentence unit) of the
+    // token whose detail panel triggered this popup. When the panel has been
+    // moved to <body> (see the loadTranslation flow above), we fall back to
+    // its `__ownerTokenElement` reference to recover the source pill.
+    (function attachAiGlossButton() {
+      const footer = modal.querySelector('.dict-ai-gloss-footer');
+      if (!footer) return;
+      const tt = (key, fb) => {
+        try {
+          if (typeof window.YomikikuanGetText === 'function') {
+            const v = window.YomikikuanGetText(key, fb);
+            if (typeof v === 'string' && v.length > 0) return v;
+          }
+        } catch (_) {}
+        return fb;
+      };
+
+      // Resolve the originating .token-pill, then its enclosing sentence.
+      function resolveSentence() {
+        let pill = null;
+        try {
+          if (container && container.closest) pill = container.closest('.token-pill');
+          if (!pill && container) {
+            const detailsHost = container.closest && container.closest('.token-details');
+            if (detailsHost && detailsHost.__ownerTokenElement) pill = detailsHost.__ownerTokenElement;
+          }
+        } catch (_) {}
+        const lineEl = pill && pill.closest ? pill.closest('.line-container') : null;
+        if (!lineEl) return '';
+        // Strip ruby <rt> so furigana doesn't bleed kana into the prompt.
+        const clone = lineEl.cloneNode(true);
+        clone.querySelectorAll('rt, .play-line-btn, .ap-analyzer-card').forEach((n) => n.remove());
+        return (clone.textContent || '').trim();
+      }
+
+      const word = (detailedInfo && detailedInfo.word) ? String(detailedInfo.word) : '';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dict-ai-gloss-btn';
+      btn.textContent = tt('analyzer.glossBtn', 'AI 释义');
+      footer.appendChild(btn);
+
+      const resultBox = document.createElement('div');
+      resultBox.className = 'dict-ai-gloss';
+      resultBox.style.display = 'none';
+      footer.appendChild(resultBox);
+
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const originalLabel = btn.textContent;
+        btn.textContent = tt('analyzer.loading', '解析中...');
+        resultBox.style.display = '';
+        resultBox.classList.remove('dict-ai-gloss--error');
+        resultBox.textContent = '';
+        const sentence = resolveSentence() || word;
+        try {
+          const api = window && window.YomikikuanAnalyzer;
+          if (!api || typeof api.glossWord !== 'function') {
+            throw new Error('NO_PROVIDER');
+          }
+          const result = await api.glossWord(word, sentence);
+          // Provider responses may be a plain string or an object with a gloss field.
+          let text = '';
+          if (typeof result === 'string') text = result;
+          else if (result && typeof result === 'object') {
+            text = result.gloss || result.translation || result.text || '';
+          }
+          if (!text) text = tt('analyzer.error.generic', '解析失败，重试？');
+          resultBox.textContent = text;
+        } catch (err) {
+          const msg = err && (err.message || String(err));
+          let label;
+          if (msg === 'NO_API_KEY' || msg === 'NO_PROVIDER') {
+            label = tt('analyzer.needsKey', 'Requires Gemini API key');
+          } else if (msg === 'RATE_LIMITED') {
+            label = tt('analyzer.error.quota', '额度超限，稍后再试');
+          } else {
+            label = tt('analyzer.error.generic', '解析失败，重试？');
+          }
+          resultBox.classList.add('dict-ai-gloss--error');
+          resultBox.textContent = label;
+          // eslint-disable-next-line no-console
+          console.warn('[analyzer] glossWord failed', err);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
+      });
+    })();
+    // ---- end T15 ------------------------------------------------------------
+
     document.body.appendChild(modal);
     
     // 添加全局监听器，当翻译模态框出现时自动隐藏词汇详情弹窗
