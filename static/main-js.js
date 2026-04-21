@@ -956,6 +956,107 @@ const headerSpeedValue = $('headerSpeedValue');
     content.addEventListener('scroll', repositionActiveDetails, { passive: true });
   }
 
+  // --- Reading Analyzer: sentence-click handler (T12) -----------------------
+  // Mounts the inline analyzer card below a clicked line (the codebase treats
+  // a single source line as the sentence unit — see `.line-container` render
+  // at the tokens block below). Strictly additive: no playback state touched.
+  // Token pills / ruby tokens / play-line button keep their existing click
+  // behaviour because we bail out when the target is inside them.
+  if (content) {
+    // Clone the sentence element and strip any ruby annotations before reading
+    // text, so furigana render mode doesn't leak kana readings (e.g.
+    // `東京とうきょうに住む`) into the LLM prompt.
+    function extractSentenceText(el) {
+      if (!el) return '';
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('rt').forEach((rt) => rt.remove());
+      return (clone.textContent || '').trim();
+    }
+
+    content.addEventListener('click', async (ev) => {
+      // Don't hijack text selection.
+      if (((window.getSelection && window.getSelection()) || { toString: () => '' }).toString().length > 0) return;
+      // Don't re-fire when clicking inside an already-mounted card.
+      if (ev.target.closest && ev.target.closest('.ap-analyzer-card')) return;
+      // Let token-level handlers and the per-line play button win.
+      if (ev.target.closest && ev.target.closest('.token-pill, .ruby-token, .play-line-btn, .token-details')) return;
+      const sentenceEl = ev.target.closest && ev.target.closest('.line-container');
+      if (!sentenceEl || !content.contains(sentenceEl)) return;
+
+      // Toggle: second click on the same line destroys the card.
+      if (sentenceEl.__analyzerCard) {
+        try { sentenceEl.__analyzerCard.destroy(); } catch (_) {}
+        sentenceEl.__analyzerCard = null;
+        return;
+      }
+
+      const text = extractSentenceText(sentenceEl);
+      if (!text) return;
+
+      // Neighbour lines supply context to the LLM prompt. Paragraph/empty-line
+      // boundaries are already filtered out at render time, so siblings that
+      // are `.line-container` are legitimate adjacent sentences.
+      const prevSib = sentenceEl.previousElementSibling;
+      const nextSib = sentenceEl.nextElementSibling;
+      const prev = (prevSib && prevSib.classList && prevSib.classList.contains('line-container'))
+        ? extractSentenceText(prevSib) : '';
+      const next = (nextSib && nextSib.classList && nextSib.classList.contains('line-container'))
+        ? extractSentenceText(nextSib) : '';
+      const context = { prev: prev || undefined, next: next || undefined };
+
+      try {
+        const mod = await import('./static/js/modules/analyzer/ui/inlineCard.js');
+        if (sentenceEl.__analyzerCard) return; // a concurrent click beat us
+        sentenceEl.__analyzerCard = mod.mountCard(sentenceEl, text, context);
+      } catch (err) {
+        console.warn('[analyzer] mountCard failed', err);
+      }
+    });
+  }
+
+  // --- Reading Analyzer: header difficulty badge (T13) ----------------------
+  // The badge lives in the main-header next to editorCharCount (#diffBadgeMount).
+  // `wireDifficultyBadge` lazy-imports the module on first call; subsequent
+  // `refreshDifficultyBadge` calls reuse the instance. The instance's own
+  // `update(doc)` handles both cached-render and background compute, so this
+  // layer stays thin — it only needs to know which doc is active.
+  let diffBadge = null;
+  let diffBadgeWiring = false;
+  function wireDifficultyBadge() {
+    if (diffBadge || diffBadgeWiring) { refreshDifficultyBadge(); return; }
+    const mount = document.getElementById('diffBadgeMount');
+    if (!mount) return;
+    diffBadgeWiring = true;
+    import('./static/js/modules/analyzer/ui/badge.js').then(({ mountBadge }) => {
+      try {
+        diffBadge = mountBadge(mount);
+        refreshDifficultyBadge();
+      } catch (err) {
+        console.warn('[analyzer] mountBadge failed', err);
+      } finally {
+        diffBadgeWiring = false;
+      }
+    }).catch((err) => {
+      diffBadgeWiring = false;
+      console.warn('[analyzer] badge import failed', err);
+    });
+  }
+  function refreshDifficultyBadge() {
+    if (!diffBadge) { wireDifficultyBadge(); return; }
+    try {
+      const dm = window.documentManager;
+      if (!dm || typeof dm.getAllDocuments !== 'function') { diffBadge.update(null); return; }
+      const activeId = typeof dm.getActiveId === 'function' ? dm.getActiveId() : null;
+      const doc = dm.getAllDocuments().find((d) => d && d.id === activeId);
+      diffBadge.update(doc || null);
+    } catch (err) {
+      console.warn('[analyzer] refreshDifficultyBadge failed', err);
+    }
+  }
+  // Expose so the DocumentManager hook inside `loadActiveDocument` can call
+  // it without needing to reach into module-private identifiers.
+  window.__yomikikuanRefreshDifficultyBadge = refreshDifficultyBadge;
+
   function t(key) {
     const dict = I18N[currentLang] || I18N.ja;
     return dict[key] || key;
@@ -3271,6 +3372,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       }
       // 更新顶部工具栏显示
       try { updateEditorToolbar(); } catch (_) {}
+      // Reading Analyzer — refresh header difficulty badge for new active doc (T13)
+      try { if (typeof window.__yomikikuanRefreshDifficultyBadge === 'function') window.__yomikikuanRefreshDifficultyBadge(); } catch (_) {}
     }
 
     // 排序偏好：读取、保存并更新按钮标签
@@ -3377,6 +3480,14 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         });
         
         documentList.appendChild(docItem);
+
+        // Reading Analyzer — decorate list item with difficulty swatch (T14)
+        // Lazy import so the swatch module doesn't block the first list
+        // paint; decorateListItem itself schedules analyzeDocument via
+        // requestIdleCallback when a doc has no cached difficulty yet.
+        import('./static/js/modules/analyzer/ui/listSwatch.js')
+          .then(({ decorateListItem }) => decorateListItem(docItem, doc))
+          .catch((err) => console.warn('[analyzer] listSwatch failed', err));
       });
 
       // 如果没有活动文档且有文档存在，激活第一个
@@ -4188,8 +4299,22 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
   }
 
+  // Tear down any live analyzer cards hanging off .line-container nodes before
+  // we blow away the content subtree, so in-flight requests abort cleanly.
+  function teardownLiveAnalyzerCards() {
+    if (!content) return;
+    content.querySelectorAll('.line-container').forEach((el) => {
+      if (el.__analyzerCard) {
+        try { el.__analyzerCard.destroy(); } catch (_) {}
+        el.__analyzerCard = null;
+      }
+    });
+  }
+
   function showEmptyState() {
     clearReadingLineHighlight();
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = `
       <div style="text-align: center; color: #a0aec0; padding: 2rem;">
         <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.5;" viewBox="0 0 24 24">
@@ -4203,6 +4328,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   function showLoadingState() {
     clearReadingLineHighlight();
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = `
       <div style="text-align: center; color: #667eea; padding: 2rem;">
         <div class="loading" style="margin: 0 auto 1rem;"></div>
@@ -4214,6 +4341,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   function showErrorState(message) {
     clearReadingLineHighlight();
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = `
       <div style="text-align: center; color: #e53e3e; padding: 2rem;">
         <svg style="width: 48px; height: 48px; margin: 0 auto 1rem; opacity: 0.7;" viewBox="0 0 24 24">
@@ -4552,6 +4681,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       `;
     }).filter(html => html).join('');
 
+    // Tear down any live analyzer cards so in-flight requests abort cleanly.
+    teardownLiveAnalyzerCards();
     content.innerHTML = html;
     syncReadingLineAttributes(isReadingMode);
   }
@@ -4860,7 +4991,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     
     const modal = document.createElement('div');
     modal.className = 'translation-modal';
-    
+
     modal.innerHTML = `
       <div class="translation-modal-content">
         <div class="translation-modal-header">
@@ -4880,10 +5011,106 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
               </div>
             </div>
           `).join('')}
+          <div class="dict-ai-gloss-footer"></div>
         </div>
       </div>
     `;
-    
+
+    // ---- Reading Analyzer T15: AI contextual gloss button ------------------
+    // Adds a single button into the popup footer that calls
+    // window.YomikikuanAnalyzer.glossWord(word, sentence). Sentence is the
+    // surrounding `.line-container` (the codebase's sentence unit) of the
+    // token whose detail panel triggered this popup. When the panel has been
+    // moved to <body> (see the loadTranslation flow above), we fall back to
+    // its `__ownerTokenElement` reference to recover the source pill.
+    (function attachAiGlossButton() {
+      const footer = modal.querySelector('.dict-ai-gloss-footer');
+      if (!footer) return;
+      const tt = (key, fb) => {
+        try {
+          if (typeof window.YomikikuanGetText === 'function') {
+            const v = window.YomikikuanGetText(key, fb);
+            if (typeof v === 'string' && v.length > 0) return v;
+          }
+        } catch (_) {}
+        return fb;
+      };
+
+      // Resolve the originating .token-pill, then its enclosing sentence.
+      function resolveSentence() {
+        let pill = null;
+        try {
+          if (container && container.closest) pill = container.closest('.token-pill');
+          if (!pill && container) {
+            const detailsHost = container.closest && container.closest('.token-details');
+            if (detailsHost && detailsHost.__ownerTokenElement) pill = detailsHost.__ownerTokenElement;
+          }
+        } catch (_) {}
+        const lineEl = pill && pill.closest ? pill.closest('.line-container') : null;
+        if (!lineEl) return '';
+        // Strip ruby <rt> so furigana doesn't bleed kana into the prompt.
+        const clone = lineEl.cloneNode(true);
+        clone.querySelectorAll('rt, .play-line-btn, .ap-analyzer-card').forEach((n) => n.remove());
+        return (clone.textContent || '').trim();
+      }
+
+      const word = (detailedInfo && detailedInfo.word) ? String(detailedInfo.word) : '';
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dict-ai-gloss-btn';
+      btn.textContent = tt('analyzer.glossBtn', 'AI 释义');
+      footer.appendChild(btn);
+
+      const resultBox = document.createElement('div');
+      resultBox.className = 'dict-ai-gloss';
+      resultBox.style.display = 'none';
+      footer.appendChild(resultBox);
+
+      btn.addEventListener('click', async () => {
+        if (btn.disabled) return;
+        btn.disabled = true;
+        const originalLabel = btn.textContent;
+        btn.textContent = tt('analyzer.loading', '解析中...');
+        resultBox.style.display = '';
+        resultBox.classList.remove('dict-ai-gloss--error');
+        resultBox.textContent = '';
+        const sentence = resolveSentence() || word;
+        try {
+          const api = window && window.YomikikuanAnalyzer;
+          if (!api || typeof api.glossWord !== 'function') {
+            throw new Error('NO_PROVIDER');
+          }
+          const result = await api.glossWord(word, sentence);
+          // Provider responses may be a plain string or an object with a gloss field.
+          let text = '';
+          if (typeof result === 'string') text = result;
+          else if (result && typeof result === 'object') {
+            text = result.gloss || result.translation || result.text || '';
+          }
+          if (!text) text = tt('analyzer.error.generic', '解析失败，重试？');
+          resultBox.textContent = text;
+        } catch (err) {
+          const msg = err && (err.message || String(err));
+          let label;
+          if (msg === 'NO_API_KEY' || msg === 'NO_PROVIDER') {
+            label = tt('analyzer.needsKey', 'Requires Gemini API key');
+          } else if (msg === 'RATE_LIMITED') {
+            label = tt('analyzer.error.quota', '额度超限，稍后再试');
+          } else {
+            label = tt('analyzer.error.generic', '解析失败，重试？');
+          }
+          resultBox.classList.add('dict-ai-gloss--error');
+          resultBox.textContent = label;
+          // eslint-disable-next-line no-console
+          console.warn('[analyzer] glossWord failed', err);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        }
+      });
+    })();
+    // ---- end T15 ------------------------------------------------------------
+
     document.body.appendChild(modal);
     
     // 添加全局监听器，当翻译模态框出现时自动隐藏词汇详情弹窗
@@ -5874,6 +6101,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // 将 documentManager 暴露到全局作用域，供同步等功能使用
   window.documentManager = documentManager;
 
+  // Reading Analyzer — mount header difficulty badge once documentManager
+  // is global so refresh() can reach it via window.documentManager (T13).
+  try { wireDifficultyBadge(); } catch (_) {}
+
   // 注入示例文章（异步），然后刷新列表以反映"示例文章"文件夹
   try {
     documentManager.seedSampleDocumentsIfNeeded().then(() => {
@@ -6520,7 +6751,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         } catch (_) {}
         return {
           app: 'YomiKiku-an',
-          version: 1,
+          version: 2,
           createdAt: new Date().toISOString(),
           data: { documents, activeId, settings }
         };
@@ -8138,7 +8369,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       } catch (_) {}
       return {
         app: 'YomiKiku-an',
-        version: 1,
+        version: 2,
         createdAt: new Date().toISOString(),
         data: { documents, activeId, settings }
       };

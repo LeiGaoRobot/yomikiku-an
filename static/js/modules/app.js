@@ -19,6 +19,7 @@ import './player/controls.js';
 import './editor/reading-mode.js';
 import './editor/editor-toolbar.js';
 import './analysis/render.js';
+import './analyzer/index.js';
 
 // As modules migrate out of main-js.js, add their imports here.
 // Each module is expected to self-register its window.* bridge on import.

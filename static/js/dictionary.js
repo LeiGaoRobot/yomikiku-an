@@ -464,9 +464,51 @@
     return details.join('');
   }
 
+  // Synchronous frequency proxy for the reading-analyzer. Reads the already-
+  // loaded JMdict dataset via window.dictionaryService (no network, no await).
+  // The chunked JMdict in this repo does NOT carry ichi1/news1/spec1/gai1 tags
+  // — it carries a boolean `common` flag per kanji/kana form instead, which is
+  // the standard jmdict-simplified priority marker. So: `common: true` → 5000,
+  // any other hit → 20000, and null if the dict isn't loaded or lemma absent.
+  //
+  // lookupFreq cache — binary result per lemma (5000 | 20000 | null).
+  // Cleared only on page reload; acceptable because jmdictData is immutable
+  // once loaded. Lazily created on first successful scan so we never pin a
+  // null from the "dict not yet ready" path — which would otherwise poison
+  // the cache for the remainder of the session.
+  let _freqCache = null;
+
+  function lookupFreq(lemma) {
+    if (!lemma || typeof lemma !== 'string') return null;
+    if (_freqCache && _freqCache.has(lemma)) return _freqCache.get(lemma);
+    const svc = typeof window !== 'undefined' ? window.dictionaryService : null;
+    const data = svc && svc.jmdictData;
+    if (!data || !Array.isArray(data.words)) return null; // dict not ready — do NOT populate cache
+    if (!_freqCache) _freqCache = new Map();
+    let result = null;
+    for (const entry of data.words) {
+      const forms = (entry.kanji || []).concat(entry.kana || []);
+      let hit = false;
+      for (const f of forms) {
+        if (f && f.text === lemma) {
+          result = f.common ? 5000 : 20000;
+          hit = true;
+          break;
+        }
+      }
+      if (hit) break;
+    }
+    _freqCache.set(lemma, result);
+    return result;
+  }
+
   window.YomikikuanDict = window.YomikikuanDict || {
     getTechOverride,
     parsePartOfSpeech,
-    formatDetailInfo
+    formatDetailInfo,
+    lookupFreq
   };
+  if (window.YomikikuanDict && typeof window.YomikikuanDict.lookupFreq !== 'function') {
+    window.YomikikuanDict.lookupFreq = lookupFreq;
+  }
 })();

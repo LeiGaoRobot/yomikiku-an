@@ -205,3 +205,17 @@ Project has no test framework and intentionally stays zero-build. Testing remain
 - Kanji JLPT grade table sourcing
 - Prompt template for Gemini `analyzeSentence` — iterate during build
 - Inline card CSS — match existing theme-apple.css tokens
+
+## Deviations from original design
+
+### 2026-04-21 — JLPT kanji data source
+
+Original plan cited `tanakh/jlpt-kanji-list` (CC0). That GitHub repository no longer exists (all five raw-file URLs return 404; repo root 404; no forks or mirrors located under the same name). Switched Task 3 to **`davidluzgouveia/kanji-data`** (MIT license, actively maintained, JSON format with explicit JLPT levels). License-compatibility still permissive; schema equivalent once flattened to the `{ [kanji]: level }` shape the analyzer consumes. No impact on the design itself — only the sourcing step changes.
+
+### 2026-04-21 — Click unit is `.line-container`, not sentence
+
+Design prose refers to "click a sentence → mount card". The existing render pipeline (`static/segmenter.js` line 355; `main-js.js` line 4544) splits input **only on `\n`**, never on `。/!/?`. The DOM produces `.line-container` elements, one per source line. For the typical Japanese practice corpus (one sentence per line) this is identical to sentence-level granularity; for dense paragraph input a line may contain multiple sentences, and the card will analyze the whole line as the "sentence". The LLM prompt still receives `{ text, prev, next }` as three line strings — semantically equivalent context from Gemini's POV. Re-splitting on punctuation inside lines was considered and rejected for MVP because it would require restructuring `.line-container` rendering and the playback highlight path, and those are out of scope under the CLAUDE.md playback-boundary constraint. If line-level ever proves too coarse for user feedback, a follow-up can emit `.sentence` wrappers inside each `.line-container` without disturbing playback.
+
+### 2026-04-21 — Kuromoji accessor
+
+Plan assumed `window.kuromojiReady` promise. Actual global is `window.kuromoji.builder({dicPath}).build(cb)`. Analyzer builds and memoizes its own tokenizer in `static/js/modules/analyzer/local/tokenizer.js`. Acceptable memory cost (~30MB duplicate dict buffers); if constraint pressure later emerges, expose a tokenizer getter on `window.JapaneseSegmenter` and consume from there.

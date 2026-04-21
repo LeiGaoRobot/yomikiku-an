@@ -267,10 +267,10 @@ git commit -m "feat(analyzer): IndexedDB cache store with TTL + LRU"
 
 **Step 1: Create `local/jlpt-kanji.js`**
 
-Source: tanakh/jlpt-kanji-list (CC0). Flatten to `{ [kanji]: 'N5' | 'N4' | ... }`. Given ~2000 entries, inline as a JSON object literal.
+Source: `davidluzgouveia/kanji-data` (MIT, actively maintained). The `tanakh/jlpt-kanji-list` repo originally cited in the design is no longer available — see 2026-04-21 deviation note in the design doc. Flatten to `{ [kanji]: 'N5' | 'N4' | ... }`. Given ~2000 entries, inline as a JSON object literal.
 
 ```js
-// JLPT kanji grade map. Source: jlpt-kanji-list (CC0).
+// JLPT kanji grade map. Source: davidluzgouveia/kanji-data (MIT), fetched 2026-04-21.
 export const KANJI_GRADE = Object.freeze({
   // N5 ~80 kanji (fill during implementation)
   '日': 'N5', '本': 'N5', '人': 'N5', /* ... */

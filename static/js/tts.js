@@ -634,6 +634,19 @@
                  style="width:100%;padding:6px 8px;box-sizing:border-box;border:1px solid var(--border,#ccc);border-radius:6px;background:var(--input-bg,transparent);color:inherit;">
           <div style="font-size:12px;opacity:.65;margin-top:4px;">该提示以 Gemini styled-prompt 的形式注入，不会被朗读。留空则按默认风格。</div>
         </div>
+        <!-- ---- Reading Analyzer T16: autoplay preanalyze toggle (UI only) ----
+             Persists yomikikuan_analyzer_autoplay_preanalyze ('true' | absent).
+             Wiring this to playback requires a sentence-change event we cannot
+             expose without modifying playback code (forbidden by CLAUDE.md
+             "Playback pipeline boundary"). The setting is stored so a future
+             playback hook can read it from localStorage without touching
+             playback today. -->
+        <div class="control-group full-width" id="analyzerPreanalyzeRow">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="analyzerPreanalyzeToggle">
+            <span id="analyzerPreanalyzeLabel" class="label-text">Auto-analyze sentence during playback</span>
+          </label>
+        </div>
       </div>
     `;
     return section;
@@ -690,6 +703,30 @@
         else localStorage.removeItem(STYLE_LS);
       } catch (_) {}
     });
+
+    // ---- Reading Analyzer T16: preanalyze toggle wiring (UI only) ----------
+    // Persists localStorage.yomikikuan_analyzer_autoplay_preanalyze ('true' | absent).
+    // No playback hook here on purpose — see comment in buildGeminiSettingsSection.
+    const PREANALYZE_LS = 'yomikikuan_analyzer_autoplay_preanalyze';
+    const preanalyzeToggle = root.querySelector('#analyzerPreanalyzeToggle');
+    const preanalyzeLabel = root.querySelector('#analyzerPreanalyzeLabel');
+    if (preanalyzeLabel && typeof window.YomikikuanGetText === 'function') {
+      try {
+        const localized = window.YomikikuanGetText('analyzer.settings.preanalyze',
+          'Auto-analyze sentence during playback');
+        if (typeof localized === 'string' && localized.length > 0) preanalyzeLabel.textContent = localized;
+      } catch (_) {}
+    }
+    if (preanalyzeToggle) {
+      try { preanalyzeToggle.checked = localStorage.getItem(PREANALYZE_LS) === 'true'; } catch (_) {}
+      preanalyzeToggle.addEventListener('change', () => {
+        try {
+          if (preanalyzeToggle.checked) localStorage.setItem(PREANALYZE_LS, 'true');
+          else localStorage.removeItem(PREANALYZE_LS);
+        } catch (_) {}
+      });
+    }
+    // ---- end T16 -----------------------------------------------------------
   }
 
   window.__getGeminiStylePrompt = function () {
