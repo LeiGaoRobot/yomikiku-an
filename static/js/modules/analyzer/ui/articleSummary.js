@@ -167,7 +167,8 @@ function render(bodyEl, payload) {
   if (payload.summary) {
     const sec = document.createElement('div');
     sec.className = 'summary-section';
-    sec.innerHTML = `<h4>要約</h4><div class="summary-text"></div>`;
+    sec.innerHTML = `<h4></h4><div class="summary-text"></div>`;
+    sec.querySelector('h4').textContent = tr('panel.summary.section.summary', '要約');
     sec.querySelector('.summary-text').textContent = payload.summary;
     bodyEl.appendChild(sec);
   }
@@ -175,7 +176,8 @@ function render(bodyEl, payload) {
   if (payload.recommendedLevel) {
     const sec = document.createElement('div');
     sec.className = 'summary-section';
-    sec.innerHTML = `<h4>推奨レベル</h4>`;
+    sec.innerHTML = `<h4></h4>`;
+    sec.querySelector('h4').textContent = tr('panel.summary.section.level', '推奨レベル');
     const pill = document.createElement('span');
     pill.className = 'summary-level-pill';
     pill.textContent = payload.recommendedLevel;
@@ -186,7 +188,8 @@ function render(bodyEl, payload) {
   if (Array.isArray(payload.keySentences) && payload.keySentences.length) {
     const sec = document.createElement('div');
     sec.className = 'summary-section';
-    sec.innerHTML = `<h4>キー文</h4>`;
+    sec.innerHTML = `<h4></h4>`;
+    sec.querySelector('h4').textContent = tr('panel.summary.section.key_sentences', 'キー文');
     const ul = document.createElement('ul');
     payload.keySentences.forEach((s) => {
       const li = document.createElement('li');
@@ -200,7 +203,8 @@ function render(bodyEl, payload) {
   if (Array.isArray(payload.learningPoints) && payload.learningPoints.length) {
     const sec = document.createElement('div');
     sec.className = 'summary-section';
-    sec.innerHTML = `<h4>学習ポイント</h4>`;
+    sec.innerHTML = `<h4></h4>`;
+    sec.querySelector('h4').textContent = tr('panel.summary.section.learning_points', '学習ポイント');
     const ul = document.createElement('ul');
     payload.learningPoints.forEach((p) => {
       const li = document.createElement('li');
@@ -223,10 +227,10 @@ export function mountPanel(doc) {
   const root = document.createElement('div');
   root.className = 'summary-overlay';
   root.innerHTML = `
-    <div class="summary-panel" role="dialog" aria-label="文章解析">
+    <div class="summary-panel" role="dialog" aria-label="${tr('panel.summary.title', '文章解析').replace(/"/g, '&quot;')}">
       <header class="summary-panel-header">
-        <h3>📖 文章解析</h3>
-        <button class="summary-close" type="button" aria-label="关闭">×</button>
+        <h3 data-role="title"></h3>
+        <button class="summary-close" type="button" aria-label="${tr('panel.common.close', '关闭').replace(/"/g, '&quot;')}">×</button>
       </header>
       <div class="summary-controls">
         <button class="summary-go" data-role="go" type="button">生成</button>
@@ -237,6 +241,8 @@ export function mountPanel(doc) {
     </div>
   `;
   document.body.appendChild(root);
+  const titleEl = root.querySelector('[data-role="title"]');
+  if (titleEl) titleEl.textContent = tr('panel.summary.title', '📖 文章解析');
   const a11y = mountModalA11y(root.querySelector('.summary-panel'), {
     initialFocus: root.querySelector('.summary-close'),
   });

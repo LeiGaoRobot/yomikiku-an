@@ -49,30 +49,32 @@ function injectCss() {
   if (window[CSS_INJECTED]) return;
   window[CSS_INJECTED] = true;
   const css = `
+    /* Bilingual pair — source line (.line-container) + translation row
+       below it. Lighter than before: ditched the heavy background tint,
+       kept the left border as a vertical tie between the pair, and use
+       em-based sizing so the translation scales with the source font. */
     .bilingual-row {
-      margin-top: 4px;
-      margin-bottom: 12px;
-      padding: 6px 10px;
-      border-left: 3px solid var(--accent, #0071e3);
-      background: rgba(0,113,227,0.04);
-      color: var(--muted, #555);
+      margin-top: 2px;
+      margin-bottom: 10px;
+      padding: 2px 0 2px 10px;
+      border-left: 2px solid var(--accent, #0071e3);
+      color: var(--muted, #666);
       font-size: 0.85em;
-      line-height: 1.6;
-      border-radius: 4px;
+      line-height: 1.55;
       white-space: pre-wrap;
+      opacity: 0.92;
     }
-    .bilingual-row[data-state="loading"] { opacity: 0.55; font-style: italic; }
+    .bilingual-row[data-state="loading"] { opacity: 0.5; font-style: italic; }
     .bilingual-row[data-state="error"] {
       border-left-color: #ff3b30;
       color: #ff3b30;
-      background: rgba(255,59,48,0.04);
+      opacity: 1;
     }
     :root[data-theme="dark"] .bilingual-row {
-      background: rgba(10,132,255,0.08);
-      color: rgba(255,255,255,0.72);
+      color: rgba(255,255,255,0.68);
+      border-left-color: rgba(10,132,255,0.8);
     }
     :root[data-theme="dark"] .bilingual-row[data-state="error"] {
-      background: rgba(255,69,58,0.08);
       color: #ff6961;
     }
     #bilingualToggle[aria-pressed="true"] { color: var(--accent, #0071e3); }

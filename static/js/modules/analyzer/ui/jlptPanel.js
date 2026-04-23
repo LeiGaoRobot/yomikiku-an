@@ -603,10 +603,10 @@ export function mountPanel(doc) {
   const root = document.createElement('div');
   root.className = 'jlpt-overlay';
   root.innerHTML = `
-    <div class="jlpt-panel" role="dialog" aria-label="JLPT 听力题生成">
+    <div class="jlpt-panel" role="dialog" aria-label="${tr('panel.jlpt.title', 'JLPT 听力题生成').replace(/"/g, '&quot;')}">
       <header class="jlpt-panel-header">
-        <h3>JLPT 听力题生成</h3>
-        <button class="jlpt-close" type="button" aria-label="关闭">×</button>
+        <h3 data-role="title"></h3>
+        <button class="jlpt-close" type="button" aria-label="${tr('panel.common.close', '关闭').replace(/"/g, '&quot;')}">×</button>
       </header>
       <div class="jlpt-controls">
         <label>模式
@@ -640,6 +640,8 @@ export function mountPanel(doc) {
     </div>
   `;
   document.body.appendChild(root);
+  const titleEl = root.querySelector('[data-role="title"]');
+  if (titleEl) titleEl.textContent = tr('panel.jlpt.title', 'JLPT 听力题生成');
   const a11y = mountModalA11y(root.querySelector('.jlpt-panel'), {
     initialFocus: root.querySelector('.jlpt-close'),
   });

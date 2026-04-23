@@ -198,32 +198,46 @@ export async function mountPanel() {
   const root = document.createElement('div');
   root.className = 'vocab-overlay';
   root.innerHTML = `
-    <div class="vocab-panel" role="dialog" aria-label="词汇本 / 错题本">
+    <div class="vocab-panel" role="dialog" aria-label="${tr('panel.vocab.title', '词汇本 / 错题本').replace(/"/g, '&quot;')}">
       <header class="vocab-panel-header">
-        <h3>🧠 词汇本 / 错题本</h3>
-        <button class="vocab-close" type="button" aria-label="关闭">×</button>
+        <h3 data-role="title"></h3>
+        <button class="vocab-close" type="button" aria-label="${tr('panel.common.close', '关闭').replace(/"/g, '&quot;')}">×</button>
       </header>
       <div class="vocab-tabs" role="tablist">
-        <button class="vocab-tab" data-tab="vocab" role="tab" aria-selected="true">词汇本</button>
-        <button class="vocab-tab" data-tab="mistakes" role="tab" aria-selected="false">错题本</button>
+        <button class="vocab-tab" data-tab="vocab" role="tab" aria-selected="true"></button>
+        <button class="vocab-tab" data-tab="mistakes" role="tab" aria-selected="false"></button>
       </div>
       <div class="vocab-filter">
-        <button type="button" data-bucket="all" aria-pressed="true">全部</button>
-        <button type="button" data-bucket="due" aria-pressed="false">到期</button>
-        <button type="button" data-bucket="learning" aria-pressed="false">学习中</button>
-        <button type="button" data-bucket="mastered" aria-pressed="false">已掌握</button>
-        <select data-role="sort" aria-label="排序" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border,rgba(0,0,0,.15));background:var(--elevated,#f7f7f7);color:inherit;font-size:12px;">
-          <option value="due">按到期</option>
-          <option value="created">按新增</option>
-          <option value="random">随机</option>
+        <button type="button" data-bucket="all" aria-pressed="true"></button>
+        <button type="button" data-bucket="due" aria-pressed="false"></button>
+        <button type="button" data-bucket="learning" aria-pressed="false"></button>
+        <button type="button" data-bucket="mastered" aria-pressed="false"></button>
+        <select data-role="sort" aria-label="${tr('panel.vocab.sort.due', '排序').replace(/"/g, '&quot;')}" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border,rgba(0,0,0,.15));background:var(--elevated,#f7f7f7);color:inherit;font-size:12px;">
+          <option value="due"></option>
+          <option value="created"></option>
+          <option value="random"></option>
         </select>
-        <button type="button" data-role="review" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;">开始复习</button>
+        <button type="button" data-role="review" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;"></button>
         <span class="count" data-role="count"></span>
       </div>
       <div class="vocab-list" data-role="list"></div>
     </div>
   `;
   document.body.appendChild(root);
+  // Populate i18n text nodes deterministically (template had empty labels
+  // so screen readers/users see the correct language immediately).
+  const setText = (sel, key, fb) => { const el = root.querySelector(sel); if (el) el.textContent = tr(key, fb); };
+  setText('[data-role="title"]',              'panel.vocab.title',                '🧠 词汇本 / 错题本');
+  setText('.vocab-tab[data-tab="vocab"]',     'panel.vocab.tab.vocab',            '词汇本');
+  setText('.vocab-tab[data-tab="mistakes"]',  'panel.vocab.tab.mistakes',         '错题本');
+  setText('[data-bucket="all"]',              'panel.vocab.filter.all',           '全部');
+  setText('[data-bucket="due"]',              'panel.vocab.filter.due',           '到期');
+  setText('[data-bucket="learning"]',         'panel.vocab.filter.learning',      '学习中');
+  setText('[data-bucket="mastered"]',         'panel.vocab.filter.mastered',      '已掌握');
+  setText('[data-role="sort"] option[value="due"]',     'panel.vocab.sort.due',     '按到期');
+  setText('[data-role="sort"] option[value="created"]', 'panel.vocab.sort.created', '按新增');
+  setText('[data-role="sort"] option[value="random"]',  'panel.vocab.sort.random',  '随机');
+  setText('[data-role="review"]',             'panel.vocab.btn.start_review',     '开始复习');
   const a11y = mountModalA11y(root.querySelector('.vocab-panel'), {
     initialFocus: root.querySelector('.vocab-close'),
   });
