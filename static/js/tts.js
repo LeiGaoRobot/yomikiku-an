@@ -49,9 +49,28 @@
     return k || null;
   }
   window.setGeminiApiKey = function (key) {
+    let finalKey = '';
     try {
-      if (key) localStorage.setItem(API_KEY_LS, String(key).trim());
-      else localStorage.removeItem(API_KEY_LS);
+      if (key) {
+        finalKey = String(key).trim();
+        localStorage.setItem(API_KEY_LS, finalKey);
+      } else {
+        localStorage.removeItem(API_KEY_LS);
+      }
+    } catch (_) {}
+    // Keep the unified AI-button key-status signal in sync with actual key
+    // presence — otherwise the red dot (styles.css `:root.no-gemini-key`)
+    // only updates on reload. Mask the key exactly like the config.js sync
+    // IIFE in index.html so __yomikikuanKeyStatus stays consistent.
+    try {
+      const hasKey = !!finalKey;
+      const masked = hasKey ? `${finalKey.slice(0, 4)}…${finalKey.slice(-4)}` : '';
+      window.__yomikikuanKeyStatus = { hasKey, maskedKey: masked };
+      const root = document.documentElement;
+      if (root) {
+        if (hasKey) root.classList.remove('no-gemini-key');
+        else root.classList.add('no-gemini-key');
+      }
     } catch (_) {}
   };
   window.getGeminiApiKey = function () {

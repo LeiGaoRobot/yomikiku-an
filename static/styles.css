@@ -2092,9 +2092,19 @@ select, input[type="range"] {
   color: var(--accent, var(--muted));
 }
 
-/* #14 — Gemini API key health indicator: red dot on #jlptBtn when no key */
-:root.no-gemini-key #jlptBtn { position: relative; }
-:root.no-gemini-key #jlptBtn::after {
+/* Gemini API key health indicator: red dot on every AI-driven header button
+   when no key is configured. Unified across JLPT, article summary, bilingual
+   toggle, and vocab book — each of these surfaces requires the key to do its
+   job, so the signal should be identical. The `no-gemini-key` class on <html>
+   is set/cleared by the config.js sync IIFE in index.html. */
+:root.no-gemini-key #jlptBtn,
+:root.no-gemini-key #articleSummaryBtn,
+:root.no-gemini-key #bilingualToggle,
+:root.no-gemini-key #vocabBtn { position: relative; }
+:root.no-gemini-key #jlptBtn::after,
+:root.no-gemini-key #articleSummaryBtn::after,
+:root.no-gemini-key #bilingualToggle::after,
+:root.no-gemini-key #vocabBtn::after {
   content: '';
   position: absolute;
   top: 2px; right: 2px;
