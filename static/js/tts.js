@@ -280,6 +280,16 @@
   // Read-ahead: warm the next segment's audio while the current one plays.
   // Idempotent (audioCache + inflight Maps dedupe). Silent on error — this
   // is a speculative fetch; real playback will surface errors if needed.
+  //
+  // Guardrails to avoid wasting Gemini quota on rapid skips:
+  //   1. 150ms debounce — if the next call arrives within the grace window
+  //      (user skips again), the pending prefetch is cancelled before it
+  //      fires a network request. Typical skip is faster than 150ms.
+  //   2. Cache-hit short-circuit — if audioCache already has the key, skip
+  //      the timer AND the network entirely.
+  //   3. Inflight reuse — geminiSynth already dedupes via `inflight`, so a
+  //      new prefetch for the same text becomes a no-op naturally.
+  let prefetchTimer = null;
   window.__prefetchGeminiTTS = function (text) {
     try {
       if (getEngine() !== 'gemini') return;
@@ -289,7 +299,20 @@
       try { apiKey = localStorage.getItem(API_KEY_LS); } catch (_) {}
       if (!apiKey) return; // don't prompt; stay silent for a prefetch
       const voiceName = resolveVoiceName();
-      geminiSynth(t, voiceName).catch(() => { /* silent */ });
+      const key = `${voiceName}|${t}`;
+
+      // Cancel any pending prefetch that hasn't yet fired.
+      if (prefetchTimer) { clearTimeout(prefetchTimer); prefetchTimer = null; }
+
+      // Already cached (in-memory) — skip the timer and network entirely.
+      if (audioCache.has(key)) return;
+
+      prefetchTimer = setTimeout(() => {
+        prefetchTimer = null;
+        // Re-check cache at fire time in case a real play landed meanwhile.
+        if (audioCache.has(key)) return;
+        geminiSynth(t, voiceName).catch(() => { /* silent */ });
+      }, 150);
     } catch (_) { /* silent */ }
   };
 
