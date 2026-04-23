@@ -1,0 +1,205 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>srs / store test</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; max-width: 880px; margin: 0 auto; }
+    h1 { margin-top: 0; }
+    pre { background: #f4f4f5; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
+    .pass { color: #0a7f3f; font-weight: 600; }
+    .fail { color: #c62828; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>srs/store.js — assertions</h1>
+  <p>Loads the module, runs pure-function tests (sm2Next, bucketOf) + IDB round-trip tests against the live <code>yomikikuan-srs</code> database, prints PASS/FAIL. Test rows use <code>v_test_*</code> / <code>m_test_*</code> ids and are deleted in <code>finally</code>.</p>
+  <pre id="out">booting…</pre>
+
+  <script type="module">
+    import {
+      sm2Next, bucketOf,
+      addVocab, addMistake, listVocab, listMistakes,
+      gradeVocab, gradeMistake, removeVocab, removeMistake,
+      dumpAll, restoreAll, stats,
+    } from './store.js';
+
+    const out = document.getElementById('out');
+    out.textContent = '';
+    const log = (line) => { out.textContent += line + '\n'; };
+    const append = (html) => { out.insertAdjacentHTML('beforeend', html + '\n'); };
+
+    let passed = 0, failed = 0;
+    function check(name, cond, details) {
+      if (cond) {
+        append(`<span class="pass">PASS</span> ${name}`);
+        passed++;
+      } else {
+        append(`<span class="fail">FAIL</span> ${name}`);
+        if (details) log('  details: ' + details);
+        failed++;
+      }
+    }
+
+    const cleanup = { vocab: new Set(), mistakes: new Set() };
+
+    try {
+      // ------------- Pure-function tests: sm2Next -------------
+      log('--- sm2Next ---');
+
+      let s = sm2Next({ easiness: 2.5, interval: 0, repetitions: 0 }, 5);
+      check('sm2Next fresh+q5 → repetitions=1', s.repetitions === 1, JSON.stringify(s));
+      check('sm2Next fresh+q5 → interval=1',    s.interval === 1,    JSON.stringify(s));
+      check('sm2Next fresh+q5 → easiness up',   s.easiness > 2.5,    JSON.stringify(s));
+      check('sm2Next fresh+q5 → nextDueAt > now', s.nextDueAt > Date.now() - 1000, JSON.stringify(s));
+
+      s = sm2Next(s, 5);
+      check('sm2Next 2nd success → repetitions=2', s.repetitions === 2, JSON.stringify(s));
+      check('sm2Next 2nd success → interval=6',    s.interval === 6,    JSON.stringify(s));
+
+      const prevInterval = s.interval;
+      const prevEase = s.easiness;
+      s = sm2Next(s, 5);
+      const expectedIv = Math.round(prevInterval * prevEase);
+      check('sm2Next 3rd success → interval ≈ prev*easiness',
+        Math.abs(s.interval - expectedIv) <= 1,
+        `got ${s.interval} expected ${expectedIv}`);
+
+      s = sm2Next({ easiness: 2.9, interval: 30, repetitions: 5 }, 1);
+      check('sm2Next fail (q1) → repetitions=0', s.repetitions === 0, JSON.stringify(s));
+      check('sm2Next fail (q1) → interval=1',    s.interval === 1,    JSON.stringify(s));
+
+      let badItem = { easiness: 1.3, interval: 30, repetitions: 5 };
+      badItem = sm2Next(badItem, 0);
+      badItem = sm2Next(badItem, 0);
+      badItem = sm2Next(badItem, 0);
+      check('sm2Next easiness floor = 1.3', badItem.easiness >= 1.3 - 1e-9, `ease=${badItem.easiness}`);
+
+      const cA = sm2Next({ easiness: 2.5, interval: 0, repetitions: 0 }, 99);
+      const cB = sm2Next({ easiness: 2.5, interval: 0, repetitions: 0 }, 5);
+      check('sm2Next clamps q>5 to q=5',
+        cA.interval === cB.interval && cA.repetitions === cB.repetitions,
+        `q=99 → ${JSON.stringify(cA)}  vs q=5 → ${JSON.stringify(cB)}`);
+
+      // ------------- bucketOf -------------
+      log('');
+      log('--- bucketOf ---');
+      const nowFixed = 1_000_000_000_000;
+      check('bucketOf due (nextDueAt ≤ now)',
+        bucketOf({ interval: 0, nextDueAt: nowFixed - 1 }, nowFixed) === 'due');
+      check('bucketOf learning (interval<21, future)',
+        bucketOf({ interval: 3, nextDueAt: nowFixed + 1000 }, nowFixed) === 'learning');
+      check('bucketOf mastered (interval≥21, future)',
+        bucketOf({ interval: 30, nextDueAt: nowFixed + 1000 }, nowFixed) === 'mastered');
+
+      // ------------- IDB round-trip: vocab -------------
+      log('');
+      log('--- IDB vocab ---');
+      const vid = await addVocab({
+        id: 'v_test_rt_' + Date.now(),
+        word: 'テスト',
+        reading: 'テスト',
+        gloss: 'test synthetic — delete me if leaked',
+      });
+      cleanup.vocab.add(vid);
+      check('addVocab returns id', typeof vid === 'string' && vid.length > 0, vid);
+
+      const vList = await listVocab({ bucket: 'all' });
+      check('listVocab contains added entry',
+        Array.isArray(vList) && vList.some((e) => e.id === vid),
+        `count=${vList.length}`);
+
+      await gradeVocab(vid, 5);
+      const vAfter = (await listVocab({ bucket: 'all' })).find((e) => e.id === vid);
+      check('gradeVocab moves repetitions to 1 + interval=1',
+        vAfter && vAfter.repetitions === 1 && vAfter.interval === 1,
+        JSON.stringify(vAfter));
+
+      // ------------- IDB round-trip: mistakes -------------
+      log('');
+      log('--- IDB mistakes ---');
+      const mid = await addMistake({
+        id: 'm_test_rt_' + Date.now(),
+        stem: 'test stem synthetic',
+        options: ['A', 'B', 'C', 'D'],
+        correctIndex: 2,
+        userAnswerIndex: 0,
+        explanation: 'synthetic',
+        level: 'N3',
+      });
+      cleanup.mistakes.add(mid);
+      check('addMistake returns id', typeof mid === 'string' && mid.length > 0, mid);
+
+      const mList = await listMistakes({ bucket: 'all' });
+      check('listMistakes contains added entry',
+        Array.isArray(mList) && mList.some((e) => e.id === mid),
+        `count=${mList.length}`);
+
+      // ------------- dumpAll / restoreAll (merge-by-id) -------------
+      log('');
+      log('--- dumpAll / restoreAll (merge-by-id) ---');
+      const snap = await dumpAll();
+      check('dumpAll returns { vocab, mistakes } arrays',
+        snap && Array.isArray(snap.vocab) && Array.isArray(snap.mistakes),
+        'keys=' + Object.keys(snap || {}).join(','));
+
+      const resSame = await restoreAll(snap);
+      check('restoreAll no-op on identical snapshot',
+        resSame.vocabAdded === 0 && resSame.mistakesAdded === 0,
+        JSON.stringify(resSame));
+
+      const newVid = 'v_test_restore_' + Date.now();
+      const newMid = 'm_test_restore_' + Date.now();
+      const synthPayload = {
+        vocab: [{
+          id: newVid, word: '合成', reading: 'ごうせい', gloss: 'synthetic',
+          source: null, createdAt: Date.now(), lastReviewedAt: 0,
+          easiness: 2.5, interval: 0, repetitions: 0, nextDueAt: Date.now(),
+        }],
+        mistakes: [{
+          id: newMid, stem: 'synth stem', options: ['A','B','C','D'],
+          correctIndex: 1, userAnswerIndex: 3,
+          explanation: 'synth', citation: '', level: 'N3', source: null,
+          createdAt: Date.now(), lastReviewedAt: 0,
+          easiness: 2.5, interval: 0, repetitions: 0, nextDueAt: Date.now(),
+        }],
+      };
+      cleanup.vocab.add(newVid);
+      cleanup.mistakes.add(newMid);
+      const resAdd = await restoreAll(synthPayload);
+      check('restoreAll adds new-id rows',
+        resAdd.vocabAdded === 1 && resAdd.mistakesAdded === 1,
+        JSON.stringify(resAdd));
+
+      const resAgain = await restoreAll(synthPayload);
+      check('restoreAll idempotent on re-run',
+        resAgain.vocabAdded === 0 && resAgain.mistakesAdded === 0,
+        JSON.stringify(resAgain));
+
+      // ------------- stats -------------
+      log('');
+      log('--- stats ---');
+      const st = await stats();
+      check('stats shape { vocab, mistakes } with {due,learning,mastered,total}',
+        st && st.vocab && typeof st.vocab.total === 'number'
+        && st.mistakes && typeof st.mistakes.total === 'number',
+        JSON.stringify(st));
+    } catch (err) {
+      append(`<span class="fail">FAIL (threw)</span>: ${err && (err.stack || err.message || String(err))}`);
+      failed++;
+    } finally {
+      log('');
+      log('--- cleanup ---');
+      for (const id of cleanup.vocab)    { try { await removeVocab(id); } catch (_) {} }
+      for (const id of cleanup.mistakes) { try { await removeMistake(id); } catch (_) {} }
+      log(`cleaned ${cleanup.vocab.size} vocab + ${cleanup.mistakes.size} mistake test rows`);
+
+      log('');
+      append(`Summary: <span class="pass">${passed} passed</span>, <span class="${failed ? 'fail' : 'pass'}">${failed} failed</span>.`);
+      append(failed === 0
+        ? '<span class="pass">ALL PASS</span>'
+        : '<span class="fail">SOME FAILED</span>');
+    }
+  </script>
+</body>
+</html>
