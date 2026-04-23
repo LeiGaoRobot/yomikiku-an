@@ -19,6 +19,16 @@ function apiKey() {
   catch (_) { return ''; }
 }
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+
 function injectCss() {
   if (window[CSS_INJECTED]) return;
   window[CSS_INJECTED] = true;
@@ -151,7 +161,7 @@ function parseJson(raw) {
 
 function render(bodyEl, payload) {
   bodyEl.innerHTML = '';
-  if (!payload) { bodyEl.textContent = '无结果'; return; }
+  if (!payload) { bodyEl.textContent = tr('panel.summary.empty', '无结果'); return; }
 
   if (payload.summary) {
     const sec = document.createElement('div');
@@ -207,7 +217,7 @@ export function mountPanel(doc) {
   injectCss();
   if (activePanel) return activePanel;
   const article = Array.isArray(doc?.content) ? doc.content.join('\n') : String(doc?.content || '');
-  if (!article.trim()) { alert('当前文档为空'); return null; }
+  if (!article.trim()) { alert(tr('panel.error.doc_empty', '当前文档为空')); return null; }
 
   const root = document.createElement('div');
   root.className = 'summary-overlay';
@@ -254,18 +264,18 @@ export function mountPanel(doc) {
         const hit = await cache.get(ckey, PROVIDER_ID, SCHEMA_VERSION);
         if (hit && (hit.summary || hit.keySentences)) {
           render(body, hit);
-          status.textContent = '已从缓存加载 — 点"重新生成"可重新调用 Gemini';
+          status.textContent = tr('panel.cache.loaded', '已从缓存加载 — 点"重新生成"可重新调用 Gemini');
           go.disabled = false; regen.disabled = false;
           return;
         }
       } catch (_) {}
     }
     if (!apiKey()) {
-      status.textContent = '请先在设置中填写 Gemini API key';
+      status.textContent = tr('panel.error.no_key', '请先在设置中填写 Gemini API key');
       go.disabled = false; regen.disabled = false;
       return;
     }
-    status.textContent = bypassCache ? '忽略缓存，重新生成中…' : '生成中…';
+    status.textContent = bypassCache ? tr('panel.regenerating', '忽略缓存，重新生成中…') : tr('panel.generating', '生成中…');
     try { controller && controller.abort(); } catch (_) {}
     controller = new AbortController();
     try {
@@ -273,16 +283,16 @@ export function mountPanel(doc) {
       const payload = parseJson(raw);
       if (!payload || (!payload.summary && !Array.isArray(payload.keySentences))) throw new Error('BAD_SHAPE');
       render(body, payload);
-      status.textContent = '已生成';
+      status.textContent = tr('panel.generated', '已生成');
       try { await cache.put(ckey, PROVIDER_ID, SCHEMA_VERSION, payload); } catch (_) {}
     } catch (err) {
       console.warn('[article-summary] failed', err);
       const msg = err && err.message ? err.message : String(err);
-      if (msg === 'NO_API_KEY') status.textContent = '请先在设置中填写 Gemini API key';
-      else if (msg === 'RATE_LIMITED') status.textContent = 'API 额度超限，稍后再试';
-      else if (msg === 'BAD_SHAPE' || msg === 'EMPTY_RESPONSE') status.textContent = '模型返回格式异常，请重试';
-      else if (err && err.name === 'AbortError') status.textContent = '已取消';
-      else status.textContent = `生成失败：${msg}`;
+      if (msg === 'NO_API_KEY') status.textContent = tr('panel.error.no_key', '请先在设置中填写 Gemini API key');
+      else if (msg === 'RATE_LIMITED') status.textContent = tr('panel.error.rate_limited', 'API 额度超限，稍后再试');
+      else if (msg === 'BAD_SHAPE' || msg === 'EMPTY_RESPONSE') status.textContent = tr('panel.error.bad_shape', '模型返回格式异常，请重试');
+      else if (err && err.name === 'AbortError') status.textContent = tr('panel.aborted', '已取消');
+      else status.textContent = (window.YomikikuanFormat ? window.YomikikuanFormat('panel.error.generic_fmt', { msg }) : `生成失败：${msg}`);
     } finally {
       go.disabled = false; regen.disabled = false;
     }
@@ -305,10 +315,10 @@ export function unmountPanel() {
 if (typeof window !== 'undefined') {
   window.__yomikikuanOpenArticleSummary = function () {
     const dm = window.documentManager;
-    if (!dm || typeof dm.getAllDocuments !== 'function') { alert('文档管理器未就绪'); return; }
+    if (!dm || typeof dm.getAllDocuments !== 'function') { alert(tr('panel.error.no_docmgr', '文档管理器未就绪')); return; }
     const activeId = typeof dm.getActiveId === 'function' ? dm.getActiveId() : null;
     const doc = dm.getAllDocuments().find((d) => d && d.id === activeId);
-    if (!doc) { alert('请先选择一个文档'); return; }
+    if (!doc) { alert(tr('panel.error.no_doc', '请先选择一个文档')); return; }
     mountPanel(doc);
   };
 }

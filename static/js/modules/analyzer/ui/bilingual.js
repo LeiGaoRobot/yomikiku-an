@@ -24,6 +24,27 @@ function apiKey() {
   catch (_) { return ''; }
 }
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 function injectCss() {
   if (window[CSS_INJECTED]) return;
   window[CSS_INJECTED] = true;
@@ -166,14 +187,14 @@ async function renderOnce() {
         continue;
       }
     } catch (_) { /* fall through */ }
-    mountRow(e.el, 'loading', '翻译中…');
+    mountRow(e.el, 'loading', tr('panel.bilingual.loading', '翻译中…'));
     misses.push(e);
   }
 
   if (!misses.length) return;
 
   if (!apiKey()) {
-    misses.forEach((m) => mountRow(m.el, 'error', '未配置 Gemini API key — 请在设置里填入后重试'));
+    misses.forEach((m) => mountRow(m.el, 'error', tr('panel.bilingual.no_key', '未配置 Gemini API key — 请在设置里填入后重试')));
     return;
   }
 
@@ -187,16 +208,16 @@ async function renderOnce() {
         mountRow(misses[i].el, 'ok', zh);
         try { await cache.put(misses[i].text, PROVIDER_ID, SCHEMA_VERSION, zh); } catch (_) {}
       } else {
-        mountRow(misses[i].el, 'error', '翻译为空');
+        mountRow(misses[i].el, 'error', tr('panel.bilingual.empty', '翻译为空'));
       }
     }
   } catch (err) {
     const msg = err && err.message ? err.message : String(err);
-    const label = msg === 'NO_API_KEY' ? '未配置 Gemini API key'
-      : msg === 'RATE_LIMITED' ? 'API 额度超限'
-      : msg === 'BAD_SHAPE' ? '返回格式异常'
-      : msg === 'ABORTED' ? '已取消'
-      : `翻译失败：${msg}`;
+    const label = msg === 'NO_API_KEY' ? tr('panel.bilingual.no_key', '未配置 Gemini API key')
+      : msg === 'RATE_LIMITED' ? tr('panel.bilingual.quota', 'API 额度超限')
+      : msg === 'BAD_SHAPE' ? tr('panel.bilingual.bad_shape', '返回格式异常')
+      : msg === 'ABORTED' ? tr('panel.bilingual.aborted', '已取消')
+      : trFmt('panel.bilingual.failed_fmt', { msg }, `翻译失败：${msg}`);
     misses.forEach((m) => mountRow(m.el, 'error', label));
   }
 }

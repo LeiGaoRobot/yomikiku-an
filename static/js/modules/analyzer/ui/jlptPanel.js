@@ -24,6 +24,27 @@ function apiKey() {
   catch (_) { return ''; }
 }
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 function injectCss() {
   if (window[CSS_INJECTED]) return;
   window[CSS_INJECTED] = true;
@@ -333,11 +354,11 @@ function renderDialogue(listEl, dialogue) {
   wrap.style.background = 'transparent';
   const h = document.createElement('div');
   h.className = 'jlpt-q-header';
-  h.innerHTML = `<span class="jlpt-q-type">対話</span>`;
+  h.innerHTML = `<span class="jlpt-q-type">${escapeHtml(tr('panel.jlpt.type.dialogue', '対話'))}</span>`;
   const playAll = document.createElement('button');
   playAll.className = 'jlpt-q-play';
   playAll.type = 'button';
-  playAll.textContent = '▶︎ 全对话朗读';
+  playAll.textContent = tr('panel.btn.play_all', '▶︎ 全对话朗读');
   playAll.addEventListener('click', () => {
     const line = dialogue.map(d => `${d.speaker}、${d.text}`).join('。');
     speak(line);
@@ -367,7 +388,7 @@ function renderDictation(listEl, payload) {
   if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'jlpt-status';
-    empty.textContent = '未生成任何听写题';
+    empty.textContent = tr('panel.jlpt.empty.dictation', '未生成任何听写题');
     listEl.appendChild(empty);
     return;
   }
@@ -377,30 +398,30 @@ function renderDictation(listEl, payload) {
 
     const h = document.createElement('div');
     h.className = 'jlpt-q-header';
-    h.innerHTML = `<span class="jlpt-q-type">听写</span>`;
+    h.innerHTML = `<span class="jlpt-q-type">${escapeHtml(tr('panel.jlpt.type.dictation', '听写'))}</span>`;
     const play = document.createElement('button');
     play.className = 'jlpt-q-play';
     play.type = 'button';
-    play.textContent = '▶︎ 朗读';
+    play.textContent = tr('panel.btn.play', '▶︎ 朗读');
     play.addEventListener('click', () => speak(it.sentence || ''));
     h.appendChild(play);
     card.appendChild(h);
 
     const hint = document.createElement('div');
     hint.className = 'jlpt-q-cite';
-    hint.textContent = `提示：${it.hint || ''}`;
+    hint.textContent = trFmt('panel.jlpt.hint_fmt', { hint: it.hint || '' }, `提示：${it.hint || ''}`);
     card.appendChild(hint);
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = '请输入听到的内容';
+    input.placeholder = tr('panel.jlpt.input.placeholder', '请输入听到的内容');
     input.style.cssText = 'width:100%;padding:8px 10px;margin-top:10px;border:1px solid var(--border,#ccc);border-radius:8px;background:var(--bg,#fff);color:inherit;font-size:14px;';
     card.appendChild(input);
 
     const check = document.createElement('button');
     check.className = 'jlpt-q-show';
     check.type = 'button';
-    check.textContent = '对照答案';
+    check.textContent = tr('panel.btn.check', '对照答案');
     card.appendChild(check);
 
     const diff = document.createElement('div');
@@ -414,10 +435,10 @@ function renderDictation(listEl, payload) {
       diff.hidden = false;
       diff.innerHTML = '';
       const truthLine = document.createElement('div');
-      truthLine.innerHTML = `<b>正解：</b>${escapeHtml(truth)}`;
+      truthLine.innerHTML = `<b>${escapeHtml(tr('panel.jlpt.truth_label', '正解：'))}</b>${escapeHtml(truth)}`;
       const userLine = document.createElement('div');
       userLine.style.marginTop = '6px';
-      userLine.innerHTML = `<b>你的：</b>${diffHighlight(user, truth)}`;
+      userLine.innerHTML = `<b>${escapeHtml(tr('panel.jlpt.user_label', '你的：'))}</b>${diffHighlight(user, truth)}`;
       diff.appendChild(truthLine);
       diff.appendChild(userLine);
       const correct = user === truth;
@@ -463,7 +484,7 @@ function renderQuestions(listEl, payload) {
   if (!payload || !Array.isArray(payload.questions) || payload.questions.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'jlpt-status';
-    empty.textContent = '未生成任何题目';
+    empty.textContent = tr('panel.jlpt.empty.questions', '未生成任何题目');
     listEl.appendChild(empty);
     return;
   }
@@ -482,7 +503,7 @@ function renderQuestions(listEl, payload) {
     playBtn.className = 'jlpt-q-play';
     playBtn.type = 'button';
     playBtn.title = '朗读题干+选项';
-    playBtn.textContent = '▶︎ 朗读';
+    playBtn.textContent = tr('panel.btn.play', '▶︎ 朗读');
     playBtn.addEventListener('click', () => {
       const text = [q.stem, ...(q.options || []).map((o, i) => `${String.fromCharCode(65 + i)}、${o}`)].join('。');
       speak(text);
@@ -502,19 +523,19 @@ function renderQuestions(listEl, payload) {
     const answerLine = document.createElement('div');
     answerLine.className = 'jlpt-q-answer';
     const correctIdx = Number(q.answerIndex);
-    answerLine.innerHTML = `<b>答え：${String.fromCharCode(65 + (isFinite(correctIdx) ? correctIdx : 0))}</b>`;
+    answerLine.innerHTML = `<b>${escapeHtml(tr('panel.jlpt.answer_label', '答え：'))}${String.fromCharCode(65 + (isFinite(correctIdx) ? correctIdx : 0))}</b>`;
     const explainLine = document.createElement('div');
     explainLine.className = 'jlpt-q-explain';
     explainLine.textContent = q.explanation || '';
     const citeLine = document.createElement('div');
     citeLine.className = 'jlpt-q-cite';
-    citeLine.textContent = q.citation ? `出典：${q.citation}` : '';
+    citeLine.textContent = q.citation ? trFmt('panel.jlpt.cite_fmt', { src: q.citation }, `出典：${q.citation}`) : '';
     reveal.append(answerLine, explainLine, citeLine);
 
     const revealBtn = document.createElement('button');
     revealBtn.type = 'button';
     revealBtn.className = 'jlpt-q-show';
-    revealBtn.textContent = '查看答案/解析';
+    revealBtn.textContent = tr('panel.btn.reveal', '查看答案/解析');
     revealBtn.hidden = true;
     revealBtn.addEventListener('click', () => { reveal.hidden = !reveal.hidden; });
 
@@ -552,7 +573,7 @@ function renderQuestions(listEl, payload) {
               },
             });
             const note = document.createElement('span');
-            note.textContent = ' · 已加入错题本';
+            note.textContent = tr('panel.jlpt.mistake_added', ' · 已加入错题本');
             note.style.cssText = 'font-size:11px;color:var(--muted,#888);margin-left:8px;';
             const type = card.querySelector('.jlpt-q-type');
             if (type && type.parentElement) type.parentElement.appendChild(note);
@@ -574,7 +595,7 @@ export function mountPanel(doc) {
   if (activePanel) return activePanel;
   const article = Array.isArray(doc?.content) ? doc.content.join('\n') : String(doc?.content || '');
   if (!article.trim()) {
-    alert('当前文档为空，无法生成题目');
+    alert(tr('panel.error.doc_empty_for_jlpt', '当前文档为空，无法生成题目'));
     return null;
   }
 
@@ -683,7 +704,7 @@ export function mountPanel(doc) {
         const hit = await cache.get(cKey, JLPT_PROVIDER_ID, JLPT_SCHEMA_VERSION);
         if (hasResult(hit)) {
           renderResult(hit);
-          status.textContent = `已从缓存加载（${mode}）— 点"重新生成"可重新调用 Gemini`;
+          status.textContent = trFmt('panel.cache.loaded.mode', { mode }, `已从缓存加载（${mode}）— 点"重新生成"可重新调用 Gemini`);
           go.disabled = false;
           regen.disabled = false;
           return;
@@ -692,12 +713,12 @@ export function mountPanel(doc) {
     }
 
     if (!apiKey()) {
-      status.textContent = '请先在设置中填写 Gemini API key';
+      status.textContent = tr('panel.error.no_key', '请先在设置中填写 Gemini API key');
       go.disabled = false;
       regen.disabled = false;
       return;
     }
-    status.textContent = bypassCache ? '忽略缓存，重新生成中…' : '生成中…';
+    status.textContent = bypassCache ? tr('panel.regenerating', '忽略缓存，重新生成中…') : tr('panel.generating', '生成中…');
     try { controller && controller.abort(); } catch (_) {}
     controller = new AbortController();
     try {
@@ -714,11 +735,11 @@ export function mountPanel(doc) {
     } catch (err) {
       console.warn('[jlpt] generate failed', err);
       const msg = err && err.message ? err.message : String(err);
-      if (msg === 'NO_API_KEY') status.textContent = '请先在设置中填写 Gemini API key';
-      else if (msg === 'RATE_LIMITED') status.textContent = 'API 额度超限，稍后再试';
-      else if (msg === 'BAD_SHAPE' || msg === 'EMPTY_RESPONSE') status.textContent = '模型返回格式异常，请重试';
-      else if (err && err.name === 'AbortError') status.textContent = '已取消';
-      else status.textContent = `生成失败：${msg}`;
+      if (msg === 'NO_API_KEY') status.textContent = tr('panel.error.no_key', '请先在设置中填写 Gemini API key');
+      else if (msg === 'RATE_LIMITED') status.textContent = tr('panel.error.rate_limited', 'API 额度超限，稍后再试');
+      else if (msg === 'BAD_SHAPE' || msg === 'EMPTY_RESPONSE') status.textContent = tr('panel.error.bad_shape', '模型返回格式异常，请重试');
+      else if (err && err.name === 'AbortError') status.textContent = tr('panel.aborted', '已取消');
+      else status.textContent = trFmt('panel.error.generic_fmt', { msg }, `生成失败：${msg}`);
     } finally {
       go.disabled = false;
       regen.disabled = false;
@@ -743,12 +764,12 @@ if (typeof window !== 'undefined') {
   window.__yomikikuanOpenJLPT = function () {
     const dm = window.documentManager;
     if (!dm || typeof dm.getAllDocuments !== 'function') {
-      alert('文档管理器未就绪');
+      alert(tr('panel.error.no_docmgr', '文档管理器未就绪'));
       return;
     }
     const activeId = typeof dm.getActiveId === 'function' ? dm.getActiveId() : null;
     const doc = dm.getAllDocuments().find((d) => d && d.id === activeId);
-    if (!doc) { alert('请先选择一个文档'); return; }
+    if (!doc) { alert(tr('panel.error.no_doc', '请先选择一个文档')); return; }
     mountPanel(doc);
   };
 }

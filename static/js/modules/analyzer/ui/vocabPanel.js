@@ -10,6 +10,27 @@ import * as srs from '../../srs/store.js';
 
 const CSS_INJECTED = '__yomikikuanVocabCssInjected';
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 function injectCss() {
   if (window[CSS_INJECTED]) return;
   window[CSS_INJECTED] = true;
@@ -223,12 +244,14 @@ export async function mountPanel() {
       ? await srs.listVocab({ bucket })
       : await srs.listMistakes({ bucket });
 
-    count.textContent = `${items.length} 项`;
+    count.textContent = trFmt('panel.vocab.count_fmt', { n: items.length }, `${items.length} 项`);
 
     if (!items.length) {
-      listEl.innerHTML = `<div class="vocab-empty">${tab === 'vocab'
+      const emptyKey = tab === 'vocab' ? 'panel.vocab.empty.vocab' : 'panel.vocab.empty.mistakes';
+      const emptyFallback = tab === 'vocab'
         ? '还没有词汇。AI 释义后点「📎 加入词汇本」即可收藏。'
-        : '还没有错题。JLPT 答错的题会自动加入。'}</div>`;
+        : '还没有错题。JLPT 答错的题会自动加入。';
+      listEl.innerHTML = `<div class="vocab-empty">${escapeHtml(tr(emptyKey, emptyFallback))}</div>`;
       return;
     }
 
@@ -237,10 +260,10 @@ export async function mountPanel() {
       const card = document.createElement('div');
       card.className = 'vocab-item';
       const primary = tab === 'vocab'
-        ? `<div class="word">${escapeHtml(it.word || '(无词)')}</div>
+        ? `<div class="word">${escapeHtml(it.word || tr('panel.vocab.review.no_word', '(无词)'))}</div>
            <div class="reading">${escapeHtml(it.reading || '')}</div>
            <div class="gloss">${escapeHtml(it.gloss || '')}</div>`
-        : `<div class="word">${escapeHtml(it.stem || '(无题干)')}</div>
+        : `<div class="word">${escapeHtml(it.stem || tr('panel.vocab.review.no_stem', '(无题干)'))}</div>
            <div class="gloss">正解：${String.fromCharCode(65 + (Number(it.correctIndex) || 0))} ｜ 你的：${it.userAnswerIndex >= 0 ? String.fromCharCode(65 + Number(it.userAnswerIndex)) : '-'}</div>
            <div class="gloss" style="color:var(--muted,#888);font-size:12px;">${escapeHtml(it.explanation || '')}</div>`;
       card.innerHTML = `
@@ -260,7 +283,7 @@ export async function mountPanel() {
       `;
       card.querySelector('[data-act="review"]').addEventListener('click', () => openReview([it]));
       card.querySelector('[data-act="delete"]').addEventListener('click', async () => {
-        if (!confirm('删除这一项？')) return;
+        if (!confirm(tr('panel.confirm_delete', '删除这一项？'))) return;
         if (tab === 'vocab') await srs.removeVocab(it.id);
         else await srs.removeMistake(it.id);
         refresh();
@@ -291,7 +314,7 @@ export async function mountPanel() {
     const items = tab === 'vocab'
       ? await srs.listVocab({ bucket: bucket === 'all' ? 'due' : bucket })
       : await srs.listMistakes({ bucket: bucket === 'all' ? 'due' : bucket });
-    if (!items.length) { alert('当前筛选下没有可复习的卡片'); return; }
+    if (!items.length) { alert(tr('panel.vocab.review.empty_filter', '当前筛选下没有可复习的卡片')); return; }
     openReview(items);
   });
 
@@ -315,7 +338,7 @@ export async function mountPanel() {
 
     function render() {
       if (i >= items.length) {
-        review.innerHTML = `<div class="vocab-empty">✓ 全部完成</div>
+        review.innerHTML = `<div class="vocab-empty">${escapeHtml(tr('panel.vocab.review.done', '✓ 全部完成'))}</div>
           <div style="text-align:center;"><button class="vocab-back-btn">返回列表</button></div>`;
         review.querySelector('.vocab-back-btn').addEventListener('click', exit);
         return;
@@ -349,11 +372,11 @@ export async function mountPanel() {
       review.querySelector('[data-role="back"]').addEventListener('click', exit);
 
       if (isVocab) {
-        face.textContent = it.word || '(无词)';
+        face.textContent = it.word || tr('panel.vocab.review.no_word', '(无词)');
         reading.textContent = it.reading || '';
-        back.textContent = it.gloss || '(无释义)';
+        back.textContent = it.gloss || tr('panel.vocab.review.no_gloss', '(无释义)');
       } else {
-        face.textContent = it.stem || '(无题干)';
+        face.textContent = it.stem || tr('panel.vocab.review.no_stem', '(无题干)');
         reading.textContent = '';
         back.innerHTML = `
           <div><b>正解：</b>${String.fromCharCode(65 + (Number(it.correctIndex) || 0))}</div>
@@ -367,7 +390,7 @@ export async function mountPanel() {
         if (flipped) return;
         flipped = true;
         back.hidden = false;
-        hint.textContent = '评估你的掌握程度';
+        hint.textContent = tr('panel.vocab.review.hint', '评估你的掌握程度');
         grade.hidden = false;
       });
 
