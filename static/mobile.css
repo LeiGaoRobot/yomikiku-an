@@ -791,3 +791,30 @@
 .vocab-review { padding: 20px 16px; gap: 16px; min-height: 280px; }
 .vocab-card { padding: 18px 14px; min-height: 120px; }
 .vocab-card .face { font-size: 22px; }
+
+/* ---- Phase D panel a11y / tap-target polish (≤768px) ----
+   Gaps spotted during ≤480px audit:
+   • .vocab-filter lacked flex-wrap, so the 4 bucket chips + "start review"
+     button + count span overflowed horizontally on narrow viewports.
+   • .vocab-filter button and .vocab-tab were below comfortable tap size.
+   • JLPT dictation <input> had no mobile sizing, rendering ~28px on iOS.
+   All fixes are additive; desktop (>768px) is untouched thanks to the
+   media="(max-width: 768px)" link attribute on this stylesheet. */
+.vocab-filter {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+.vocab-filter button {
+  min-height: 36px;
+  min-width: 44px;
+}
+.vocab-filter .count {
+  flex-basis: 100%;
+  margin-left: 0;
+}
+.vocab-tab { min-height: 40px; padding-left: 16px; padding-right: 16px; }
+/* Dictation textbox — must clearly look tappable on mobile. */
+.jlpt-q input[type="text"] {
+  min-height: 44px;
+  font-size: 16px; /* ≥16 prevents iOS zoom-on-focus */
+}
