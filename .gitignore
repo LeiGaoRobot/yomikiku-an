@@ -11,3 +11,6 @@ __pycache__/
 # 临时文件
 *.tmp
 *.log
+
+# 本地配置（包含 API key，绝不提交）— 对应 config.example.js
+config.js

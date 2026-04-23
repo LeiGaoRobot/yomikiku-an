@@ -18,13 +18,19 @@ YomiKiku-an is a browser-based tool for reading and listening practice in Japane
 ### Features
 - **Markdown Editor**: Built-in EasyMDE markdown editor for rich text formatting while maintaining full Japanese analysis capabilities.
 - Text analysis: Kuromoji.js-based segmentation, POS tags, kana and romaji.
-- Speech synthesis: play word/line/all; speed 0.5–2.0; voice selection.
+- Speech synthesis: play word/line/all; **live speed adjustment 0.25–4.0x** (Gemini audio reacts mid-playback); voice selection; seekable progress bar; keyboard shortcuts (Space play/pause, ←→ prev/next segment, ↑↓ rate ±0.05, J/K seek ±10s).
 - Playback controls: separate Pause/Resume; Play button shows a stop icon while playing.
 - Instant setting changes: changing voice or speed during playback pauses first and then resumes near the current position; settings persist in localStorage.
 - Dictionary: JMdict integration; click a word card to view translations.
-- Documents: multiple documents, autosave, quick switching.
-- UI: dark mode, toggle display options, multilingual interface, draggable toolbar.
-- Mobile: on small screens (≤480px) the header speed slider and voice select are compressed in width; left-aligned play buttons and right-aligned controls.
+- Documents: multiple documents, autosave, quick switching; JSON backup export/import (schema v3 includes vocab + mistake book).
+- **AI features (optional, Gemini API key required)**:
+  - 🔍 Per-sentence analyzer — Structure / Explanation / Keywords tabs + AI gloss on any word
+  - 📖 Article-level summary — gist, key sentences, recommended JLPT level, learning points
+  - 🎧 JLPT listening questions — generate N5–N1 multiple-choice questions (normal / dialogue / dictation modes); plays through Gemini TTS voices
+  - 中/日 bilingual toggle — per-line Simplified Chinese translation inline with the original
+  - 🧠 Vocab + mistake book — SM-2 spaced repetition over saved AI glosses and auto-logged wrong JLPT answers
+- UI: dark mode, toggle display options, multilingual interface, draggable toolbar, mobile-polished modal panels.
+- Mobile: on small screens (≤768px) modals near-fullscreen, tap targets per WCAG 2.2; on ≤480px flashcard grade buttons reflow to 2×2 and filter pills wrap.
 
 ### Usage
 Online: https://leigaorobot.github.io/yomikiku-an
@@ -34,6 +40,16 @@ Local:
 python -m http.server 8000
 # then open http://localhost:8000
 ```
+
+### Local Config (optional)
+AI features need a [Gemini API key](https://aistudio.google.com/apikey). For local development you can skip the in-app Settings panel and use a gitignored config file:
+
+```bash
+cp config.example.js config.js
+# edit config.js and fill in geminiApiKey
+```
+
+`config.js` is loaded before `main-js.js` and synced into `localStorage` on every page load. **Do not deploy `config.js` to a public server** — anything served to the browser is fetchable by anyone.
 
 ### Part-of-Speech Colors
 |  | POS |
@@ -94,13 +110,19 @@ Pull requests are welcome. For issues and feature requests, use GitHub Issues: h
 ### 主な機能
 - **Markdown エディタ**：日本語解析機能を保ちながら、リッチテキスト編集ができる EasyMDE エディタを搭載。
 - 形態素解析：分割、品詞、読み（かな／ローマ字）。
-- 音声合成：単語・行・全文の再生、話速 0.5–2.0、音色選択。
+- 音声合成：単語・行・全文の再生、**話速 0.25–4.0 倍**（Gemini 再生中にリアルタイム反映）、音色選択、シーク可能な進捗バー、キーボードショートカット（Space 再生/停止、←→ 段落切替、↑↓ 話速 ±0.05、J/K ±10 秒シーク）。
 - 再生制御：一時停止／再開は専用ボタン。再生中は再生ボタンが停止アイコンになります。
-- 設定の即時反映：再生中に音色や話速を変更すると、一度停止してから現在位置付近から新設定で再開します。設定は localStorage に保存されます。
-- 辞書：JMdict と連携、単語カードのクリックで訳語を表示。
-- 文書管理：複数文書、自動保存、簡易切替。
-- UI：ダークモード、表示切替、多言語 UI、ツールバーのドラッグ。
-- モバイル：480px 以下では速度スライダーと音色選択の幅を縮小。左に再生ボタン、右に設定。
+- 設定の即時反映：再生中に音色や話速を変更すると新設定で続行します。設定は localStorage に保存。
+- 辞書：JMdict 連携、単語カードのクリックで訳語を表示。
+- 文書管理：複数文書、自動保存、簡易切替、JSON バックアップのエクスポート／インポート（v3 スキーマで単語帳・ミス帳も含む）。
+- **AI 機能（オプション、Gemini API Key 必要）**：
+  - 🔍 センテンス単位アナライザー — 構造 / 解説 / キーワード タブ + 任意の単語の AI 訳注
+  - 📖 文章解析 — 要約、キー文、推奨 JLPT レベル、学習ポイント
+  - 🎧 JLPT リスニング問題生成 — N5–N1 の選択式問題（通常／対話／ディクテーション モード）、Gemini TTS で読み上げ
+  - 中/日 バイリンガル切替 — 各行の下に簡体字中国語訳を表示
+  - 🧠 単語帳 ＋ ミス帳 — SM-2 間隔反復、AI 訳注の保存 ＋ JLPT 誤答の自動記録
+- UI：ダークモード、表示切替、多言語 UI、ツールバーのドラッグ、モバイル最適化モーダル。
+- モバイル：768px 以下でモーダルがほぼ全画面、タップ領域は WCAG 2.2 準拠。480px 以下でフラッシュカード採点ボタンが 2×2 に折り返し。
 
 ### 使い方
 オンライン：https://leigaorobot.github.io/yomikiku-an
@@ -110,6 +132,16 @@ Pull requests are welcome. For issues and feature requests, use GitHub Issues: h
 python -m http.server 8000
 # ブラウザで http://localhost:8000 を開く
 ```
+
+### ローカル設定（任意）
+AI 機能には [Gemini API Key](https://aistudio.google.com/apikey) が必要です。ローカル開発なら Settings パネルからではなく、gitignore 済みの設定ファイルで：
+
+```bash
+cp config.example.js config.js
+# config.js を編集して geminiApiKey を記入
+```
+
+`config.js` は `main-js.js` より先に読み込まれ、ページロード毎に `localStorage` に同期されます。**公開サーバーに `config.js` をデプロイしないでください** — ブラウザに配信されるものは誰でも fetch できます。
 
 ### 品詞色分け
 | 色 | 品詞 |
@@ -155,13 +187,19 @@ YomiKiku-an（読み聞く庵）是一款基于浏览器的日语阅读与听力
 ### 功能
 - **Markdown 编辑器**：内置 EasyMDE markdown 编辑器，支持富文本格式，同时保持完整的日语分析能力。
 - 文本分析：分词、词性、假名与罗马音。
-- 语音合成：按单词/按行/全文播放；语速 0.5–2.0；音色选择。
+- 语音合成：按单词/按行/全文播放；**语速 0.25–4.0x 实时调节**（Gemini 音频播放过程中即时生效）；音色选择；可点击跳转的进度条；键盘快捷键（Space 播放/暂停、←→ 上下段、↑↓ 语速 ±0.05、J/K ±10s seek）。
 - 播放控制：暂停/继续为独立按钮；播放中播放按钮显示"停止"图标。
-- 即时设置生效：播放中更改语速或音色，会先暂停再在当前段附近按新设置续播；设置持久化到 localStorage。
+- 即时设置生效：播放中更改语速或音色立即生效；设置持久化到 localStorage。
 - 词典：整合 JMdict；点击词卡查看释义。
-- 文档：多文档管理、自动保存、快速切换。
-- 界面：暗色模式、显示切换、多语言 UI、工具栏可拖拽。
-- 移动端：≤480px 时压缩头部语速滑条与音色下拉宽度；左侧按钮、右侧设置。
+- 文档：多文档管理、自动保存、快速切换、JSON 备份导入导出（v3 schema 包含词汇本 + 错题本）。
+- **AI 功能（可选，需 Gemini API Key）**：
+  - 🔍 句级解析 — Structure / Explanation / Keywords 三个 Tab + 任意词的 AI 释义
+  - 📖 文章解析 — 要约、关键句、推荐 JLPT 等级、学习要点
+  - 🎧 JLPT 听力题生成 — N5–N1 多选题（通常 / 対話 / 听写 三种模式），Gemini TTS 朗读
+  - 中/日 双语对照 — 每段下方插入简体中文翻译
+  - 🧠 词汇本 + 错题本 — SM-2 间隔重复，AI 释义可一键收藏、JLPT 答错自动进错题本
+- 界面：暗色模式、显示切换、多语言 UI、工具栏可拖拽、移动端打磨过的模态。
+- 移动端：≤768px 时模态近全屏，tap 目标符合 WCAG 2.2；≤480px 时抽卡 4 档按钮 2×2 排版。
 
 ### 使用
 在线版：https://leigaorobot.github.io/yomikiku-an
@@ -171,6 +209,16 @@ YomiKiku-an（読み聞く庵）是一款基于浏览器的日语阅读与听力
 python -m http.server 8000
 # 浏览器访问 http://localhost:8000
 ```
+
+### 本地配置（可选）
+AI 功能需要 [Gemini API Key](https://aistudio.google.com/apikey)。本地开发可以跳过应用内的 Settings 面板，改用一个被 gitignore 的本地配置文件：
+
+```bash
+cp config.example.js config.js
+# 编辑 config.js 填入 geminiApiKey
+```
+
+`config.js` 在 `main-js.js` 之前加载，每次刷新页面时自动同步到 `localStorage`。**切勿将 `config.js` 部署到公网** —— 浏览器能访问的文件任何人都能 fetch。
 
 ### 词性颜色
 | 颜色 | 词性 |

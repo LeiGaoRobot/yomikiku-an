@@ -10,7 +10,7 @@
 const CACHE_PREFIX = 'yomikikuan-cache';
 // ⚠️ Bump this on every deploy that changes ANY cached asset. Activate handler
 // purges every bucket under CACHE_PREFIX whose name doesn't match CACHE_NAME.
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v20';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 
 // Resolve fallback HTML relative to SW scope
@@ -72,6 +72,16 @@ self.addEventListener('fetch', (event) => {
 
   // Only handle same-origin asset requests
   if (!isSameOrigin(req)) return;
+
+  // config.js holds local dev-only API keys. Use networkFirst (no long-lived
+  // cache) so rotating the key just requires a reload — no CACHE_VERSION bump.
+  try {
+    const path = new URL(req.url).pathname;
+    if (path === '/config.js' || path.endsWith('/config.js')) {
+      event.respondWith(networkFirst(req));
+      return;
+    }
+  } catch (_) { /* fall through */ }
 
   event.respondWith(cacheFirst(req));
 });
