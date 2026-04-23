@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>analyzer / tokenizer test</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; max-width: 880px; margin: 0 auto; }
+    h1 { margin-top: 0; }
+    pre { background: #f4f4f5; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
+    .pass { color: #0a7f3f; font-weight: 600; }
+    .fail { color: #c62828; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/local/tokenizer.js — assertions</h1>
+  <p>Loads kuromoji + the shared tokenizer module, runs basic segmentation + idempotent-cache + POS-shape checks. Prints PASS/FAIL.</p>
+  <pre id="out">booting…</pre>
+
+  <!-- Match classic-script load order from index.html -->
+  <script src="/static/libs/kuromoji.js"></script>
+
+  <script type="module">
+    import { getTokenizer, tokenize } from './tokenizer.js';
+
+    const out = document.getElementById('out');
+    out.textContent = '';
+    const log = (line) => { out.textContent += line + '\n'; };
+    const append = (html) => { out.insertAdjacentHTML('beforeend', html + '\n'); };
+
+    let passed = 0, failed = 0;
+    function check(name, cond, details) {
+      if (cond) {
+        append(`<span class="pass">PASS</span> ${name}`);
+        passed++;
+      } else {
+        append(`<span class="fail">FAIL</span> ${name}`);
+        if (details != null) log('  details: ' + details);
+        failed++;
+      }
+    }
+
+    try {
+      log('--- getTokenizer ---');
+      const t1 = await getTokenizer();
+      check('getTokenizer returns an object', t1 && typeof t1 === 'object', 'type=' + typeof t1);
+      check('getTokenizer exposes .tokenize', typeof (t1 && t1.tokenize) === 'function', 'got=' + (typeof t1.tokenize));
+      const t2 = await getTokenizer();
+      check('getTokenizer is memoized (same instance)', t1 === t2);
+
+      log('');
+      log('--- tokenize("これは本です。") ---');
+      const toks = await tokenize('これは本です。');
+      check('tokenize returns array', Array.isArray(toks), typeof toks);
+      check('tokenize returns non-empty', Array.isArray(toks) && toks.length > 0, 'len=' + (toks && toks.length));
+      if (Array.isArray(toks) && toks.length) {
+        const sample = toks[0];
+        check('token has surface_form',  typeof sample.surface_form === 'string', JSON.stringify(sample));
+        check('token has pos',           typeof sample.pos === 'string');
+        check('token has basic_form',    typeof sample.basic_form === 'string');
+      }
+
+      log('');
+      log('--- joins back to original ---');
+      const joined = (toks || []).map((x) => x.surface_form).join('');
+      check('Σ(surface_form) === original input', joined === 'これは本です。', `joined=${joined}`);
+
+      log('');
+      log('--- POS detection (助詞 / 名詞) ---');
+      const posTypes = new Set(toks.map((x) => x.pos));
+      check('tokenized sentence contains 助詞 (particle は / です)', posTypes.has('助詞'), 'pos set=' + [...posTypes].join(','));
+      check('tokenized sentence contains 名詞 (本)',               posTypes.has('名詞'), 'pos set=' + [...posTypes].join(','));
+
+      log('');
+      log('--- edge cases ---');
+      const empty = await tokenize('');
+      check('empty string → empty array', Array.isArray(empty) && empty.length === 0, 'got len=' + (empty && empty.length));
+
+      const latin = await tokenize('Hello world');
+      check('latin-only input → array', Array.isArray(latin) && latin.length > 0, 'len=' + (latin && latin.length));
+    } catch (err) {
+      append(`<span class="fail">FAIL (threw)</span>: ${err && (err.stack || err.message || String(err))}`);
+      failed++;
+    } finally {
+      log('');
+      append(`Summary: <span class="pass">${passed} passed</span>, <span class="${failed ? 'fail' : 'pass'}">${failed} failed</span>.`);
+      append(failed === 0
+        ? '<span class="pass">ALL PASS</span>'
+        : '<span class="fail">SOME FAILED</span>');
+    }
+  </script>
+</body>
+</html>

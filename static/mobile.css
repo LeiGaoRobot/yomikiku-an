@@ -677,3 +677,117 @@
     padding: 10px 12px;
   }
 }
+
+/* ===============================================
+   #12 Mobile responsive polish — Phase D
+   Covers: JLPT panel, article-summary panel, vocab
+   panel (incl. flashcard grade grid), bilingual row,
+   analyze-line button, header progress bar, header
+   panel-trigger buttons.
+   =============================================== */
+
+.jlpt-overlay,
+.summary-overlay,
+.vocab-overlay {
+  padding: 12px;
+}
+.jlpt-panel,
+.summary-panel,
+.vocab-panel {
+  width: 100%;
+  max-height: calc(100dvh - 24px);
+  max-height: calc(100vh - 24px);
+  border-radius: 12px;
+}
+
+.jlpt-panel-header,
+.summary-panel-header,
+.vocab-panel-header {
+  padding: 12px 14px;
+}
+.jlpt-panel-header h3,
+.summary-panel-header h3,
+.vocab-panel-header h3 { font-size: 15px; }
+
+.jlpt-controls,
+.summary-controls,
+.vocab-filter {
+  padding: 10px 14px;
+  gap: 8px;
+  row-gap: 10px;
+}
+.jlpt-controls label,
+.vocab-filter label { flex: 1 1 45%; }
+.jlpt-controls select {
+  flex: 1;
+  min-height: 38px;
+  font-size: 14px;
+}
+
+.jlpt-go,
+.summary-go,
+.summary-regen {
+  min-height: 40px;
+  padding: 8px 14px;
+}
+
+.jlpt-list { padding: 12px 14px 20px; gap: 12px; }
+.summary-body { padding: 14px 16px 20px; font-size: 14px; }
+.vocab-list { padding: 10px 14px 16px; }
+
+.jlpt-q { padding: 12px; }
+.jlpt-q-stem { font-size: 15px; }
+.jlpt-q-opt {
+  padding: 10px 12px;
+  min-height: 44px;
+  font-size: 14px;
+}
+
+.vocab-grade button { min-height: 44px; font-size: 14px; }
+
+@media (max-width: 480px) {
+  .vocab-grade {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .jlpt-controls label,
+  .vocab-filter label { flex: 1 1 100%; }
+}
+
+.vocab-item {
+  flex-direction: column;
+  gap: 8px;
+}
+.vocab-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.vocab-actions button { min-height: 36px; padding: 6px 14px; }
+
+.bilingual-row {
+  font-size: 0.9em;
+  padding: 8px 10px;
+}
+
+.analyze-line-btn,
+.play-line-btn {
+  padding: 6px;
+  box-sizing: content-box;
+}
+
+#headerPlayProgress {
+  padding: 12px 0;
+  min-height: 3px;
+}
+
+#jlptBtn,
+#articleSummaryBtn,
+#vocabBtn,
+#bilingualToggle {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.vocab-review { padding: 20px 16px; gap: 16px; min-height: 280px; }
+.vocab-card { padding: 18px 14px; min-height: 120px; }
+.vocab-card .face { font-size: 22px; }

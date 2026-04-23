@@ -962,100 +962,192 @@ const headerSpeedValue = $('headerSpeedValue');
   // at the tokens block below). Strictly additive: no playback state touched.
   // Token pills / ruby tokens / play-line button keep their existing click
   // behaviour because we bail out when the target is inside them.
-  if (content) {
-    // Clone the sentence element and strip any ruby annotations before reading
-    // text, so furigana render mode doesn't leak kana readings (e.g.
-    // `東京とうきょうに住む`) into the LLM prompt.
-    function extractSentenceText(el) {
-      if (!el) return '';
-      const clone = el.cloneNode(true);
-      clone.querySelectorAll('rt').forEach((rt) => rt.remove());
-      return (clone.textContent || '').trim();
-    }
+  function extractSentenceText(el) {
+    if (!el) return '';
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('rt').forEach((rt) => rt.remove());
+    clone.querySelectorAll('.play-line-btn, .analyze-line-btn, .ap-analyzer-card').forEach((n) => n.remove());
+    return (clone.textContent || '').trim();
+  }
 
+  async function mountAnalyzerForLine(sentenceEl) {
+    if (!sentenceEl) return;
+    if (sentenceEl.__analyzerCard) {
+      try { sentenceEl.__analyzerCard.destroy(); } catch (_) {}
+      sentenceEl.__analyzerCard = null;
+      return;
+    }
+    const text = extractSentenceText(sentenceEl);
+    if (!text) return;
+    const prevSib = sentenceEl.previousElementSibling;
+    const nextSib = sentenceEl.nextElementSibling;
+    const prev = (prevSib && prevSib.classList && prevSib.classList.contains('line-container'))
+      ? extractSentenceText(prevSib) : '';
+    const next = (nextSib && nextSib.classList && nextSib.classList.contains('line-container'))
+      ? extractSentenceText(nextSib) : '';
+    const context = { prev: prev || undefined, next: next || undefined };
+    try {
+      const mod = await import('/static/js/modules/analyzer/ui/inlineCard.js');
+      if (sentenceEl.__analyzerCard) return;
+      sentenceEl.__analyzerCard = mod.mountCard(sentenceEl, text, context);
+    } catch (err) {
+      console.warn('[analyzer] mountCard failed', err);
+    }
+  }
+
+  // Inline ruby-token onclicks call event.stopPropagation(), so in ruby-mode
+  // the entire line surface swallows clicks before they reach the delegated
+  // listener on #content. A dedicated per-line button is the only reliable
+  // trigger; exposed on window so the HTML-string render at line-container
+  // can wire it via inline onclick.
+  window.__yomikikuanAnalyzeLine = function (ev) {
+    try { ev && ev.stopPropagation && ev.stopPropagation(); } catch (_) {}
+    const btn = ev && (ev.currentTarget || ev.target);
+    const sentenceEl = btn && btn.closest ? btn.closest('.line-container') : null;
+    if (sentenceEl) mountAnalyzerForLine(sentenceEl);
+  };
+
+  if (content) {
     content.addEventListener('click', async (ev) => {
-      // Don't hijack text selection.
       if (((window.getSelection && window.getSelection()) || { toString: () => '' }).toString().length > 0) return;
-      // Don't re-fire when clicking inside an already-mounted card.
       if (ev.target.closest && ev.target.closest('.ap-analyzer-card')) return;
-      // Let token-level handlers and the per-line play button win.
-      if (ev.target.closest && ev.target.closest('.token-pill, .ruby-token, .play-line-btn, .token-details')) return;
+      if (ev.target.closest && ev.target.closest('.token-pill, .ruby-token, .play-line-btn, .analyze-line-btn, .token-details')) return;
       const sentenceEl = ev.target.closest && ev.target.closest('.line-container');
       if (!sentenceEl || !content.contains(sentenceEl)) return;
+      mountAnalyzerForLine(sentenceEl);
+    });
+  }
 
-      // Toggle: second click on the same line destroys the card.
-      if (sentenceEl.__analyzerCard) {
-        try { sentenceEl.__analyzerCard.destroy(); } catch (_) {}
-        sentenceEl.__analyzerCard = null;
+  // Difficulty-badge wiring + window.__yomikikuanRefreshDifficultyBadge live
+  // in static/js/modules/analyzer/ui/badge.js now (#13 chunk 4). The init
+  // chain below dynamic-imports the module once when the doc is ready.
+
+  // --- #8 Global keyboard shortcuts ----------------------------------------
+  // Space=play/pause, ←/→=prev/next segment, ↑/↓=rate±0.05, J/K=seek±10s,
+  // Esc=close modals. Skip when focus is in an editable element.
+  function isEditingFocus() {
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+    if (el.isContentEditable) return true;
+    if (el.closest && el.closest('.CodeMirror, .cm-editor, .EasyMDEContainer')) return true;
+    return false;
+  }
+
+  function wireKeyboardShortcuts() {
+    if (window.__yomikikuanKbdWired) return;
+    window.__yomikikuanKbdWired = true;
+    document.addEventListener('keydown', (ev) => {
+      if (ev.altKey || ev.ctrlKey || ev.metaKey) return;
+      if (isEditingFocus()) return;
+
+      if (ev.key === 'Escape') {
+        const jlpt = document.querySelector('.jlpt-overlay');
+        if (jlpt) {
+          try { (jlpt.querySelector('.jlpt-close') || {}).click?.(); } catch (_) {}
+          return;
+        }
+      }
+
+      if (ev.code === 'Space') {
+        ev.preventDefault();
+        if (typeof isPlaying !== 'undefined' && isPlaying) {
+          try { window.speechSynthesis && window.speechSynthesis.pause(); } catch (_) {}
+        } else if (window.speechSynthesis && window.speechSynthesis.paused) {
+          try { window.speechSynthesis.resume(); } catch (_) {}
+        } else {
+          const btn = document.getElementById('playAllBtn') || document.getElementById('sidebarPlayAllBtn');
+          if (btn) btn.click();
+        }
         return;
       }
 
-      const text = extractSentenceText(sentenceEl);
-      if (!text) return;
-
-      // Neighbour lines supply context to the LLM prompt. Paragraph/empty-line
-      // boundaries are already filtered out at render time, so siblings that
-      // are `.line-container` are legitimate adjacent sentences.
-      const prevSib = sentenceEl.previousElementSibling;
-      const nextSib = sentenceEl.nextElementSibling;
-      const prev = (prevSib && prevSib.classList && prevSib.classList.contains('line-container'))
-        ? extractSentenceText(prevSib) : '';
-      const next = (nextSib && nextSib.classList && nextSib.classList.contains('line-container'))
-        ? extractSentenceText(nextSib) : '';
-      const context = { prev: prev || undefined, next: next || undefined };
-
-      try {
-        const mod = await import('./static/js/modules/analyzer/ui/inlineCard.js');
-        if (sentenceEl.__analyzerCard) return; // a concurrent click beat us
-        sentenceEl.__analyzerCard = mod.mountCard(sentenceEl, text, context);
-      } catch (err) {
-        console.warn('[analyzer] mountCard failed', err);
+      if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') {
+        if (typeof currentSegments !== 'undefined' && Array.isArray(currentSegments) && currentSegments.length) {
+          ev.preventDefault();
+          const delta = ev.key === 'ArrowRight' ? 1 : -1;
+          const target = Math.max(0, Math.min(currentSegments.length - 1, (currentSegmentIndex || 0) + delta));
+          if (target !== currentSegmentIndex) {
+            try { safeCancelCurrentUtterance && safeCancelCurrentUtterance(); } catch (_) {}
+            try { clearProgressTimer && clearProgressTimer(); } catch (_) {}
+            try { playSegments(currentSegments, target, undefined); } catch (_) {}
+          }
+        }
+        return;
       }
+
+      if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        const delta = ev.key === 'ArrowUp' ? 0.05 : -0.05;
+        try {
+          rate = Math.max(0.25, Math.min(4, (Number(rate) || 1) + delta));
+          if (typeof window !== 'undefined') window.rate = rate;
+          localStorage.setItem(LS.rate, String(rate));
+          const fmt = rate.toFixed(2).replace(/\.?0+$/, '') + 'x';
+          ['speedRange', 'sidebarSpeedRange', 'headerSpeedRange'].forEach((id) => {
+            const el = document.getElementById(id); if (el) el.value = String(rate);
+          });
+          ['speedValue', 'sidebarSpeedValue', 'headerSpeedValue'].forEach((id) => {
+            const el = document.getElementById(id); if (el) el.textContent = fmt;
+          });
+          if (typeof window.__applyLiveRate === 'function') window.__applyLiveRate(rate);
+          if (typeof currentUtterance !== 'undefined' && currentUtterance) {
+            try { currentUtterance.rate = rate; } catch (_) {}
+          }
+        } catch (_) {}
+        return;
+      }
+
+      if (ev.key === 'j' || ev.key === 'J' || ev.key === 'k' || ev.key === 'K') {
+        try {
+          const a = document.querySelector('audio');
+          if (a && !a.paused && isFinite(a.duration)) {
+            ev.preventDefault();
+            const delta = (ev.key === 'k' || ev.key === 'K') ? 10 : -10;
+            a.currentTime = Math.max(0, Math.min(a.duration - 0.1, a.currentTime + delta));
+          }
+        } catch (_) {}
+        return;
+      }
+    }, { capture: false });
+  }
+
+  // --- #7 Click-to-seek on the header progress bar ----------------------
+  // Maps clicked fraction → char offset → nearest segment index via
+  // PLAY_STATE.charPrefix, then restarts playback from there.
+  function wireProgressBarSeek() {
+    const track = document.getElementById('headerPlayProgress');
+    if (!track || track.__yomikikuanSeekWired) return;
+    track.__yomikikuanSeekWired = true;
+    track.style.cursor = 'pointer';
+    track.title = '点击跳转';
+    track.addEventListener('click', (ev) => {
+      try {
+        if (!currentSegments || !currentSegments.length) return;
+        if (!PLAY_STATE || !PLAY_STATE.totalChars) return;
+        const rect = track.getBoundingClientRect();
+        if (!rect.width) return;
+        const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+        const targetChar = Math.round(frac * PLAY_STATE.totalChars);
+        const prefix = PLAY_STATE.charPrefix || [];
+        let idx = 0;
+        for (let i = 0; i < prefix.length - 1; i++) {
+          if (prefix[i] <= targetChar && targetChar < prefix[i + 1]) { idx = i; break; }
+          if (i === prefix.length - 2) idx = i;
+        }
+        idx = Math.max(0, Math.min(currentSegments.length - 1, idx));
+        try { safeCancelCurrentUtterance && safeCancelCurrentUtterance(); } catch (_) {}
+        try { clearProgressTimer && clearProgressTimer(); } catch (_) {}
+        try { playSegments(currentSegments, idx, undefined); } catch (_) {}
+      } catch (_) {}
     });
   }
 
-  // --- Reading Analyzer: header difficulty badge (T13) ----------------------
-  // The badge lives in the main-header next to editorCharCount (#diffBadgeMount).
-  // `wireDifficultyBadge` lazy-imports the module on first call; subsequent
-  // `refreshDifficultyBadge` calls reuse the instance. The instance's own
-  // `update(doc)` handles both cached-render and background compute, so this
-  // layer stays thin — it only needs to know which doc is active.
-  let diffBadge = null;
-  let diffBadgeWiring = false;
-  function wireDifficultyBadge() {
-    if (diffBadge || diffBadgeWiring) { refreshDifficultyBadge(); return; }
-    const mount = document.getElementById('diffBadgeMount');
-    if (!mount) return;
-    diffBadgeWiring = true;
-    import('./static/js/modules/analyzer/ui/badge.js').then(({ mountBadge }) => {
-      try {
-        diffBadge = mountBadge(mount);
-        refreshDifficultyBadge();
-      } catch (err) {
-        console.warn('[analyzer] mountBadge failed', err);
-      } finally {
-        diffBadgeWiring = false;
-      }
-    }).catch((err) => {
-      diffBadgeWiring = false;
-      console.warn('[analyzer] badge import failed', err);
-    });
-  }
-  function refreshDifficultyBadge() {
-    if (!diffBadge) { wireDifficultyBadge(); return; }
-    try {
-      const dm = window.documentManager;
-      if (!dm || typeof dm.getAllDocuments !== 'function') { diffBadge.update(null); return; }
-      const activeId = typeof dm.getActiveId === 'function' ? dm.getActiveId() : null;
-      const doc = dm.getAllDocuments().find((d) => d && d.id === activeId);
-      diffBadge.update(doc || null);
-    } catch (err) {
-      console.warn('[analyzer] refreshDifficultyBadge failed', err);
-    }
-  }
-  // Expose so the DocumentManager hook inside `loadActiveDocument` can call
-  // it without needing to reach into module-private identifiers.
-  window.__yomikikuanRefreshDifficultyBadge = refreshDifficultyBadge;
+  // Panel triggers (JLPT / article summary / vocab book / bilingual) live in
+  // static/js/modules/ui/panel-triggers.js now. See #13 ESM extraction chunk 1.
+  // The init chain below does one dynamic import → wirePanelTriggers(). All
+  // four modules still self-register window.__yomikikuanOpen* / Toggle*.
 
   function t(key) {
     const dict = I18N[currentLang] || I18N.ja;
@@ -2829,39 +2921,54 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   if (speedValue) speedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
   if (headerSpeedValue) headerSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
   
+  // Live-apply helper: also mutates the currently-playing Gemini audio's
+  // playbackRate so dragging the slider mid-sentence is immediately audible.
+  // Web Speech browsers generally ignore rate mutations on an in-flight
+  // utterance — those take effect on the next segment.
+  const applyRateLive = (r) => {
+    if (typeof window !== 'undefined') window.rate = r;
+    if (typeof window.__applyLiveRate === 'function') window.__applyLiveRate(r);
+    if (typeof currentUtterance !== 'undefined' && currentUtterance) {
+      try { currentUtterance.rate = r; } catch (_) {}
+    }
+  };
+
   if (speedSlider) {
     speedSlider.addEventListener('input', () => {
-      rate = Math.min(2, Math.max(0.5, parseFloat(speedSlider.value) || 1));
+      rate = Math.min(4, Math.max(0.25, parseFloat(speedSlider.value) || 1));
       if (speedValue) speedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (headerSpeedValue) headerSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (sidebarSpeedSlider) sidebarSpeedSlider.value = rate;
       if (sidebarSpeedValue) sidebarSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (headerSpeedSlider) headerSpeedSlider.value = rate;
       localStorage.setItem(LS.rate, String(rate));
+      applyRateLive(rate);
     });
   }
 
   if (sidebarSpeedSlider) {
     sidebarSpeedSlider.addEventListener('input', () => {
-      rate = Math.min(2, Math.max(0.5, parseFloat(sidebarSpeedSlider.value) || 1));
+      rate = Math.min(4, Math.max(0.25, parseFloat(sidebarSpeedSlider.value) || 1));
       if (speedValue) speedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (headerSpeedValue) headerSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (sidebarSpeedValue) sidebarSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (speedSlider) speedSlider.value = rate;
       if (headerSpeedSlider) headerSpeedSlider.value = rate;
       localStorage.setItem(LS.rate, String(rate));
+      applyRateLive(rate);
     });
   }
 
   if (headerSpeedSlider) {
     headerSpeedSlider.addEventListener('input', () => {
-      rate = Math.min(2, Math.max(0.5, parseFloat(headerSpeedSlider.value) || 1));
+      rate = Math.min(4, Math.max(0.25, parseFloat(headerSpeedSlider.value) || 1));
       if (headerSpeedValue) headerSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (speedValue) speedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (sidebarSpeedValue) sidebarSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (speedSlider) speedSlider.value = rate;
       if (sidebarSpeedSlider) sidebarSpeedSlider.value = rate;
       localStorage.setItem(LS.rate, String(rate));
+      applyRateLive(rate);
     });
   }
 
@@ -3485,7 +3592,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         // Lazy import so the swatch module doesn't block the first list
         // paint; decorateListItem itself schedules analyzeDocument via
         // requestIdleCallback when a doc has no cached difficulty yet.
-        import('./static/js/modules/analyzer/ui/listSwatch.js')
+        import('/static/js/modules/analyzer/ui/listSwatch.js')
           .then(({ decorateListItem }) => decorateListItem(docItem, doc))
           .catch((err) => console.warn('[analyzer] listSwatch failed', err));
       });
@@ -3841,7 +3948,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     
     const pushSegment = (pause) => {
       const segmentText = buffer.trim();
-      if (segmentText) {
+      // Skip pure-punctuation / whitespace-only segments. Gemini TTS rejects
+      // these with PROHIBITED_CONTENT (the safety classifier returns high-
+      // confidence prohibited on inputs with no semantic content like "、").
+      if (segmentText && /[\p{L}\p{N}]/u.test(segmentText)) {
         segments.push({ text: segmentText, pause });
       }
       buffer = '';
@@ -3895,11 +4005,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       }
     }
     
-    if (buffer.trim()) {
+    if (buffer.trim() && /[\p{L}\p{N}]/u.test(buffer)) {
       segments.push({ text: buffer.trim(), pause: 0 });
     }
-    
-    if (!segments.length && normalized.trim()) {
+
+    if (!segments.length && normalized.trim() && /[\p{L}\p{N}]/u.test(normalized)) {
       segments.push({ text: normalized.trim(), pause: 0 });
     }
     
@@ -4021,7 +4131,22 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   utterance.onerror = (event) => {
     if (utterance !== currentUtterance) return; // 忽略过期回调
       console.warn('Speech synthesis error:', event);
-      
+
+      // Gemini safety filter false-positives (PROHIBITED_CONTENT / SAFETY) can
+      // trip on benign short fragments mixing romaji + kana (e.g. "APIを使って、").
+      // Treat these as per-segment skips rather than a full-playback abort.
+      const errStr = String((event && event.error) || '');
+      const isSafetySkip = /PROHIBITED_CONTENT|SAFETY|no audio in response/i.test(errStr);
+      if (isSafetySkip && index < segments.length - 1) {
+        console.warn(`[playSegments] skipping segment ${index + 1} due to TTS safety filter:`, segment.text);
+        clearProgressTimer();
+        const nextIndex = index + 1;
+        const nextChars = PLAY_STATE.charPrefix[nextIndex] || PLAY_STATE.totalChars;
+        if (PLAY_STATE.totalChars > 0) setHeaderProgress(Math.max(0, Math.min(1, nextChars / PLAY_STATE.totalChars)));
+        setTimeout(() => playSegments(segments, nextIndex, rateOverride), Math.max(120, segment.pause || 0));
+        return;
+      }
+
       // 根据错误类型进行不同处理
       if (event.error === 'interrupted') {
         // 如果是被中断，不需要额外处理，这是正常的停止操作
@@ -4033,7 +4158,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       } else {
         console.error('Unknown speech synthesis error:', event.error);
       }
-      
+
       // 清理状态
       isPlaying = false;
       currentUtterance = null;
@@ -4672,6 +4797,12 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       return `
         <div class="line-container${rubyCls}" data-line-index="${lineIndex}" tabindex="-1">
           ${lineHtml}
+          <button class="analyze-line-btn" onclick="window.__yomikikuanAnalyzeLine(event)" title="${t('analyzer.analyzeLine') || '解析本句'}" aria-label="${t('analyzer.analyzeLine') || '解析本句'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="m21 21-4.3-4.3"/>
+            </svg>
+          </button>
           <button class="play-line-btn" onclick="playLine(${lineIndex})" title="${t('playThisLine')}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5v14l11-7z"/>
@@ -5089,6 +5220,37 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           }
           if (!text) text = tt('analyzer.error.generic', '解析失败，重试？');
           resultBox.textContent = text;
+          // #5 — Offer to save the glossed word into the vocab book.
+          try {
+            if (typeof window.__yomikikuanAddVocab === 'function' && word) {
+              const saveBtn = document.createElement('button');
+              saveBtn.type = 'button';
+              saveBtn.className = 'dict-ai-gloss-save-btn';
+              saveBtn.textContent = '📎 加入词汇本';
+              saveBtn.style.cssText = 'display:block;margin-top:8px;padding:3px 10px;border:1px solid var(--border,#ccc);border-radius:6px;background:transparent;color:inherit;cursor:pointer;font-size:12px;';
+              saveBtn.addEventListener('click', async () => {
+                if (saveBtn.disabled) return;
+                saveBtn.disabled = true;
+                try {
+                  await window.__yomikikuanAddVocab({
+                    word,
+                    reading: (detailedInfo && detailedInfo.reading) || '',
+                    gloss: text,
+                    source: {
+                      docId: (window.documentManager && window.documentManager.getActiveId && window.documentManager.getActiveId()) || '',
+                      sentence: sentence || '',
+                    },
+                  });
+                  saveBtn.textContent = '✓ 已加入';
+                } catch (e) {
+                  console.warn('[vocab] addVocab failed', e);
+                  saveBtn.textContent = '加入失败';
+                  saveBtn.disabled = false;
+                }
+              });
+              resultBox.appendChild(saveBtn);
+            }
+          } catch (_) {}
         } catch (err) {
           const msg = err && (err.message || String(err));
           let label;
@@ -5256,11 +5418,21 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           
           // 遍历 line-container 的所有子节点，按顺序提取内容
           lineContainer.childNodes.forEach(node => {
-            // 跳过播放按钮
-            if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('play-line-btn')) {
+            // 跳过播放按钮 + 新增的解析按钮
+            if (node.nodeType === Node.ELEMENT_NODE && (node.classList.contains('play-line-btn') || node.classList.contains('analyze-line-btn'))) {
               return;
             }
-            
+
+            // 处理 ruby-token（ruby 视图下的词汇单元；无 data-token，
+            // 退回到剥掉 <rt> 后的 surface 文本，交给 TTS 自行读音）
+            if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('ruby-token')) {
+              const clone = node.cloneNode(true);
+              clone.querySelectorAll('rt').forEach(rt => rt.remove());
+              const surface = (clone.textContent || '').trim();
+              if (surface) lineParts.push(surface);
+              return;
+            }
+
             // 处理 token-pill（词汇）
             if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('token-pill')) {
               const tokenDataAttr = node.getAttribute('data-token');
@@ -6103,7 +6275,21 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   // Reading Analyzer — mount header difficulty badge once documentManager
   // is global so refresh() can reach it via window.documentManager (T13).
-  try { wireDifficultyBadge(); } catch (_) {}
+  // Module self-registers window.__yomikikuanRefreshDifficultyBadge so the
+  // documentManager.loadActiveDocument hook keeps working.
+  import('/static/js/modules/analyzer/ui/badge.js')
+    .then((m) => { try { m.wireAndRefresh(); } catch (e) { console.warn('[analyzer] badge init failed', e); } })
+    .catch((err) => console.warn('[analyzer] badge import failed', err));
+  // Panel triggers (JLPT / article summary / vocab / bilingual) — #13 ESM
+  // extraction chunk 1 consolidated all four into one module. Dynamic import
+  // so this stays non-blocking; on failure the buttons silently remain inert.
+  import('/static/js/modules/ui/panel-triggers.js')
+    .then((m) => { try { m.wirePanelTriggers(); } catch (e) { console.warn('[panel-triggers] wire failed', e); } })
+    .catch((err) => console.warn('[panel-triggers] import failed', err));
+  // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
+  try { wireKeyboardShortcuts(); } catch (_) {}
+  // #7 — Click-to-seek on the header progress bar.
+  try { wireProgressBarSeek(); } catch (_) {}
 
   // 注入示例文章（异步），然后刷新列表以反映"示例文章"文件夹
   try {
@@ -6733,46 +6919,35 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       const importBtn = document.getElementById('importJsonBtn');
       const importFile = document.getElementById('importJsonFile');
 
-      function collectBackupPayload() {
-        const documents = (() => {
-          try {
-            const all = documentManager ? documentManager.getAllDocuments() : JSON.parse(localStorage.getItem(LS.texts) || '[]');
-            // 排除示例文章与锁定文档
-            return (Array.isArray(all) ? all : []).filter(d => d && d.folder !== 'samples' && !d.locked);
-          } catch (_) { return []; }
-        })();
-        const activeId = localStorage.getItem(LS.activeId) || '';
-        const settings = {};
-        try {
-          Object.values(LS).forEach((k) => {
-            if (k === LS.texts || k === LS.activeId) return;
-            settings[k] = localStorage.getItem(k);
-          });
-        } catch (_) {}
-        return {
-          app: 'YomiKiku-an',
-          version: 2,
-          createdAt: new Date().toISOString(),
-          data: { documents, activeId, settings }
-        };
+      // Backup / restore now live in static/js/modules/backup/index.js
+      // (#13 ESM chunk 3). The helper below captures this call-site's
+      // settings-key strategy (enumerate everything in LS except texts and
+      // activeId) and defers to the module for payload assembly + SRS dump.
+      async function collectBackupPayload() {
+        const m = await import('/static/js/modules/backup/index.js');
+        return m.collectBackupPayload({
+          getDocuments: () => {
+            try {
+              const all = documentManager ? documentManager.getAllDocuments() : JSON.parse(localStorage.getItem(LS.texts) || '[]');
+              return (Array.isArray(all) ? all : []).filter(d => d && d.folder !== 'samples' && !d.locked);
+            } catch (_) { return []; }
+          },
+          getActiveId: () => localStorage.getItem(LS.activeId) || '',
+          getSettings: () => {
+            const settings = {};
+            try {
+              Object.values(LS).forEach((k) => {
+                if (k === LS.texts || k === LS.activeId) return;
+                settings[k] = localStorage.getItem(k);
+              });
+            } catch (_) {}
+            return settings;
+          },
+        });
       }
 
-      function downloadTextFile(filename, text) {
-        const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} URL.revokeObjectURL(url); }, 0);
-      }
-
-      function formatNowForFile() {
-        const d = new Date();
-        const pad = (n) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-      }
+      // downloadTextFile + formatNowForFile now live in backup/io.js — loaded
+      // lazily inside doExport / import handlers below (await import).
 
       async function doExport() {
         // 显示导出进度
@@ -6784,17 +6959,18 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           // 异步执行导出
           await new Promise(resolve => setTimeout(resolve, 50)); // 让UI更新
           
-          const payload = collectBackupPayload();
+          const io = await import('/static/js/modules/backup/io.js');
+          const payload = await collectBackupPayload();
           const json = JSON.stringify(payload, null, 2);
-          const fname = `yomikikuan-backup-${formatNowForFile()}.json`;
-          downloadTextFile(fname, json);
-          
+          const fname = `yomikikuan-backup-${io.formatNowForFile()}.json`;
+          io.downloadTextFile(fname, json);
+
           // 确保至少显示1秒
           const elapsed = Date.now() - startTime;
           const remainingTime = Math.max(0, 1000 - elapsed);
           await new Promise(resolve => setTimeout(resolve, remainingTime));
-          
-          try { 
+
+          try {
             showSuccessToast(t('exportSuccess'));
           } catch (_) {}
         } catch (e) {
@@ -6810,23 +6986,18 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         }
       }
 
-      function applyBackup(data) {
+      async function applyBackup(data) {
         try {
-          if (!data || !data.data) throw new Error('invalid');
-          const docs = Array.isArray(data.data.documents) ? data.data.documents : [];
-          const activeId = typeof data.data.activeId === 'string' ? data.data.activeId : '';
-          const settings = data.data.settings && typeof data.data.settings === 'object' ? data.data.settings : {};
-          // 覆盖存储
-          localStorage.setItem(LS.texts, JSON.stringify(docs));
-          localStorage.setItem(LS.activeId, activeId);
-          Object.keys(settings).forEach((k) => {
-            try { if (k && typeof settings[k] !== 'undefined') localStorage.setItem(k, settings[k]); } catch (_) {}
+          const m = await import('/static/js/modules/backup/index.js');
+          await m.applyBackup(data, {
+            LS,
+            afterApply: ({ activeId, settings }) => {
+              try { if (documentManager) { documentManager.render(); documentManager.setActiveId(activeId); } } catch (_) {}
+              try { if (settings[LS.theme]) setThemePreference(settings[LS.theme]); } catch (_) {}
+              try { if (settings[LS.lang]) setLanguage(settings[LS.lang]); } catch (_) {}
+              try { applyI18n(); } catch (_) {}
+            },
           });
-          // 刷新界面
-          try { if (documentManager) { documentManager.render(); documentManager.setActiveId(activeId); } } catch (_) {}
-          try { if (settings[LS.theme]) setThemePreference(settings[LS.theme]); } catch (_) {}
-          try { if (settings[LS.lang]) setLanguage(settings[LS.lang]); } catch (_) {}
-          try { applyI18n(); } catch (_) {}
           try { showNotification(t('importSuccess'), 'success'); } catch (_) {}
         } catch (e) {
           console.error('Import failed:', e);
@@ -6899,9 +7070,18 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
 
     // 绑定速度事件
+    // Live-apply: mutate current Audio.playbackRate without restart glitch.
+    // Falls back to restart only if no live audio is available yet.
+    const applyRateLive2 = (r) => {
+      if (typeof window.__applyLiveRate === 'function') window.__applyLiveRate(r);
+      if (typeof currentUtterance !== 'undefined' && currentUtterance) {
+        try { currentUtterance.rate = r; } catch (_) {}
+      }
+    };
+
     if (speedSliderEl) {
       speedSliderEl.addEventListener('input', () => {
-        rate = Math.min(2, Math.max(0.5, parseFloat(speedSliderEl.value) || 1));
+        rate = Math.min(4, Math.max(0.25, parseFloat(speedSliderEl.value) || 1));
         if (typeof window !== 'undefined') window.rate = rate;
         if (speedValueEl) speedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         if (sidebarSpeedSliderEl) sidebarSpeedSliderEl.value = rate;
@@ -6909,14 +7089,13 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         if (headerSpeedSliderEl) headerSpeedSliderEl.value = rate;
         if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         localStorage.setItem(LS.rate, String(rate));
-        // 若正在播放：中断并以新速度重新播放当前段落
-        restartPlaybackWithNewSettings();
+        applyRateLive2(rate);
       });
     }
 
     if (sidebarSpeedSliderEl) {
       sidebarSpeedSliderEl.addEventListener('input', () => {
-        rate = Math.min(2, Math.max(0.5, parseFloat(sidebarSpeedSliderEl.value) || 1));
+        rate = Math.min(4, Math.max(0.25, parseFloat(sidebarSpeedSliderEl.value) || 1));
         if (typeof window !== 'undefined') window.rate = rate;
         if (speedValueEl) speedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         if (sidebarSpeedValueEl) sidebarSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
@@ -6924,14 +7103,13 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         if (headerSpeedSliderEl) headerSpeedSliderEl.value = rate;
         if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         localStorage.setItem(LS.rate, String(rate));
-        // 若正在播放：中断并以新速度重新播放当前段落
-        restartPlaybackWithNewSettings();
+        applyRateLive2(rate);
       });
     }
 
     if (headerSpeedSliderEl) {
       headerSpeedSliderEl.addEventListener('input', () => {
-        rate = Math.min(2, Math.max(0.5, parseFloat(headerSpeedSliderEl.value) || 1));
+        rate = Math.min(4, Math.max(0.25, parseFloat(headerSpeedSliderEl.value) || 1));
         if (typeof window !== 'undefined') window.rate = rate;
         if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         if (speedValueEl) speedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
@@ -6939,8 +7117,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         if (speedSliderEl) speedSliderEl.value = rate;
         if (sidebarSpeedSliderEl) sidebarSpeedSliderEl.value = rate;
         localStorage.setItem(LS.rate, String(rate));
-        // 若正在播放：中断并以新速度重新播放当前段落
-        restartPlaybackWithNewSettings();
+        applyRateLive2(rate);
       });
     }
 
@@ -8291,17 +8468,18 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           // 异步执行导出
           await new Promise(resolve => setTimeout(resolve, 50)); // 让UI更新
           
-          const payload = collectBackupPayload();
+          const io = await import('/static/js/modules/backup/io.js');
+          const payload = await collectBackupPayload();
           const json = JSON.stringify(payload, null, 2);
-          const fname = `yomikikuan-backup-${formatNowForFile()}.json`;
-          downloadTextFile(fname, json);
-          
+          const fname = `yomikikuan-backup-${io.formatNowForFile()}.json`;
+          io.downloadTextFile(fname, json);
+
           // 确保至少显示1秒
           const elapsed = Date.now() - startTime;
           const remainingTime = Math.max(0, 1000 - elapsed);
-          
+
           await new Promise(resolve => setTimeout(resolve, remainingTime));
-          
+
           showSuccessToast(translations.exportSuccess);
         } catch (e) {
           console.error('Export failed:', e);
@@ -8353,68 +8531,40 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
 
     // 辅助函数
-    function collectBackupPayload() {
-      const documents = (() => {
-        try {
-          const all = window.documentManager ? window.documentManager.getAllDocuments() : JSON.parse(localStorage.getItem('yomikikuan_texts') || '[]');
-          return (Array.isArray(all) ? all : []).filter(d => d && d.folder !== 'samples' && !d.locked);
-        } catch (_) { return []; }
-      })();
-      const activeId = localStorage.getItem('yomikikuan_activeId') || '';
-      const settings = {};
-      try {
-        ['yomikikuan_theme', 'yomikikuan_lang', 'yomikikuan_fontSize'].forEach((k) => {
-          settings[k] = localStorage.getItem(k);
-        });
-      } catch (_) {}
-      return {
-        app: 'YomiKiku-an',
-        version: 2,
-        createdAt: new Date().toISOString(),
-        data: { documents, activeId, settings }
-      };
+    async function collectBackupPayload() {
+      const m = await import('/static/js/modules/backup/index.js');
+      return m.collectBackupPayload({
+        getDocuments: () => {
+          try {
+            const all = window.documentManager ? window.documentManager.getAllDocuments() : JSON.parse(localStorage.getItem('yomikikuan_texts') || '[]');
+            return (Array.isArray(all) ? all : []).filter(d => d && d.folder !== 'samples' && !d.locked);
+          } catch (_) { return []; }
+        },
+        getActiveId: () => localStorage.getItem('yomikikuan_activeId') || '',
+        getSettings: () => {
+          const s = {};
+          try { ['yomikikuan_theme', 'yomikikuan_lang', 'yomikikuan_fontSize'].forEach((k) => { s[k] = localStorage.getItem(k); }); } catch (_) {}
+          return s;
+        },
+      });
     }
 
-    function downloadTextFile(filename, text) {
-      const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} URL.revokeObjectURL(url); }, 0);
-    }
+    // downloadTextFile + formatNowForFile now live in backup/io.js.
 
-    function formatNowForFile() {
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-    }
-
-    function applyBackup(data) {
-      try {
-        if (!data || !data.data) throw new Error('invalid');
-        const docs = Array.isArray(data.data.documents) ? data.data.documents : [];
-        const activeId = typeof data.data.activeId === 'string' ? data.data.activeId : '';
-        const settings = data.data.settings && typeof data.data.settings === 'object' ? data.data.settings : {};
-        
-        localStorage.setItem('yomikikuan_texts', JSON.stringify(docs));
-        localStorage.setItem('yomikikuan_activeId', activeId);
-        Object.keys(settings).forEach((k) => {
-          try { if (k && typeof settings[k] !== 'undefined') localStorage.setItem(k, settings[k]); } catch (_) {}
-        });
-        
-        if (window.documentManager) {
-          window.documentManager.render();
-          window.documentManager.setActiveId(activeId);
-        }
-        if (settings['yomikikuan_theme']) setThemePreference(settings['yomikikuan_theme']);
-        if (settings['yomikikuan_lang']) setLanguage(settings['yomikikuan_lang']);
-        try { applyI18n(); } catch (_) {}
-      } catch (e) {
-        throw e;
-      }
+    async function applyBackup(data) {
+      const m = await import('/static/js/modules/backup/index.js');
+      await m.applyBackup(data, {
+        LS: { texts: 'yomikikuan_texts', activeId: 'yomikikuan_activeId' },
+        afterApply: ({ activeId, settings }) => {
+          if (window.documentManager) {
+            window.documentManager.render();
+            window.documentManager.setActiveId(activeId);
+          }
+          if (settings['yomikikuan_theme']) setThemePreference(settings['yomikikuan_theme']);
+          if (settings['yomikikuan_lang']) setLanguage(settings['yomikikuan_lang']);
+          try { applyI18n(); } catch (_) {}
+        },
+      });
     }
 
     function showSuccessToast(message) {

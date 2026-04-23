@@ -2069,6 +2069,51 @@ select, input[type="range"] {
   border-color: var(--border);
 }
 
+.analyze-line-btn {
+  background: none;
+  border: 1px solid var(--border);
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.2s ease;
+  margin-left: auto;
+  border-radius: 8px;
+}
+
+.analyze-line-btn + .play-line-btn { margin-left: 4px; }
+
+.analyze-line-btn:hover {
+  background: var(--elevated);
+  border-color: var(--border);
+  color: var(--accent, var(--muted));
+}
+
+/* #14 — Gemini API key health indicator: red dot on #jlptBtn when no key */
+:root.no-gemini-key #jlptBtn { position: relative; }
+:root.no-gemini-key #jlptBtn::after {
+  content: '';
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 0 1.5px var(--bg, #fff);
+  pointer-events: none;
+}
+
+/* #7 — Seekable progress bar: enlarge hit area and show interactivity */
+#headerPlayProgress {
+  padding: 8px 0;
+  background-clip: content-box;
+  cursor: pointer;
+  transition: transform 120ms ease;
+}
+#headerPlayProgress:hover { transform: scaleY(1.5); }
+
 .play-token-btn {
   background: none;
   border: 1px solid var(--border);

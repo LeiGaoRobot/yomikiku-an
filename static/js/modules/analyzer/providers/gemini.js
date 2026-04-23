@@ -24,12 +24,22 @@ Return just the gloss, no quotes.`;
 async function callGemini(prompt, signal) {
   const key = apiKey();
   if (!key) throw new Error('NO_API_KEY');
-  const res = await fetch(`${ENDPOINT}?key=${encodeURIComponent(key)}`, {
+  // Google Gemini occasionally returns transient 503 (Service Unavailable),
+  // 429, or gateway errors under load. One automatic retry with a short
+  // backoff smooths over the common case without hammering the API.
+  const TRANSIENT = new Set([429, 502, 503, 504]);
+  const attempt = () => fetch(`${ENDPOINT}?key=${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
     signal,
   });
+  let res = await attempt();
+  if (TRANSIENT.has(res.status)) {
+    await new Promise(r => setTimeout(r, 1200));
+    if (signal && signal.aborted) throw new Error('ABORTED');
+    res = await attempt();
+  }
   if (res.status === 429) throw new Error('RATE_LIMITED');
   if (!res.ok) throw new Error(`HTTP_${res.status}`);
   const data = await res.json();

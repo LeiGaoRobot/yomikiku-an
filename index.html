@@ -237,6 +237,34 @@
             <span class="editor-count" id="editorCharCount" title="字数">0 字</span>
             <!-- Reading Analyzer difficulty badge mount (T13) -->
             <span id="diffBadgeMount" class="diff-badge-mount"></span>
+            <!-- #5 Vocab / Mistake book -->
+            <button type="button" class="theme-icon-btn" id="vocabBtn" title="词汇本 / 错题本" aria-label="词汇本 / 错题本">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 4h9a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H9a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/>
+                <path d="M7 8H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h2"/>
+                <path d="M11 8h4"/>
+                <path d="M11 12h4"/>
+              </svg>
+            </button>
+            <!-- Article-level summary + key sentences + JLPT level recommendation -->
+            <button type="button" class="theme-icon-btn" id="articleSummaryBtn" title="文章解析（整篇）" aria-label="文章解析">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 4h11a3 3 0 0 1 3 3v13"/>
+                <path d="M4 4v15a2 2 0 0 0 2 2h12"/>
+                <path d="M8 8h6"/>
+                <path d="M8 12h6"/>
+                <path d="M8 16h4"/>
+              </svg>
+            </button>
+            <!-- JLPT listening-question generator trigger -->
+            <button type="button" class="theme-icon-btn" id="jlptBtn" title="生成 JLPT 听力题" aria-label="生成 JLPT 听力题">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M9 11a3 3 0 0 0 6 0V6a3 3 0 0 0-6 0z"/>
+                <path d="M5 10v1a7 7 0 0 0 14 0v-1"/>
+                <path d="M12 18v4"/>
+                <path d="M8 22h8"/>
+              </svg>
+            </button>
             <button type="button" class="editor-star-toggle theme-icon-btn" id="editorStarToggle" aria-pressed="false" title="加星">☆</button>
             
             <button class="theme-icon-btn" id="editorDeleteBtn" aria-label="删除文档" title="删除文档">
@@ -561,6 +589,10 @@
             <button type="button" class="theme-icon-btn kana-toggle-btn" id="readingScriptToggle" aria-label="仮名切り替え" title="ひらがな / カタカナ 切替">
               <span class="kana-toggle-label" aria-hidden="true">ア</span>
             </button>
+            <!-- #9 Bilingual toggle — per-line Chinese translation -->
+            <button type="button" class="theme-icon-btn" id="bilingualToggle" aria-pressed="false" aria-label="双语对照" title="双语对照（中日并排）">
+              <span aria-hidden="true" style="font-weight:600;font-size:12px;letter-spacing:-0.02em;">中/日</span>
+            </button>
           </div>
           <input type="range" id="headerVolume" class="play-volume" min="0" max="1" step="0.05" value="1" aria-label="音量" title="音量">
         </div>
@@ -736,6 +768,33 @@
   <script src="static/js/ui-utils.js"></script>
   <script src="static/js/tts.js"></script>
   <script src="static/js/i18n.js"></script>
+  <!-- Optional local config (gitignored). Copy config.example.js → config.js
+       and fill in your API key. A missing file produces a silent 404 and the
+       app falls back to whatever is already in localStorage. -->
+  <script src="config.js"></script>
+  <script>
+    (function () {
+      try {
+        var cfg = window.YOMIKIKUAN_CONFIG;
+        if (cfg && typeof cfg === 'object') {
+          if (typeof cfg.geminiApiKey === 'string' && cfg.geminiApiKey) {
+            localStorage.setItem('yomikikuan_gemini_api_key', cfg.geminiApiKey);
+          }
+          if (typeof cfg.geminiStyle === 'string' && cfg.geminiStyle) {
+            localStorage.setItem('yomikikuan_gemini_style', cfg.geminiStyle);
+          }
+        }
+      } catch (_) { /* localStorage disabled */ }
+      // Key health status — exposed for Settings panel + any header indicator.
+      try {
+        var k = (localStorage.getItem('yomikikuan_gemini_api_key') || '').trim();
+        var masked = k ? (k.slice(0, 6) + '…' + k.slice(-4)) : '';
+        window.__yomikikuanKeyStatus = { hasKey: !!k, maskedKey: masked };
+        if (!k) document.documentElement.classList.add('no-gemini-key');
+        else document.documentElement.classList.remove('no-gemini-key');
+      } catch (_) { window.__yomikikuanKeyStatus = { hasKey: false, maskedKey: '' }; }
+    })();
+  </script>
   <script src="static/main-js.js"></script>
   <!-- ESM bootstrap (M3 modular migration in progress). Runs AFTER classic scripts,
        so module-provided window.* overrides become canonical. -->

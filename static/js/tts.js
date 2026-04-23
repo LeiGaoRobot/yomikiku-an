@@ -232,7 +232,18 @@
         (json && json.candidates && json.candidates[0] &&
          json.candidates[0].content && json.candidates[0].content.parts) || [];
       const audioPart = parts.find(pt => pt && pt.inlineData && pt.inlineData.data);
-      if (!audioPart) throw new Error('Gemini TTS: no audio in response');
+      if (!audioPart) {
+        const cand = (json && json.candidates && json.candidates[0]) || {};
+        const reason = cand.finishReason || 'UNKNOWN';
+        const textPart = parts.find(pt => pt && typeof pt.text === 'string');
+        const blockReason = (json && json.promptFeedback && json.promptFeedback.blockReason) || '';
+        const extras = [
+          `finishReason=${reason}`,
+          blockReason ? `blockReason=${blockReason}` : '',
+          textPart ? `text=${JSON.stringify(String(textPart.text).slice(0, 120))}` : '',
+        ].filter(Boolean).join(', ');
+        throw new Error(`Gemini TTS: no audio in response (${extras || 'empty candidates'})`);
+      }
       const { data, mimeType } = audioPart.inlineData;
       const pcm = base64ToBytes(data);
       const wav = pcm16ToWav(pcm, parseSampleRate(mimeType));
@@ -381,6 +392,17 @@
   // ----------------- Engine -----------------
   const Engine = { audio: null, token: 0 };
 
+  // Live rate change: mutate the currently-playing Gemini audio's playbackRate
+  // so slider drags take effect *during* a segment instead of only on the next
+  // segment. Called from main-js.js's slider input handlers.
+  window.__applyLiveRate = function (r) {
+    const clamped = Math.max(0.25, Math.min(4, Number(r) || 1));
+    if (Engine.audio) {
+      try { Engine.audio.playbackRate = clamped; } catch (_) {}
+      try { Engine.audio.preservesPitch = true; } catch (_) {}
+    }
+  };
+
   function teardownAudio() {
     if (!Engine.audio) return;
     const a = Engine.audio;
@@ -454,10 +476,15 @@
         } catch (e) {
           if (token !== Engine.token) return;
           console.error('Gemini TTS failed:', e);
-          if (typeof window.showNotification === 'function') {
-            window.showNotification('Gemini TTS: ' + (e && e.message ? e.message : String(e)), 'error');
+          // Safety-filter false-positives are per-segment recoverable (caller
+          // skips to next segment). Don't block the UI with a red toast for
+          // those; keep it for real errors (quota, network, bad key, etc.).
+          const msg = (e && e.message) ? e.message : String(e);
+          const isSafetySkip = /PROHIBITED_CONTENT|SAFETY|no audio in response/i.test(msg);
+          if (!isSafetySkip && typeof window.showNotification === 'function') {
+            window.showNotification('Gemini TTS: ' + msg, 'error');
           }
-          try { utter.onerror && utter.onerror({ error: (e && e.message) || String(e) }); } catch (_) {}
+          try { utter.onerror && utter.onerror({ error: msg }); } catch (_) {}
           return;
         }
         if (token !== Engine.token) return;
@@ -617,6 +644,8 @@
           <div style="display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap;">
             <button type="button" id="geminiApiKeySave"
                     style="padding:4px 12px;border:1px solid var(--border,#ccc);border-radius:6px;cursor:pointer;background:var(--btn-bg,transparent);color:inherit;">保存</button>
+            <button type="button" id="geminiApiKeyTest"
+                    style="padding:4px 12px;border:1px solid var(--border,#ccc);border-radius:6px;cursor:pointer;background:var(--btn-bg,transparent);color:inherit;">测试</button>
             <button type="button" id="geminiApiKeyClear"
                     style="padding:4px 12px;border:1px solid var(--border,#ccc);border-radius:6px;cursor:pointer;background:var(--btn-bg,transparent);color:inherit;">清除</button>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
@@ -695,6 +724,46 @@
       input.value = '';
       window.setGeminiApiKey('');
       status.textContent = '已清除';
+    });
+    // #4 — Test button: ping Gemini with a trivial TTS request, report result.
+    const testBtn = root.querySelector('#geminiApiKeyTest');
+    testBtn && testBtn.addEventListener('click', async () => {
+      const key = (input.value || '').trim() || (window.getGeminiApiKey ? window.getGeminiApiKey() : '');
+      if (!key) { status.textContent = '未设置，无法测试'; return; }
+      const prevLabel = testBtn.textContent;
+      testBtn.disabled = true;
+      testBtn.textContent = '测试中…';
+      status.textContent = '正在请求 Gemini…';
+      try {
+        const res = await fetch(`${GEMINI_ENDPOINT(GEMINI_MODEL)}?key=${encodeURIComponent(key)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: 'こんにちは' }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } } },
+            },
+          }),
+        });
+        if (res.ok) {
+          status.textContent = `✓ 连接成功 (${key.slice(0, 6)}…${key.slice(-4)})`;
+        } else if (res.status === 400) {
+          status.textContent = `✗ HTTP 400：key 无效或请求格式错误`;
+        } else if (res.status === 401 || res.status === 403) {
+          status.textContent = `✗ HTTP ${res.status}：key 无权限或已吊销`;
+        } else if (res.status === 429) {
+          status.textContent = `✗ HTTP 429：配额超限，但 key 本身有效`;
+        } else {
+          const body = await res.text().catch(() => '');
+          status.textContent = `✗ HTTP ${res.status}${body ? '：' + body.slice(0, 80) : ''}`;
+        }
+      } catch (err) {
+        status.textContent = `✗ 网络错误：${(err && err.message) || String(err)}`;
+      } finally {
+        testBtn.disabled = false;
+        testBtn.textContent = prevLabel;
+      }
     });
     styleInput && styleInput.addEventListener('change', () => {
       try {

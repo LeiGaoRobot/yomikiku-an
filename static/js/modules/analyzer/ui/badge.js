@@ -247,3 +247,38 @@ export function mountBadge(containerEl) {
 }
 
 export default mountBadge;
+
+// --- Wire-and-refresh glue (extracted from main-js.js, #13 chunk 4) -------
+//
+// Encapsulates the one-time mount + repeated refresh lifecycle of the
+// header difficulty badge. wireAndRefresh() is idempotent: first call
+// mounts the instance (if #diffBadgeMount exists), subsequent calls just
+// refresh the active doc.
+//
+// Also self-registers window.__yomikikuanRefreshDifficultyBadge so
+// classic-script callers (e.g. documentManager.loadActiveDocument) can
+// request a refresh without touching module internals.
+
+let _instance = null;
+
+export function wireAndRefresh() {
+  const mount = document.getElementById('diffBadgeMount');
+  if (!mount) return;
+  if (!_instance) {
+    try { _instance = mountBadge(mount); }
+    catch (err) { console.warn('[analyzer] mountBadge failed', err); return; }
+  }
+  try {
+    const dm = (typeof window !== 'undefined') ? window.documentManager : null;
+    if (!dm || typeof dm.getAllDocuments !== 'function') { _instance.update(null); return; }
+    const activeId = typeof dm.getActiveId === 'function' ? dm.getActiveId() : null;
+    const doc = dm.getAllDocuments().find((d) => d && d.id === activeId);
+    _instance.update(doc || null);
+  } catch (err) {
+    console.warn('[analyzer] refreshDifficultyBadge failed', err);
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__yomikikuanRefreshDifficultyBadge = wireAndRefresh;
+}
