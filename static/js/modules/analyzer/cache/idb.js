@@ -157,3 +157,30 @@ export async function clearAll() {
     tx.onerror = () => reject(tx.error);
   });
 }
+
+// Delete every row whose providerId matches. Useful when a provider's
+// prompt/schema changes and existing cached payloads become stale — e.g.
+// after tweaking the article-summary prompt you can drop only summaries
+// without wiping per-sentence `gemini` analyses. Returns number removed.
+// Best-effort: any IDB error resolves 0 rather than rejecting.
+export async function clearByNamespace(providerId) {
+  if (!providerId) return 0;
+  const db = await openDb();
+  return new Promise((resolve) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.onerror = () => resolve(0);
+    const store = tx.objectStore(STORE);
+    let removed = 0;
+    const req = store.openCursor();
+    req.onerror = () => resolve(0);
+    req.onsuccess = (ev) => {
+      const cur = ev.target.result;
+      if (!cur) return resolve(removed);
+      if (cur.value && cur.value.providerId === providerId) {
+        cur.delete();
+        removed++;
+      }
+      cur.continue();
+    };
+  });
+}

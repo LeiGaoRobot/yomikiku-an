@@ -9,6 +9,12 @@ const __SEG_IDB_NAME = 'yomikikuan-tokens';
 const __SEG_IDB_STORE = 'segments';
 const __SEG_IDB_VER = 1;
 const __SEG_TTL_MS = 60 * 24 * 60 * 60 * 1000; // 60 days
+// Bump this when the tokenization pipeline changes in a way that makes
+// cached output invalid (kuromoji dict upgrade, POS post-processing
+// change, reading-resolution tweak). Folded into the cache key — older
+// entries silently stop matching and are pruned by the 60-day TTL sweep
+// without needing a schema migration.
+const __SEG_SCHEMA_VER = 1;
 
 function __segOpenIDB() {
   return new Promise((resolve, reject) => {
@@ -339,8 +345,8 @@ class JapaneseSegmenter {
       return { lines: [] };
     }
 
-    // IndexedDB cache check (hash of raw text + mode)
-    const cacheKey = `${__segHash(text)}|${mode}`;
+    // IndexedDB cache check (schema ver + hash of raw text + mode)
+    const cacheKey = `v${__SEG_SCHEMA_VER}|${__segHash(text)}|${mode}`;
     const cached = await __segIdbGet(cacheKey);
     if (cached && Array.isArray(cached.lines)) {
       return { lines: cached.lines };

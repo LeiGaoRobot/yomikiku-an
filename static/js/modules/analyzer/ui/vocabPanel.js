@@ -212,6 +212,11 @@ export async function mountPanel() {
         <button type="button" data-bucket="due" aria-pressed="false">到期</button>
         <button type="button" data-bucket="learning" aria-pressed="false">学习中</button>
         <button type="button" data-bucket="mastered" aria-pressed="false">已掌握</button>
+        <select data-role="sort" aria-label="排序" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border,rgba(0,0,0,.15));background:var(--elevated,#f7f7f7);color:inherit;font-size:12px;">
+          <option value="due">按到期</option>
+          <option value="created">按新增</option>
+          <option value="random">随机</option>
+        </select>
         <button type="button" data-role="review" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;">开始复习</button>
         <span class="count" data-role="count"></span>
       </div>
@@ -237,17 +242,20 @@ export async function mountPanel() {
 
   let tab = 'vocab';
   let bucket = 'all';
+  let sort = 'due';
 
   const list = root.querySelector('[data-role="list"]');
   const count = root.querySelector('[data-role="count"]');
   const reviewBtn = root.querySelector('[data-role="review"]');
+  const sortSel = root.querySelector('[data-role="sort"]');
+  if (sortSel) sortSel.addEventListener('change', () => { sort = sortSel.value || 'due'; refresh(); });
 
   async function refresh() {
     const listEl = root.querySelector('[data-role="list"]') || list;
     listEl.innerHTML = '';
     const items = tab === 'vocab'
-      ? await srs.listVocab({ bucket })
-      : await srs.listMistakes({ bucket });
+      ? await srs.listVocab({ bucket, sort })
+      : await srs.listMistakes({ bucket, sort });
 
     count.textContent = trFmt('panel.vocab.count_fmt', { n: items.length }, `${items.length} 项`);
 
@@ -317,8 +325,8 @@ export async function mountPanel() {
 
   reviewBtn.addEventListener('click', async () => {
     const items = tab === 'vocab'
-      ? await srs.listVocab({ bucket: bucket === 'all' ? 'due' : bucket })
-      : await srs.listMistakes({ bucket: bucket === 'all' ? 'due' : bucket });
+      ? await srs.listVocab({ bucket: bucket === 'all' ? 'due' : bucket, sort })
+      : await srs.listMistakes({ bucket: bucket === 'all' ? 'due' : bucket, sort });
     if (!items.length) { alert(tr('panel.vocab.review.empty_filter', '当前筛选下没有可复习的卡片')); return; }
     openReview(items);
   });

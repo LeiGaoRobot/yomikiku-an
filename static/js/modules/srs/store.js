@@ -142,8 +142,8 @@ export async function gradeVocab(id, q) {
   });
 }
 
-export async function listVocab({ bucket = 'all' } = {}) {
-  return listFrom(STORE_VOCAB, bucket);
+export async function listVocab({ bucket = 'all', sort = 'due' } = {}) {
+  return listFrom(STORE_VOCAB, bucket, sort);
 }
 
 // ---------- Mistakes ----------
@@ -206,13 +206,13 @@ export async function gradeMistake(id, q) {
   });
 }
 
-export async function listMistakes({ bucket = 'all' } = {}) {
-  return listFrom(STORE_MIST, bucket);
+export async function listMistakes({ bucket = 'all', sort = 'due' } = {}) {
+  return listFrom(STORE_MIST, bucket, sort);
 }
 
 // ---------- Shared helpers ----------
 
-async function listFrom(storeName, bucket) {
+async function listFrom(storeName, bucket, sort = 'due') {
   const db = await openDb();
   const all = await new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, 'readonly');
@@ -222,13 +222,27 @@ async function listFrom(storeName, bucket) {
   });
   const now = Date.now();
   const filtered = bucket === 'all' ? all : all.filter((e) => bucketOf(e, now) === bucket);
-  const rank = { due: 0, learning: 1, mastered: 2 };
-  filtered.sort((a, b) => {
-    const ra = rank[bucketOf(a, now)] ?? 3;
-    const rb = rank[bucketOf(b, now)] ?? 3;
-    if (ra !== rb) return ra - rb;
-    return (a.nextDueAt || 0) - (b.nextDueAt || 0);
-  });
+  // Three sort modes exposed to UI:
+  //   'due'     — default: bucket priority (due → learning → mastered),
+  //               then nextDueAt ascending. Best for actual review work.
+  //   'created' — newest first. Useful when inspecting recently-added items.
+  //   'random'  — in-place Fisher-Yates. Good for varied review sessions.
+  if (sort === 'random') {
+    for (let i = filtered.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = filtered[i]; filtered[i] = filtered[j]; filtered[j] = tmp;
+    }
+  } else if (sort === 'created') {
+    filtered.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  } else {
+    const rank = { due: 0, learning: 1, mastered: 2 };
+    filtered.sort((a, b) => {
+      const ra = rank[bucketOf(a, now)] ?? 3;
+      const rb = rank[bucketOf(b, now)] ?? 3;
+      if (ra !== rb) return ra - rb;
+      return (a.nextDueAt || 0) - (b.nextDueAt || 0);
+    });
+  }
   return filtered;
 }
 
