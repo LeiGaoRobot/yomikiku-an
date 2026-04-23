@@ -7,6 +7,7 @@
 //   window.__yomikikuanOpenArticleSummary
 
 import * as cache from '../cache/idb.js';
+import { mountModalA11y } from './modalA11y.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -236,12 +237,16 @@ export function mountPanel(doc) {
     </div>
   `;
   document.body.appendChild(root);
+  const a11y = mountModalA11y(root.querySelector('.summary-panel'), {
+    initialFocus: root.querySelector('.summary-close'),
+  });
 
   let controller = null;
   let escHandler = null;
   const close = () => {
     try { controller && controller.abort(); } catch (_) {}
     if (escHandler) document.removeEventListener('keydown', escHandler);
+    a11y.release();
     root.remove();
     activePanel = null;
   };

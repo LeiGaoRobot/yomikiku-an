@@ -8,6 +8,7 @@
 //   window.__yomikikuanOpenJLPT  — classic-script entry used by the toolbar button
 
 import * as cache from '../cache/idb.js';
+import { mountModalA11y } from './modalA11y.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -639,6 +640,9 @@ export function mountPanel(doc) {
     </div>
   `;
   document.body.appendChild(root);
+  const a11y = mountModalA11y(root.querySelector('.jlpt-panel'), {
+    initialFocus: root.querySelector('.jlpt-close'),
+  });
 
   let controller = null;
   let escHandler = null;
@@ -647,6 +651,7 @@ export function mountPanel(doc) {
     try { controller && controller.abort(); } catch (_) {}
     stopSpeak();
     if (escHandler) document.removeEventListener('keydown', escHandler);
+    a11y.release();
     root.remove();
     activePanel = null;
   };

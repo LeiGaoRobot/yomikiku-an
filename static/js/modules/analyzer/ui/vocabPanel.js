@@ -7,6 +7,7 @@
 //   window.__yomikikuanAddMistake(entry) — convenience for jlptPanel hook
 
 import * as srs from '../../srs/store.js';
+import { mountModalA11y } from './modalA11y.js';
 
 const CSS_INJECTED = '__yomikikuanVocabCssInjected';
 
@@ -218,10 +219,14 @@ export async function mountPanel() {
     </div>
   `;
   document.body.appendChild(root);
+  const a11y = mountModalA11y(root.querySelector('.vocab-panel'), {
+    initialFocus: root.querySelector('.vocab-close'),
+  });
 
   let escHandler = null;
   const close = () => {
     if (escHandler) document.removeEventListener('keydown', escHandler);
+    a11y.release();
     root.remove();
     activePanel = null;
   };
