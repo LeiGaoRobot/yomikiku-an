@@ -1,8 +1,14 @@
 // docs/store — ESM facade over the legacy window.documentManager instance.
-// Canonical class `DocumentManager` still lives in static/main-js.js:2682-3478.
+// Canonical class `DocumentManager` still lives in static/main-js.js.
 // This facade provides a stable named-import surface so future ESM modules
 // can migrate incrementally without depending on window.* directly.
 // When the class is fully extracted, only this file changes — callers stay.
+//
+// Pure helpers (getDocumentTitle, stripMarkdown, truncateTitle,
+// formatCreationTime, generateId) are re-exported from ./pure.js so
+// callers don't need to wait for window.documentManager to be mounted.
+
+import * as pure from './pure.js';
 
 function dm() { return window.documentManager || null; }
 
@@ -24,18 +30,11 @@ export function getActiveDocument() {
   const id = m.getActiveId();
   return m.getAllDocuments().find(d => d.id === id) || null;
 }
-export function getDocumentTitle(content) {
-  const m = dm(); return m ? m.getDocumentTitle(content) : '';
-}
-export function stripMarkdown(text) {
-  const m = dm(); return m ? m.stripMarkdown(text) : text;
-}
-export function truncateTitle(title, maxLen) {
-  const m = dm(); return m ? m.truncateTitle(title, maxLen) : title;
-}
-export function formatCreationTime(ts) {
-  const m = dm(); return m ? m.formatCreationTime(ts) : '';
-}
+// Pure helpers — no dependency on window.documentManager.
+export const getDocumentTitle   = pure.getDocumentTitle;
+export const stripMarkdown      = pure.stripMarkdown;
+export const truncateTitle      = pure.truncateTitle;
+export const formatCreationTime = pure.formatCreationTime;
 
 // ---- Mutations ----
 export function saveAllDocuments(docs) {
@@ -50,9 +49,8 @@ export function createDocument(content = '') {
 export function deleteDocument(id, skipConfirm = false, targetElement = null) {
   const m = assertDm(); return m ? m.deleteDocument(id, skipConfirm, targetElement) : false;
 }
-export function generateId() {
-  const m = dm(); return m ? m.generateId() : 'doc-' + Date.now() + '-x';
-}
+// Pure — matches the class method's id shape exactly. See pure.js.
+export const generateId = pure.generateId;
 
 // ---- Lifecycle ----
 export function render() {
