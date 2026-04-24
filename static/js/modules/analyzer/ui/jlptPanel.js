@@ -9,6 +9,8 @@
 
 import * as cache from '../cache/idb.js';
 import { mountModalA11y } from './modalA11y.js';
+import { recommendLevel } from '../local/jlptAdaptive.js';
+import * as srs from '../../srs/store.js';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -636,6 +638,7 @@ export function mountPanel(doc) {
         <button class="jlpt-go" data-role="regen" type="button" style="background:transparent;color:var(--accent,#0071e3);border:1px solid var(--accent,#0071e3);">重新生成</button>
         <span class="jlpt-status" data-role="status"></span>
       </div>
+      <div class="jlpt-recommendation" data-role="recommendation" hidden style="padding:8px 20px;border-bottom:1px solid var(--border,rgba(0,0,0,0.06));font-size:12px;color:var(--muted,#666);background:var(--elev,rgba(0,113,227,0.04));"></div>
       <div class="jlpt-list" data-role="list"></div>
     </div>
   `;
@@ -672,6 +675,28 @@ export function mountPanel(doc) {
       if (sel) sel.value = preLevel;
     }
   } catch (_) {}
+
+  // Adaptive recommendation — overrides the badge preset above once the
+  // async derivation completes. We display a small banner so the user
+  // sees why the level was chosen, and they can still change the select
+  // manually before generating.
+  (async () => {
+    try {
+      const rec = await recommendLevel({ srs });
+      if (!rec || !rec.level) return;
+      const levelSel = root.querySelector('[data-role="level"]');
+      if (levelSel) levelSel.value = rec.level;
+      const banner = root.querySelector('[data-role="recommendation"]');
+      if (banner) {
+        const acc = rec.accuracy == null ? null : Math.round(rec.accuracy * 100);
+        const msg = (rec.confidence === 'low' || acc == null)
+          ? trFmt(rec.reason || 'panel.jlpt.recommend.low_confidence', { level: rec.level }, `推荐 ${rec.level}`)
+          : trFmt('panel.jlpt.recommend.fmt', { level: rec.level, sample: rec.sample, accuracy: acc }, `推荐 ${rec.level}（最近 ${rec.sample} 题 ${acc}% 正确率）`);
+        banner.textContent = msg;
+        banner.hidden = false;
+      }
+    } catch (e) { console.warn('[jlpt] recommendLevel failed', e); }
+  })();
 
   const go = root.querySelector('[data-role="go"]');
   const status = root.querySelector('[data-role="status"]');

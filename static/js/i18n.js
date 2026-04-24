@@ -223,6 +223,11 @@ const I18N = {
     ,'panel.vocab.action.review': '復習'
     ,'panel.vocab.action.delete': '削除'
     ,'panel.common.close': '閉じる'
+    ,'panel.jlpt.recommend.fmt': '推奨 {level}（直近 {sample} 問 {accuracy}% 正答率）'
+    ,'panel.jlpt.recommend.low_confidence': 'データ不足：{level} から始めましょう'
+    ,'panel.jlpt.recommend.bump_up': '正答率が高いので {level} に上げてみては？'
+    ,'panel.jlpt.recommend.bump_down': '正答率が低いので {level} に下げてみては？'
+    ,'panel.jlpt.recommend.hold': 'このレベルを継続中：{level}'
   },
   en: {
     title: '読み聞く庵',
@@ -442,6 +447,11 @@ const I18N = {
     ,'panel.vocab.action.review': 'Review'
     ,'panel.vocab.action.delete': 'Delete'
     ,'panel.common.close': 'Close'
+    ,'panel.jlpt.recommend.fmt': 'Recommended: {level} (last {sample} questions {accuracy}% correct)'
+    ,'panel.jlpt.recommend.low_confidence': 'Not enough data — starting at {level}'
+    ,'panel.jlpt.recommend.bump_up': 'Accuracy looks strong — try bumping up to {level}'
+    ,'panel.jlpt.recommend.bump_down': 'Accuracy looks low — try dropping to {level}'
+    ,'panel.jlpt.recommend.hold': 'Holding steady at {level}'
   },
   zh: {
     title: '読み聞く庵',
@@ -661,6 +671,11 @@ const I18N = {
     ,'panel.vocab.action.review': '复习'
     ,'panel.vocab.action.delete': '删除'
     ,'panel.common.close': '关闭'
+    ,'panel.jlpt.recommend.fmt': '推荐 {level}（最近 {sample} 题 {accuracy}% 正确率）'
+    ,'panel.jlpt.recommend.low_confidence': '数据不足，从 {level} 开始练习'
+    ,'panel.jlpt.recommend.bump_up': '正确率不错，试试升到 {level}'
+    ,'panel.jlpt.recommend.bump_down': '正确率偏低，建议降到 {level}'
+    ,'panel.jlpt.recommend.hold': '保持当前 {level}'
   }
 };
 
