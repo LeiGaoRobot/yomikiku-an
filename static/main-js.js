@@ -181,6 +181,10 @@ const headerSpeedValue = $('headerSpeedValue');
     haAsWa: 'haAsWa',
     tokenAlignLeft: 'tokenAlignLeft'
   };
+  // Bridge to ESM modules (read-only by convention). Needed so forthcoming
+  // modules/docs/manager.js can read the canonical key names without having
+  // to re-declare them and drift out of sync.
+  if (typeof window !== 'undefined') window.YomikikuanLS = LS;
 
   // 初始化 EasyMDE Markdown 编辑器
   let easymde = null;
