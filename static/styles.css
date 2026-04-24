@@ -580,11 +580,11 @@ body {
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
+  width: 48px;
+  height: 5px;
+  border-radius: 3px;
   background: var(--muted);
-  opacity: 0.6;
+  opacity: 0.85;
   pointer-events: none;
   z-index: 2;
 }
@@ -2529,6 +2529,47 @@ select, input[type="range"] {
   border: none;
 }
 .theme-icon-btn svg { fill: var(--text); }
+
+/* Emoji-only variant — used for AI buttons (vocab/summary/JLPT) so their
+   glyphs match the panel titles at a glance, instead of near-identical
+   monochrome SVG outlines. */
+.theme-icon-btn--emoji {
+  width: 28px;
+  height: 28px;
+}
+.theme-icon-btn--emoji > span {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-block;
+  transform: translateY(-0.5px);
+}
+.theme-icon-btn--emoji:hover > span { transform: translateY(-1.5px); }
+
+/* Inline labels for compact form controls — replaces sr-only labels that
+   were invisible and forced users to guess (e.g. the two "系统默认" font
+   selectors). Short glyph/word cues ("编辑"/"显示") land left of the
+   select so the pair reads as "编辑 [select] 显示 [select]". */
+.select-inline-label {
+  font-size: 11px;
+  color: var(--muted, #888);
+  margin-right: 4px;
+  letter-spacing: 0.05em;
+  user-select: none;
+  align-self: center;
+}
+
+/* Same treatment for sliders — prefix a short label (字号 / 語速) so the
+   two visually-identical sliders in the editor and playback bars are
+   distinguishable without hovering. */
+.slider-inline-label {
+  font-size: 11px;
+  color: var(--muted, #888);
+  margin-right: 6px;
+  letter-spacing: 0.05em;
+  user-select: none;
+  align-self: center;
+  white-space: nowrap;
+}
 
 /* 顶部同步按钮采用同样的描边风格 */
 #syncBtn svg path {
