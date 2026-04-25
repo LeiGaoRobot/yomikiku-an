@@ -2582,127 +2582,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
   }
 
-  // 罗马字转换（Hepburn）：支持拗音、促音、长音、ん的同化
+  // 罗马字转换（Hepburn）— 委托至 modules/reading/kana.js (Phase-2 dedup, 2026-04-25)
   function getRomaji(kana) {
-    if (!kana) return '';
-
-    // 将片假名统一转为平假名，便于规则运算
-    const toHiraganaLocal = (text) => {
-      let out = '';
-      for (let i = 0; i < text.length; i++) {
-        const code = text.charCodeAt(i);
-        if (code >= 0x30A1 && code <= 0x30FA) { // Katakana
-          out += String.fromCharCode(code - 0x60);
-        } else {
-          out += text[i];
-        }
-      }
-      return out;
-    };
-
-    const macron = (v) => ({ a: 'ā', i: 'ī', u: 'ū', e: 'ē', o: 'ō' }[v] || v);
-
-    // 基础映射（平假名）
-    const base = {
-      'あ':'a','い':'i','う':'u','え':'e','お':'o',
-      'か':'ka','き':'ki','く':'ku','け':'ke','こ':'ko',
-      'が':'ga','ぎ':'gi','ぐ':'gu','げ':'ge','ご':'go',
-      'さ':'sa','し':'shi','す':'su','せ':'se','そ':'so',
-      'ざ':'za','じ':'ji','ず':'zu','ぜ':'ze','ぞ':'zo',
-      'た':'ta','ち':'chi','つ':'tsu','て':'te','と':'to',
-      'だ':'da','ぢ':'ji','づ':'zu','で':'de','ど':'do',
-      'な':'na','に':'ni','ぬ':'nu','ね':'ne','の':'no',
-      'は':'ha','ひ':'hi','ふ':'fu','へ':'he','ほ':'ho',
-      'ば':'ba','び':'bi','ぶ':'bu','べ':'be','ぼ':'bo',
-      'ぱ':'pa','ぴ':'pi','ぷ':'pu','ぺ':'pe','ぽ':'po',
-      'ま':'ma','み':'mi','む':'mu','め':'me','も':'mo',
-      'や':'ya','ゆ':'yu','よ':'yo',
-      'ら':'ra','り':'ri','る':'ru','れ':'re','ろ':'ro',
-      'わ':'wa','ゐ':'wi','ゑ':'we','を':'wo','ん':'n',
-      'ゔ':'vu',
-      // 小元音（常用于外来语拓展）：按基础元音处理
-      'ぁ':'a','ぃ':'i','ぅ':'u','ぇ':'e','ぉ':'o'
-    };
-
-    // 拗音可组合的辅音簇
-    const yoonCluster = {
-      'き':'ky','ぎ':'gy','し':'sh','じ':'j','ち':'ch','ぢ':'j',
-      'に':'ny','ひ':'hy','び':'by','ぴ':'py','み':'my','り':'ry','ゔ':'vy'
-    };
-
-    const text = toHiraganaLocal(kana);
-    let romaji = '';
-    let pendingSokuon = false; // 促音标记
-
-    // 预取下一个音节的罗马字，用于处理「ん」同化
-    const peekChunk = (s, idx) => {
-      const ch = s[idx];
-      if (!ch) return '';
-      if (ch === 'っ') return ''; // 下一个若为促音，再往后看
-      const next = s[idx + 1];
-      if ((next === 'ゃ' || next === 'ゅ' || next === 'ょ') && yoonCluster[ch]) {
-        const v = next === 'ゃ' ? 'a' : (next === 'ゅ' ? 'u' : 'o');
-        return yoonCluster[ch] + v;
-      }
-      return base[ch] || '';
-    };
-
-    for (let i = 0; i < text.length; i++) {
-      const ch = text[i];
-
-      // 促音：标记加倍下一音节首辅音
-      if (ch === 'っ') { pendingSokuon = true; continue; }
-
-      // 长音符号（通常来自片假名）：将前一元音加上长音符（macron）
-      if (ch === 'ー') {
-        const m = romaji.match(/[aeiou]$/i);
-        if (m) romaji = romaji.slice(0, -1) + macron(m[0].toLowerCase());
-        continue;
-      }
-
-      // ん 的同化规则
-      if (ch === 'ん') {
-        // 跳过连续促音，获取下一音节的起始字母
-        let j = i + 1;
-        while (text[j] === 'っ') j++;
-        const nextChunk = peekChunk(text, j);
-        const init = (nextChunk[0] || '').toLowerCase();
-        if (/^[bmp]$/.test(init)) {
-          romaji += 'm';
-        } else if (/^[aeiouy]$/.test(init)) {
-          romaji += "n'";
-        } else {
-          romaji += 'n';
-        }
-        continue;
-      }
-
-      // 拗音组合：X + (ゃ/ゅ/ょ)
-      const next = text[i + 1];
-      if ((next === 'ゃ' || next === 'ゅ' || next === 'ょ') && yoonCluster[ch]) {
-        const v = next === 'ゃ' ? 'a' : (next === 'ゅ' ? 'u' : 'o');
-        let chunk = yoonCluster[ch] + v; // 如 ky + a → kya, sh + u → shu
-        if (pendingSokuon) {
-          pendingSokuon = false;
-          const fc = chunk[0];
-          if (/^[bcdfghjklmnpqrstvwxyz]$/i.test(fc)) romaji += fc.toLowerCase();
-        }
-        romaji += chunk;
-        i++; // 消耗拗音的第二字符
-        continue;
-      }
-
-      // 常规音节
-      let chunk = base[ch] || ch;
-      if (pendingSokuon) {
-        pendingSokuon = false;
-        const fc = chunk[0] || '';
-        if (/^[bcdfghjklmnpqrstvwxyz]$/i.test(fc)) romaji += fc.toLowerCase();
-      }
-      romaji += chunk;
-    }
-
-    return romaji;
+    return (window.YomikikuanKana && window.YomikikuanKana.getRomaji)
+      ? window.YomikikuanKana.getRomaji(kana) : '';
   }
 
   // 读取当前读音脚本（默认片假名）
@@ -2730,141 +2613,42 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     toggle: () => setRubyMode(!getRubyMode()),
   };
 
+  // 委托至 modules/reading/kana.js (Phase-2 dedup, 2026-04-25)
+  // Inline fallback retained for XSS safety in the rare boot-race window where
+  // window.YomikikuanKana is not yet loaded (returning unescaped input would XSS).
   function escapeHtmlForRuby(s) {
-    return String(s == null ? '' : s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
+    if (window.YomikikuanKana && window.YomikikuanKana.escapeHtmlForRuby) {
+      return window.YomikikuanKana.escapeHtmlForRuby(s);
+    }
+    return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
   }
 
-  // 根据 surface + reading 生成 <ruby> 标记：对 surface 按 kanji/kana 切段，
-  // reading 同步剥离对应假名，使「書き出す(かきだす)」→『書』注「か」+『き』+『出』注「だ」+『す』，
-  // 每个汉字段独立生成 ruby，对齐精度显著高于"仅剥首尾"的简化策略。
+  // Ruby <ruby><rt> markup — 委托至 modules/reading/ruby.js (Phase-2 dedup, 2026-04-25)
   function buildRubyMarkup(surface, reading, script) {
-    const s = String(surface || '');
-    if (!s) return '';
-    const hasKanjiRe = /[\u4E00-\u9FFF\u3400-\u4DBF]/;
-    if (!hasKanjiRe.test(s)) return escapeHtmlForRuby(s);
-
-    const r = normalizeKanaByScript(String(reading || ''), script);
-    if (!r) return escapeHtmlForRuby(s);
-
-    const kanaChar = /[\u3041-\u3096\u30A1-\u30FA\u30FCー]/;
-    const toHira = (x) => normalizeKanaByScript(x, 'hiragana');
-
-    // 1) 切分 surface 为 segments（连续汉字段 | 连续假名段）
-    const segs = []; // { type: 'kanji'|'kana', text: string }
-    let i = 0;
-    while (i < s.length) {
-      const ch = s[i];
-      const isKana = kanaChar.test(ch);
-      let j = i + 1;
-      while (j < s.length && kanaChar.test(s[j]) === isKana) j++;
-      segs.push({ type: isKana ? 'kana' : 'kanji', text: s.slice(i, j) });
-      i = j;
-    }
-
-    // 2) 基于 reading（转平假名后）贪心匹配 kana 段，把剩下的归给相邻 kanji 段
-    const rHira = toHira(r);
-    // 为每个 kana 段在 reading 里定位（必须按顺序从左到右前进，不得回退）
-    const kanaSpans = []; // [{ segIdx, start, end }] in rHira indices
-    let cursor = 0;
-    for (let k = 0; k < segs.length; k++) {
-      if (segs[k].type !== 'kana') continue;
-      const needle = toHira(segs[k].text);
-      if (!needle) continue;
-      const found = rHira.indexOf(needle, cursor);
-      if (found < 0) {
-        // 对齐失败：回退到"整块剥首尾"的简化策略
-        return fallbackRuby(s, r, script);
-      }
-      kanaSpans.push({ segIdx: k, start: found, end: found + needle.length });
-      cursor = found + needle.length;
-    }
-
-    // 3) 按 segs 顺序组装：每个 kanji 段领取"夹在两侧 kana 段之间"的那段 reading
-    let out = '';
-    let rPos = 0; // 当前 reading 消耗位置（用 rHira 的索引，输出时转回原 script）
-    let spanCur = 0;
-    for (let k = 0; k < segs.length; k++) {
-      const seg = segs[k];
-      if (seg.type === 'kana') {
-        const sp = kanaSpans[spanCur++];
-        // 输出原 surface 的 kana 片段（保留片假名 / 长音等原样）
-        out += escapeHtmlForRuby(seg.text);
-        rPos = sp.end;
-        continue;
-      }
-      // kanji 段：reading 消耗到下一个 kana 段起点（或到末尾）
-      const nextKana = kanaSpans[spanCur];
-      const end = nextKana ? nextKana.start : rHira.length;
-      const chunkHira = rHira.slice(rPos, end);
-      if (!chunkHira) {
-        out += escapeHtmlForRuby(seg.text);
-        continue;
-      }
-      const chunk = normalizeKanaByScript(chunkHira, script);
-      out += `<ruby>${escapeHtmlForRuby(seg.text)}<rt>${escapeHtmlForRuby(chunk)}</rt></ruby>`;
-      rPos = end;
-    }
-    return out;
+    return (window.YomikikuanRubyMarkup && window.YomikikuanRubyMarkup.buildRubyMarkup)
+      ? window.YomikikuanRubyMarkup.buildRubyMarkup(surface, reading, script)
+      : escapeHtmlForRuby(surface);
   }
-
-  // 回退：按首尾假名剥离（原简化策略），保证异常输入仍能渲染
   function fallbackRuby(s, r, script) {
-    const lead = (s.match(/^[\u3041-\u3096\u30A1-\u30FA\u30FCー]+/) || [''])[0];
-    const rest = s.slice(lead.length);
-    const tail = (rest.match(/[\u3041-\u3096\u30A1-\u30FA\u30FCー]+$/) || [''])[0];
-    const base = rest.slice(0, rest.length - tail.length);
-    if (!base) return escapeHtmlForRuby(s);
-    const toHira = (x) => normalizeKanaByScript(x, 'hiragana');
-    let rb = toHira(r);
-    const leadH = toHira(lead);
-    const tailH = toHira(tail);
-    if (leadH && rb.startsWith(leadH)) rb = rb.slice(leadH.length);
-    if (tailH && rb.endsWith(tailH)) rb = rb.slice(0, rb.length - tailH.length);
-    if (!rb) return escapeHtmlForRuby(s);
-    const rbOut = normalizeKanaByScript(rb, script);
-    return `${escapeHtmlForRuby(lead)}<ruby>${escapeHtmlForRuby(base)}<rt>${escapeHtmlForRuby(rbOut)}</rt></ruby>${escapeHtmlForRuby(tail)}`;
+    return (window.YomikikuanRubyMarkup && window.YomikikuanRubyMarkup.fallbackRuby)
+      ? window.YomikikuanRubyMarkup.fallbackRuby(s, r, script)
+      : escapeHtmlForRuby(s);
   }
 
-  // 片假名转平假名
+  // 片假名 ↔ 平假名 — 委托至 modules/reading/kana.js (Phase-2 dedup, 2026-04-25)
   function toHiragana(text) {
-    if (!text) return '';
-    let out = '';
-    for (let i = 0; i < text.length; i++) {
-      const code = text.charCodeAt(i);
-      // Katakana range to Hiragana by -0x60
-      if (code >= 0x30A1 && code <= 0x30F6) {
-        out += String.fromCharCode(code - 0x60);
-      } else {
-        out += text[i];
-      }
-    }
-    return out;
+    return (window.YomikikuanKana && window.YomikikuanKana.toHiragana)
+      ? window.YomikikuanKana.toHiragana(text) : '';
   }
-
-  // 平假名转片假名
   function toKatakana(text) {
-    if (!text) return '';
-    let out = '';
-    for (let i = 0; i < text.length; i++) {
-      const code = text.charCodeAt(i);
-      // Hiragana range to Katakana by +0x60
-      if (code >= 0x3041 && code <= 0x3096) {
-        out += String.fromCharCode(code + 0x60);
-      } else {
-        out += text[i];
-      }
-    }
-    return out;
+    return (window.YomikikuanKana && window.YomikikuanKana.toKatakana)
+      ? window.YomikikuanKana.toKatakana(text) : '';
   }
-
   function normalizeKanaByScript(text, script) {
-    if (!text) return '';
-    return script === 'hiragana' ? toHiragana(text) : toKatakana(text);
+    return (window.YomikikuanKana && window.YomikikuanKana.normalizeKanaByScript)
+      ? window.YomikikuanKana.normalizeKanaByScript(text, script) : '';
   }
 
   // 词典：技术术语覆盖与词性解析抽离至 static/js/dictionary.js（window.YomikikuanDict）
@@ -6315,10 +6099,12 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Single-document HTML export (registers __yomikikuanExportDocAsHtml global).
   import('/static/js/modules/backup/doc-export.js')
     .catch((err) => console.warn('[doc-export] import failed', err));
-  // Pure kana / romaji helpers — registers window.YomikikuanKana for future modules.
-  // Phase-1 extraction; in-file copies in main-js.js still authoritative for now.
+  // Pure kana / romaji helpers — registers window.YomikikuanKana.
   import('/static/js/modules/reading/kana.js')
     .catch((err) => console.warn('[reading/kana] import failed', err));
+  // Ruby <ruby><rt> markup builder — registers window.YomikikuanRubyMarkup.
+  import('/static/js/modules/reading/ruby.js')
+    .catch((err) => console.warn('[reading/ruby] import failed', err));
   // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
   try { wireKeyboardShortcuts(); } catch (_) {}
   // #7 — Click-to-seek on the header progress bar.
