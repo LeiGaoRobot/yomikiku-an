@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ui/reader-mode.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+    #content { position: absolute; top: -9999px; }
+  </style>
+</head>
+<body>
+  <h1>ui/reader-mode.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <div id="content">
+    <div class="line-container">こんにちは、世界。</div>
+    <div class="line-container">これは二行目です。</div>
+    <div class="line-container">三行目もあるよ。</div>
+  </div>
+
+  <button id="headerPlayToggle" type="button" style="position:absolute;top:-9999px;">play</button>
+
+  <script type="module">
+    import {
+      enterReaderMode,
+      exitReaderMode,
+      wireReaderButton,
+    } from './reader-mode.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    enterReaderMode();
+    let overlay = document.getElementById('readerModeOverlay');
+    check('enterReaderMode creates #readerModeOverlay', !!overlay);
+    check('overlay has .is-open after enter',
+      overlay && overlay.classList.contains('is-open'));
+
+    const lines = overlay.querySelectorAll('.reader-line');
+    check('overlay clones each #content .line-container into .reader-line',
+      lines.length === 3, `got ${lines.length}`);
+
+    const initiallyActive = overlay.querySelectorAll('.reader-line.active');
+    check('first .reader-line is active on entry',
+      initiallyActive.length === 1 && initiallyActive[0] === lines[0]);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await sleep(40);
+    check('ArrowRight advances .active to second line',
+      lines[1].classList.contains('active') && !lines[0].classList.contains('active'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await sleep(40);
+    check('ArrowLeft moves .active back to first line',
+      lines[0].classList.contains('active'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await sleep(40);
+    check('ArrowLeft at first line stays at first (no underflow)',
+      lines[0].classList.contains('active'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await sleep(40);
+    check('ArrowRight at last stays at last (no overflow)',
+      lines[2].classList.contains('active'));
+
+    const sizeIndBefore = overlay.querySelector('.size-indicator')?.textContent;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '+', bubbles: true }));
+    await sleep(40);
+    const sizeIndAfter = overlay.querySelector('.size-indicator')?.textContent;
+    check('+ key changes size indicator',
+      sizeIndBefore !== sizeIndAfter,
+      `${sizeIndBefore} → ${sizeIndAfter}`);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true }));
+    await sleep(40);
+    check('- key reverses size change',
+      overlay.querySelector('.size-indicator')?.textContent === sizeIndBefore);
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(40);
+    check('Esc removes .is-open',
+      !overlay.classList.contains('is-open'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await sleep(40);
+    check('keydown handler is removed on exit',
+      !overlay.classList.contains('is-open'));
+
+    enterReaderMode();
+    const overlay2 = document.getElementById('readerModeOverlay');
+    check('re-entering reuses the same overlay element',
+      overlay === overlay2);
+    check('overlay is open again after re-entry',
+      overlay2.classList.contains('is-open'));
+    exitReaderMode();
+
+    check('window.__yomikikuanEnterReaderMode is a function',
+      typeof window.__yomikikuanEnterReaderMode === 'function');
+    check('window.__yomikikuanExitReaderMode is a function',
+      typeof window.__yomikikuanExitReaderMode === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

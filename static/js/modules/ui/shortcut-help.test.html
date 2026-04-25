@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ui/shortcut-help.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>ui/shortcut-help.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+  <input id="probeInput" type="text" style="position:absolute;top:-9999px;" />
+
+  <script type="module">
+    import {
+      showShortcutHelp,
+      hideShortcutHelp,
+      toggleShortcutHelp,
+      wireShortcutHelp,
+    } from './shortcut-help.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    showShortcutHelp();
+    let overlay = document.getElementById('shortcutHelpOverlay');
+    check('showShortcutHelp creates #shortcutHelpOverlay', !!overlay);
+    check('overlay carries .is-open after show',
+      overlay && overlay.classList.contains('is-open'));
+
+    hideShortcutHelp();
+    check('hideShortcutHelp removes .is-open',
+      overlay && !overlay.classList.contains('is-open'));
+
+    toggleShortcutHelp();
+    check('toggleShortcutHelp opens when closed',
+      overlay && overlay.classList.contains('is-open'));
+    toggleShortcutHelp();
+    check('toggleShortcutHelp closes when open',
+      overlay && !overlay.classList.contains('is-open'));
+
+    showShortcutHelp();
+    const groups = overlay.querySelectorAll('.sk-group');
+    const keys = overlay.querySelectorAll('.sk-key');
+    check('overlay has at least 4 .sk-group sections',
+      groups.length >= 4, `got ${groups.length}`);
+    check('overlay renders many .sk-key chips',
+      keys.length >= 8, `got ${keys.length}`);
+    hideShortcutHelp();
+
+    showShortcutHelp();
+    overlay.querySelector('.sk-close').click();
+    check('clicking .sk-close hides overlay',
+      !overlay.classList.contains('is-open'));
+
+    showShortcutHelp();
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    check('backdrop click hides overlay',
+      !overlay.classList.contains('is-open'));
+
+    wireShortcutHelp();
+    check('wireShortcutHelp sets __yomikikuanShortcutWired flag',
+      window.__yomikikuanShortcutWired === true);
+
+    document.body.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown',
+      { key: '?', shiftKey: true, bubbles: true }));
+    await sleep(60);
+    check('? key opens overlay',
+      overlay.classList.contains('is-open'));
+
+    document.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'Escape', bubbles: true }));
+    await sleep(60);
+    check('Esc key hides overlay',
+      !overlay.classList.contains('is-open'));
+
+    const probe = document.getElementById('probeInput');
+    probe.focus();
+    document.dispatchEvent(new KeyboardEvent('keydown',
+      { key: '?', shiftKey: true, bubbles: true }));
+    await sleep(60);
+    check('? key in INPUT does NOT open overlay',
+      !overlay.classList.contains('is-open'));
+    probe.blur();
+
+    check('window.__yomikikuanShowShortcutHelp is a function',
+      typeof window.__yomikikuanShowShortcutHelp === 'function');
+    check('window.__yomikikuanToggleShortcutHelp is a function',
+      typeof window.__yomikikuanToggleShortcutHelp === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
