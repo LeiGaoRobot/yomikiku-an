@@ -76,10 +76,45 @@ export function hidePwaToast(delay = 0) {
   }, 320);
 }
 
+// Pure helper: format an array of failed-asset URLs into a "失败文件: a, b, c"
+// string with same-origin paths shortened to .pathname and an "(+N more)"
+// suffix when the list exceeds `max`. Pulled out of main-js.js's
+// formatFailedAssetsSummary so it can be unit-tested without PWA_STATE.
+//
+// baseHref is dependency-injected (defaults to window.location.href) so the
+// same-origin shortening is testable.
+export function formatFailedAssetsSummary(failedList, max = 3, baseHref) {
+  const list = Array.isArray(failedList) ? failedList : [];
+  if (!list.length) return '';
+
+  // Surface the full list to the console (parity with the in-file version).
+  try {
+    console.group('[PWA] 缓存失败的文件列表:');
+    list.forEach((url, index) => console.log(`${index + 1}. ${url}`));
+    console.groupEnd();
+  } catch (_) {}
+
+  const base = baseHref || (typeof window !== 'undefined' ? window.location.href : '');
+  let baseOrigin = '';
+  try { baseOrigin = base ? new URL(base).origin : ''; } catch (_) {}
+
+  const labels = list.slice(0, max).map((url) => {
+    try {
+      const u = base ? new URL(url, base) : new URL(url);
+      return baseOrigin && u.origin === baseOrigin ? u.pathname : url;
+    } catch (_) {
+      return url;
+    }
+  });
+  const more = list.length > max ? ` (+${list.length - max} more)` : '';
+  return `失败文件: ${labels.join(', ')}${more}`;
+}
+
 // Window bridge: ESM implementation becomes authoritative for external callers.
 // main-js.js's own closure references still exist (unchanged) and keep working.
 if (typeof window !== 'undefined') {
   window.setPwaIcon     = setPwaIcon;
   window.updatePwaToast = updatePwaToast;
   window.hidePwaToast   = hidePwaToast;
+  window.YomikikuanPwaFormat = { formatFailedAssetsSummary };
 }
