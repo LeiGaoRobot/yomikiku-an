@@ -6,7 +6,8 @@
   "scripts": {
     "start": "python3 -m http.server 8000",
     "dev": "python3 -m http.server 8000",
-    "serve": "python3 -m http.server 8000"
+    "serve": "python3 -m http.server 8000",
+    "test": "bash scripts/test.sh"
   },
   "dependencies": {
     "jmdict-simplified-node": "^1.1.2",
