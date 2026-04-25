@@ -10,7 +10,7 @@
 const CACHE_PREFIX = 'yomikikuan-cache';
 // ⚠️ Bump this on every deploy that changes ANY cached asset. Activate handler
 // purges every bucket under CACHE_PREFIX whose name doesn't match CACHE_NAME.
-const CACHE_VERSION = 'v32';
+const CACHE_VERSION = 'v34';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 
 // Resolve fallback HTML relative to SW scope

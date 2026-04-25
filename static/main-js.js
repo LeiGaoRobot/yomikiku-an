@@ -2665,26 +2665,15 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     return v === null ? true : v === 'true';
   }
 
-  // 根据设置格式化读音：处理助词"は"并按脚本转换
+  // 根据设置格式化读音 — 委托至 modules/reading/reading.js (Phase-2 dedup, 2026-04-25)
   function formatReading(token, script) {
-    const surface = token && token.surface ? token.surface : '';
-    const posArr = Array.isArray(token && token.pos) ? token.pos : [token && token.pos || ''];
-    const readingRaw = token && token.reading ? token.reading : '';
-    const override = (window.YomikikuanDict && window.YomikikuanDict.getTechOverride) ? window.YomikikuanDict.getTechOverride(token) : null;
-    if (override && override.reading) {
-      const normalized = normalizeKanaByScript(override.reading, script);
-      // 英文术语通常不显示与表层一致的假名；这里始终显示覆盖读音
-      return normalized;
+    if (window.YomikikuanReading && window.YomikikuanReading.formatReading) {
+      return window.YomikikuanReading.formatReading(token, script, {
+        haAsWa: isHaParticleReadingEnabled(),
+        getTechOverride: window.YomikikuanDict && window.YomikikuanDict.getTechOverride,
+      });
     }
-    if (!readingRaw) return '';
-    // 特例：助词"は"读作"わ/ワ"
-    if (surface === 'は' && posArr[0] === '助詞' && isHaParticleReadingEnabled()) {
-      return script === 'hiragana' ? 'わ' : 'ワ';
-    }
-    const normalized = normalizeKanaByScript(readingRaw, script);
-    // 如果读音与表层一致，则不重复显示
-    if (normalized === surface) return '';
-    return normalized;
+    return '';
   }
 
   // 切换脚本时即时更新已渲染的读音
@@ -3722,96 +3711,12 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     playSegments(segments, 0, rateOverride);
   }
   
-  // 按标点符号分段文本
+  // 按标点符号分段文本 — 委托至 modules/player/segment.js (Phase-2 dedup, 2026-04-25)
   function splitTextByPunctuation(text) {
-    const normalized = String(text || '').replace(/\r\n/g, '\n');
-    const segments = [];
-    // 停顿时间设置（毫秒）
-    const heavyPause = 800;      // 句号、感叹号、问号、换行 - 长停顿
-    const mediumPause = 400;     // 逗号、顿号、分号 - 中等停顿
-    const lightPause = 200;      // 冒号 - 轻微停顿
-    const ellipsisPause = 1000;  // 省略号 - 更长停顿
-    
-    let buffer = '';
-    
-    const pushSegment = (pause) => {
-      const segmentText = buffer.trim();
-      // Skip pure-punctuation / whitespace-only segments. Gemini TTS rejects
-      // these with PROHIBITED_CONTENT (the safety classifier returns high-
-      // confidence prohibited on inputs with no semantic content like "、").
-      if (segmentText && /[\p{L}\p{N}]/u.test(segmentText)) {
-        segments.push({ text: segmentText, pause });
-      }
-      buffer = '';
-    };
-    
-    for (let i = 0; i < normalized.length; i++) {
-      const ch = normalized[i];
-      const next = normalized[i + 1] || '';
-      const next2 = normalized[i + 2] || '';
-      
-      if (ch === '\n') {
-        pushSegment(heavyPause);
-        continue;
-      }
-      
-      buffer += ch;
-      
-      // 中文省略号
-      if (ch === '…') {
-        while (normalized[i + 1] === '…') {
-          buffer += normalized[++i];
-        }
-        pushSegment(ellipsisPause);
-        continue;
-      }
-      
-      // 英文省略号 ...
-      if (ch === '.' && next === '.' && next2 === '.') {
-        buffer += next + next2;
-        i += 2;
-        pushSegment(ellipsisPause);
-        continue;
-      }
-      
-      // 句号、感叹号、问号 - 长停顿
-      if ('。！？!?？！'.includes(ch)) {
-        pushSegment(heavyPause);
-        continue;
-      }
-      
-      // 逗号、顿号、分号 - 中等停顿
-      if ('、，,;；'.includes(ch)) {
-        pushSegment(mediumPause);
-        continue;
-      }
-      
-      // 冒号 - 轻微停顿（用于列表、说明等场景）
-      if (':：'.includes(ch)) {
-        pushSegment(lightPause);
-        continue;
-      }
+    if (window.YomikikuanSegment && window.YomikikuanSegment.splitTextByPunctuation) {
+      return window.YomikikuanSegment.splitTextByPunctuation(text);
     }
-    
-    if (buffer.trim() && /[\p{L}\p{N}]/u.test(buffer)) {
-      segments.push({ text: buffer.trim(), pause: 0 });
-    }
-
-    if (!segments.length && normalized.trim() && /[\p{L}\p{N}]/u.test(normalized)) {
-      segments.push({ text: normalized.trim(), pause: 0 });
-    }
-    
-    // 如果依然没有有效分段，则按固定长度切分
-    if (!segments.length) {
-      const plain = normalized.trim();
-      const maxLength = 60;
-      for (let i = 0; i < plain.length; i += maxLength) {
-        const part = plain.slice(i, i + maxLength).trim();
-        if (part) segments.push({ text: part, pause: 260 });
-      }
-    }
-    
-    return segments;
+    return [];
   }
   
   // 分段播放
@@ -6105,6 +6010,12 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Ruby <ruby><rt> markup builder — registers window.YomikikuanRubyMarkup.
   import('/static/js/modules/reading/ruby.js')
     .catch((err) => console.warn('[reading/ruby] import failed', err));
+  // Reading display formatter — registers window.YomikikuanReading.
+  import('/static/js/modules/reading/reading.js')
+    .catch((err) => console.warn('[reading/reading] import failed', err));
+  // Text → playable segments — registers window.YomikikuanSegment.
+  import('/static/js/modules/player/segment.js')
+    .catch((err) => console.warn('[player/segment] import failed', err));
   // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
   try { wireKeyboardShortcuts(); } catch (_) {}
   // #7 — Click-to-seek on the header progress bar.

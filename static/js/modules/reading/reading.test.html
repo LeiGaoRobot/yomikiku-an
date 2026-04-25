@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>reading/reading.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>reading/reading.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { formatReading } from './reading.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    check('null token returns ""', formatReading(null, 'hiragana') === '');
+    check('undefined token returns ""', formatReading(undefined, 'hiragana') === '');
+    check('empty token returns ""', formatReading({}, 'hiragana') === '');
+    check('token with no reading returns ""',
+      formatReading({ surface: '日本' }, 'hiragana') === '');
+
+    check('日本/ニホン → ニホン (default katakana)',
+      formatReading({ surface: '日本', reading: 'ニホン' }, 'katakana') === 'ニホン');
+    check('日本/ニホン → にほん (hiragana script)',
+      formatReading({ surface: '日本', reading: 'ニホン' }, 'hiragana') === 'にほん');
+    check('日本/にほん → にほん (already hiragana)',
+      formatReading({ surface: '日本', reading: 'にほん' }, 'hiragana') === 'にほん');
+
+    check('かたかな/カタカナ in hiragana → "" (matches surface)',
+      formatReading({ surface: 'かたかな', reading: 'カタカナ' }, 'hiragana') === '');
+    check('カタカナ/カタカナ in katakana → "" (matches surface)',
+      formatReading({ surface: 'カタカナ', reading: 'カタカナ' }, 'katakana') === '');
+    check('日本/ニホン NOT suppressed (kanji surface)',
+      formatReading({ surface: '日本', reading: 'ニホン' }, 'katakana') === 'ニホン');
+
+    {
+      const tok = { surface: 'は', reading: 'ハ', pos: ['助詞'] };
+      check('は particle (助詞) hiragana → わ',
+        formatReading(tok, 'hiragana') === 'わ');
+      check('は particle (助詞) katakana → ワ',
+        formatReading(tok, 'katakana') === 'ワ');
+    }
+    {
+      // haAsWa=false skips the particle special case → falls into the
+      // normalize+surface-equality path. ハ→は in hiragana equals surface 'は',
+      // so returns ''. We just verify it does NOT return わ.
+      const tok = { surface: 'は', reading: 'ハ', pos: ['助詞'] };
+      check('は particle with haAsWa=false → no わ rewrite',
+        formatReading(tok, 'hiragana', { haAsWa: false }) !== 'わ');
+    }
+    {
+      const tok = { surface: 'は', reading: 'ハ', pos: '助詞' };
+      check('は particle accepts pos as string',
+        formatReading(tok, 'hiragana') === 'わ');
+    }
+    {
+      const tok = { surface: 'は', reading: 'ハ', pos: ['名詞'] };
+      check('は as 名詞 not a particle — no わ rewrite',
+        formatReading(tok, 'hiragana') !== 'わ');
+    }
+
+    {
+      const getTechOverride = (token) =>
+        token.surface === 'API' ? { reading: 'エーピーアイ' } : null;
+      const tok = { surface: 'API', reading: '' };
+      check('tech override returns katakana reading',
+        formatReading(tok, 'katakana', { getTechOverride }) === 'エーピーアイ');
+      check('tech override normalised to hiragana',
+        formatReading(tok, 'hiragana', { getTechOverride }) === 'えーぴーあい');
+    }
+    {
+      const getTechOverride = () => null;
+      check('null override falls through to normal reading',
+        formatReading({ surface: '日本', reading: 'ニホン' }, 'katakana',
+          { getTechOverride }) === 'ニホン');
+    }
+    {
+      const getTechOverride = () => ({ otherField: 'x' });
+      check('override without .reading field falls through',
+        formatReading({ surface: '日本', reading: 'ニホン' }, 'katakana',
+          { getTechOverride }) === 'ニホン');
+    }
+    check('non-function getTechOverride safely ignored',
+      formatReading({ surface: '日本', reading: 'ニホン' }, 'katakana',
+        { getTechOverride: 'not-a-function' }) === 'ニホン');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
