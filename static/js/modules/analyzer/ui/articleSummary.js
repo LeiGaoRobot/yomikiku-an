@@ -118,8 +118,82 @@ Output strict JSON only (no markdown, no fences), matching this schema:
   "summary": "一段日文要约（3–5 句），以学习者视角概括文章主旨",
   "keySentences": ["原文中最值得精读的 3–5 句话（必须是原文句子的逐字引用）"],
   "recommendedLevel": "N5" | "N4" | "N3" | "N2" | "N1",
-  "learningPoints": ["3–6 条学习重点，中日双语，每条形如「語彙：〇〇（意味）／ 句型：〇〇（用法）」"]
-}`;
+  "learningPoints": ["3–6 条学习重点，中日双语，每条形如「語彙：〇〇（意味）／ 句型：〇〇（用法）」"],
+  "vocabulary": [
+    { "surface": "単語", "reading": "かな", "meaning_zh": "中文义", "example_ja": "原文中的例句" }
+  ],
+  "grammarPoints": [
+    { "point": "〜わけではない", "note_zh": "并非…", "example_ja": "本文中的例句" }
+  ]
+}
+- vocabulary: 5–10 important words at recommendedLevel, pulled from the article.
+- grammarPoints: 2–5 notable sentence patterns with article-grounded examples.`;
+}
+
+function toMarkdown(doc, payload) {
+  const lines = [];
+  const title = doc?.title || 'Article';
+  const date = new Date().toISOString().slice(0, 10);
+  lines.push(`# ${title}`);
+  lines.push('');
+  lines.push(`> Exported from YomiKiku-an · ${date}${payload.recommendedLevel ? ` · JLPT ${payload.recommendedLevel}` : ''}`);
+  lines.push('');
+  if (payload.summary) {
+    lines.push('## 要約');
+    lines.push('');
+    lines.push(payload.summary);
+    lines.push('');
+  }
+  if (Array.isArray(payload.keySentences) && payload.keySentences.length) {
+    lines.push('## キー文');
+    lines.push('');
+    payload.keySentences.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
+    lines.push('');
+  }
+  if (Array.isArray(payload.vocabulary) && payload.vocabulary.length) {
+    lines.push('## 重要語彙');
+    lines.push('');
+    lines.push('| 単語 | 読み | 意味 | 例文 |');
+    lines.push('|------|------|------|------|');
+    payload.vocabulary.forEach((v) => {
+      const surface = (v.surface || '').replace(/\|/g, '\\|');
+      const reading = (v.reading || '').replace(/\|/g, '\\|');
+      const meaning = (v.meaning_zh || v.meaning || '').replace(/\|/g, '\\|');
+      const ex = (v.example_ja || '').replace(/\|/g, '\\|');
+      lines.push(`| ${surface} | ${reading} | ${meaning} | ${ex} |`);
+    });
+    lines.push('');
+  }
+  if (Array.isArray(payload.grammarPoints) && payload.grammarPoints.length) {
+    lines.push('## 文法ポイント');
+    lines.push('');
+    payload.grammarPoints.forEach((g) => {
+      lines.push(`- **${g.point || ''}** — ${g.note_zh || g.note || ''}`);
+      if (g.example_ja) lines.push(`  - 例：${g.example_ja}`);
+    });
+    lines.push('');
+  }
+  if (Array.isArray(payload.learningPoints) && payload.learningPoints.length) {
+    lines.push('## 学習ポイント');
+    lines.push('');
+    payload.learningPoints.forEach((p) => lines.push(`- ${p}`));
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+function downloadMarkdown(doc, payload) {
+  const md = toMarkdown(doc, payload);
+  const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeTitle = (doc?.title || 'article').replace(/[^\w一-龥぀-ヿ-]+/g, '_').slice(0, 60);
+  a.href = url;
+  a.download = `${safeTitle}-summary.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 200);
 }
 
 async function callGemini(prompt, signal) {
@@ -214,6 +288,81 @@ function render(bodyEl, payload) {
     sec.appendChild(ul);
     bodyEl.appendChild(sec);
   }
+
+  // Vocabulary table — one row per word, with ＋ button to add to vocab book.
+  if (Array.isArray(payload.vocabulary) && payload.vocabulary.length) {
+    const sec = document.createElement('div');
+    sec.className = 'summary-section';
+    const h = document.createElement('h4');
+    h.textContent = tr('panel.summary.section.vocabulary', '重要語彙');
+    sec.appendChild(h);
+    const table = document.createElement('div');
+    table.style.cssText = 'display:flex;flex-direction:column;gap:4px;';
+    payload.vocabulary.forEach((v) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;gap:8px;align-items:baseline;padding:4px 0;border-bottom:1px dashed var(--border,rgba(0,0,0,.06));';
+      row.innerHTML = `
+        <b style="font-size:14px;">${escapeHtml(v.surface || '')}</b>
+        <span style="font-size:11px;color:var(--muted,#888);">${escapeHtml(v.reading || '')}</span>
+        <span style="flex:1;font-size:13px;color:var(--muted,#555);">${escapeHtml(v.meaning_zh || v.meaning || '')}</span>
+        <button type="button" class="addv" style="border:1px solid var(--border,rgba(0,0,0,.15));background:transparent;border-radius:999px;padding:0 8px;font-size:10.5px;cursor:pointer;color:inherit;">＋ 加入词汇本</button>
+      `;
+      row.querySelector('.addv').addEventListener('click', (ev) => {
+        try {
+          if (typeof window.__yomikikuanAddVocab === 'function') {
+            window.__yomikikuanAddVocab({
+              surface: v.surface || '',
+              reading: v.reading || '',
+              meaning_zh: v.meaning_zh || v.meaning || '',
+              source_stem: v.example_ja || '',
+              level: payload.recommendedLevel || '',
+            });
+            ev.currentTarget.textContent = '✓';
+            ev.currentTarget.disabled = true;
+            ev.currentTarget.style.background = 'rgba(52,199,89,.16)';
+          }
+        } catch (e) { console.warn('[summary] addVocab failed', e); }
+      });
+      if (v.example_ja) {
+        const ex = document.createElement('div');
+        ex.style.cssText = 'flex-basis:100%;font-size:11.5px;color:var(--muted,#888);padding-left:10px;font-style:italic;';
+        ex.textContent = `例：${v.example_ja}`;
+        row.appendChild(ex);
+      }
+      table.appendChild(row);
+    });
+    sec.appendChild(table);
+    bodyEl.appendChild(sec);
+  }
+
+  // Grammar points
+  if (Array.isArray(payload.grammarPoints) && payload.grammarPoints.length) {
+    const sec = document.createElement('div');
+    sec.className = 'summary-section';
+    const h = document.createElement('h4');
+    h.textContent = tr('panel.summary.section.grammar', '文法ポイント');
+    sec.appendChild(h);
+    const ul = document.createElement('ul');
+    payload.grammarPoints.forEach((g) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<b>${escapeHtml(g.point || '')}</b> — ${escapeHtml(g.note_zh || g.note || '')}`;
+      if (g.example_ja) {
+        const ex = document.createElement('div');
+        ex.style.cssText = 'font-size:12px;color:var(--muted,#888);margin-top:2px;font-style:italic;';
+        ex.textContent = `例：${g.example_ja}`;
+        li.appendChild(ex);
+      }
+      ul.appendChild(li);
+    });
+    sec.appendChild(ul);
+    bodyEl.appendChild(sec);
+  }
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, (c) => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;',
+  }[c]));
 }
 
 let activePanel = null;
@@ -236,6 +385,7 @@ export function mountPanel(doc) {
         <button class="summary-go" data-role="go" type="button">生成</button>
         <button class="summary-regen" data-role="regen" type="button">重新生成</button>
         <span class="summary-status" data-role="status"></span>
+        <button class="summary-export-btn" data-role="export" type="button" hidden>📤 导出 Markdown</button>
       </div>
       <div class="summary-body" data-role="body"></div>
     </div>
@@ -265,7 +415,14 @@ export function mountPanel(doc) {
   const regen = root.querySelector('[data-role="regen"]');
   const status = root.querySelector('[data-role="status"]');
   const body = root.querySelector('[data-role="body"]');
+  const exportBtn = root.querySelector('[data-role="export"]');
+  let lastPayload = null;
   const ckey = JSON.stringify({ docId: doc && doc.id });
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      if (lastPayload) downloadMarkdown(doc, lastPayload);
+    });
+  }
 
   async function run({ bypassCache } = {}) {
     go.disabled = true; regen.disabled = true;
@@ -275,6 +432,8 @@ export function mountPanel(doc) {
         const hit = await cache.get(ckey, PROVIDER_ID, SCHEMA_VERSION);
         if (hit && (hit.summary || hit.keySentences)) {
           render(body, hit);
+          lastPayload = hit;
+          if (exportBtn) exportBtn.hidden = false;
           status.textContent = tr('panel.cache.loaded', '已从缓存加载 — 点"重新生成"可重新调用 Gemini');
           go.disabled = false; regen.disabled = false;
           return;
@@ -294,6 +453,8 @@ export function mountPanel(doc) {
       const payload = parseJson(raw);
       if (!payload || (!payload.summary && !Array.isArray(payload.keySentences))) throw new Error('BAD_SHAPE');
       render(body, payload);
+      lastPayload = payload;
+      if (exportBtn) exportBtn.hidden = false;
       status.textContent = tr('panel.generated', '已生成');
       try { await cache.put(ckey, PROVIDER_ID, SCHEMA_VERSION, payload); } catch (_) {}
     } catch (err) {

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>jlpt/session.js + coach.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .name { font-weight: 600; }
+    .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>jlpt/session.js + coach.js tests (pure functions)</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { buildReport } from './session.js';
+    import { diagnoseWeakness, checkUpgrade } from './coach.js';
+
+    const results = [];
+    function check(name, cond, detail) {
+      results.push({ name, pass: !!cond, detail: detail || '' });
+    }
+
+    const now = 1745452800000;
+    const plan = { sessionId: 'sess-test', level: 'N3', modes: ['kadai','point'], startedAt: now, finishedAt: now + 120000, docId: 'd1' };
+    const r1 = buildReport([
+      { mode: 'kadai', qIndex: 0, chosen: 0, correct: true },
+      { mode: 'kadai', qIndex: 1, chosen: 1, correct: false },
+      { mode: 'point', qIndex: 2, chosen: 2, correct: true },
+    ], plan);
+
+    check('buildReport sets total', r1.total === 3);
+    check('buildReport sets correct', r1.correct === 2);
+    check('buildReport durationMs is 120000', r1.durationMs === 120000);
+    check('buildReport byMode split',
+      r1.byMode.find(m => m.mode==='kadai')?.total === 2 &&
+      r1.byMode.find(m => m.mode==='kadai')?.correct === 1 &&
+      r1.byMode.find(m => m.mode==='point')?.total === 1 &&
+      r1.byMode.find(m => m.mode==='point')?.correct === 1);
+    check('buildReport preserves level/modes/docId',
+      r1.level === 'N3' && r1.modes.length === 2 && r1.docId === 'd1');
+
+    const r0 = buildReport([], plan);
+    check('buildReport handles empty answers', r0.total === 0 && r0.correct === 0);
+
+    const history = [
+      { level: 'N3', total: 6, correct: 2, byMode: [
+        { mode: 'gist', total: 3, correct: 1 },
+        { mode: 'point', total: 3, correct: 1 },
+      ], startedAt: now },
+      { level: 'N3', total: 6, correct: 3, byMode: [
+        { mode: 'gist', total: 3, correct: 0 },
+        { mode: 'point', total: 3, correct: 3 },
+      ], startedAt: now - 86400000 },
+    ];
+    const diag = diagnoseWeakness(history);
+    check('diagnoseWeakness picks gist as weakest',
+      diag && diag.mode === 'gist',
+      `got: ${JSON.stringify(diag)}`);
+    check('diagnoseWeakness accuracy below 0.5',
+      diag && diag.accuracy < 0.5);
+    check('diagnoseWeakness sample >= 3',
+      diag && diag.sample >= 3);
+
+    check('diagnoseWeakness returns null on empty', diagnoseWeakness([]) === null);
+    check('diagnoseWeakness returns null when all strong',
+      diagnoseWeakness([{ level:'N3', byMode: [{mode:'kadai',total:5,correct:5}] }]) === null);
+
+    const upHistory = [
+      { level: 'N3', total: 10, correct: 9, byMode: [] },
+      { level: 'N3', total: 8, correct: 7, byMode: [] },
+    ];
+    const up = checkUpgrade(upHistory);
+    check('checkUpgrade suggests N3→N2 on 2x 85%+',
+      up && up.fromLevel === 'N3' && up.toLevel === 'N2',
+      `got: ${JSON.stringify(up)}`);
+
+    const noUp = checkUpgrade([
+      { level: 'N3', total: 10, correct: 9, byMode: [] },
+      { level: 'N3', total: 10, correct: 6, byMode: [] },
+    ]);
+    check('checkUpgrade returns null on one lower score', noUp === null);
+
+    const noUpAtN1 = checkUpgrade([
+      { level: 'N1', total: 10, correct: 10, byMode: [] },
+      { level: 'N1', total: 10, correct: 9, byMode: [] },
+    ]);
+    check('checkUpgrade returns null at N1 ceiling', noUpAtN1 === null);
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
