@@ -6290,6 +6290,31 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   import('/static/js/modules/ui/panel-triggers.js')
     .then((m) => { try { m.wirePanelTriggers(); } catch (e) { console.warn('[panel-triggers] wire failed', e); } })
     .catch((err) => console.warn('[panel-triggers] import failed', err));
+  // Apple-style Inspector drawer — mounts #inspectorToggleBtn and the right-side
+  // drawer that consolidates the four AI entry points (summary/JLPT/vocab/bilingual).
+  import('/static/js/modules/ui/inspector.js')
+    .then((m) => { try { m.mountInspector(); } catch (e) { console.warn('[inspector] mount failed', e); } })
+    .catch((err) => console.warn('[inspector] import failed', err));
+  // Reader Mode (distraction-free full-screen reading via 📖 button or R key).
+  import('/static/js/modules/ui/reader-mode.js')
+    .then((m) => { try { m.wireReaderButton(); } catch (e) { console.warn('[reader-mode] wire failed', e); } })
+    .catch((err) => console.warn('[reader-mode] import failed', err));
+  // Daily progress rings + streak (sidebar footer).
+  import('/static/js/modules/ui/progress-rings.js')
+    .then((m) => {
+      try {
+        const el = document.getElementById('progressRingsMount');
+        if (el) m.mountProgressRings(el);
+      } catch (e) { console.warn('[progress-rings] mount failed', e); }
+    })
+    .catch((err) => console.warn('[progress-rings] import failed', err));
+  // Keyboard shortcut help overlay (? key).
+  import('/static/js/modules/ui/shortcut-help.js')
+    .then((m) => { try { m.wireShortcutHelp(); } catch (e) { console.warn('[shortcut-help] wire failed', e); } })
+    .catch((err) => console.warn('[shortcut-help] import failed', err));
+  // Single-document HTML export (registers __yomikikuanExportDocAsHtml global).
+  import('/static/js/modules/backup/doc-export.js')
+    .catch((err) => console.warn('[doc-export] import failed', err));
   // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
   try { wireKeyboardShortcuts(); } catch (_) {}
   // #7 — Click-to-seek on the header progress bar.
