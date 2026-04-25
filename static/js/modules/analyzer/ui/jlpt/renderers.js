@@ -178,7 +178,7 @@ export function injectCss() {
   document.head.appendChild(style);
 }
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, (c) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   }[c]));
@@ -774,7 +774,7 @@ function renderDictation(listEl, payload) {
   });
 }
 
-function diffHighlight(user, truth) {
+export function diffHighlight(user, truth) {
   const u = String(user || ''); const t = String(truth || '');
   const n = Math.max(u.length, t.length);
   let out = '';
@@ -868,7 +868,7 @@ export function renderScorecard(container, report, ctx = {}) {
   container.appendChild(root);
 }
 
-function formatDuration(ms) {
+export function formatDuration(ms) {
   const s = Math.round((Number(ms) || 0) / 1000);
   if (s < 60) return `${s}s`;
   return `${Math.floor(s / 60)}m ${s % 60}s`;
