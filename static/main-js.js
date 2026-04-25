@@ -6007,6 +6007,12 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Folder helpers — registers window.YomikikuanFolders.
   import('/static/js/modules/docs/folders.js')
     .catch((err) => console.warn('[docs/folders] import failed', err));
+  // Browser-language sniffer — registers window.YomikikuanI18nDetect.
+  import('/static/js/modules/i18n/detect.js')
+    .catch((err) => console.warn('[i18n/detect] import failed', err));
+  // Token-details panel positioning — registers window.YomikikuanPosition.
+  import('/static/js/modules/ui/position.js')
+    .catch((err) => console.warn('[ui/position] import failed', err));
   // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
   try { wireKeyboardShortcuts(); } catch (_) {}
   // #7 — Click-to-seek on the header progress bar.

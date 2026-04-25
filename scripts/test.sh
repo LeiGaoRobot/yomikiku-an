@@ -59,6 +59,8 @@ const TESTS = [
   'static/js/modules/ui/shortcut-help.test.html',
   'static/js/modules/ui/reader-mode.test.html',
   'static/js/modules/ui/pwa-toast.test.html',
+  'static/js/modules/ui/position.test.html',
+  'static/js/modules/i18n/detect.test.html',
   'static/js/modules/reading/kana.test.html',
   'static/js/modules/reading/reading.test.html',
   'static/js/modules/reading/ruby.test.html',

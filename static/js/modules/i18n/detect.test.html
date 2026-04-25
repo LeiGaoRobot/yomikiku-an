@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>i18n/detect.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>i18n/detect.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { detectBrowserLanguage } from './detect.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+    const N = (lang, ul) => ({ language: lang, userLanguage: ul });
+
+    check('zh-CN → zh', detectBrowserLanguage(N('zh-CN')) === 'zh');
+    check('zh-TW → zh', detectBrowserLanguage(N('zh-TW')) === 'zh');
+    check('zh → zh', detectBrowserLanguage(N('zh')) === 'zh');
+    check('ja-JP → ja', detectBrowserLanguage(N('ja-JP')) === 'ja');
+    check('ja → ja', detectBrowserLanguage(N('ja')) === 'ja');
+    check('en-US → en', detectBrowserLanguage(N('en-US')) === 'en');
+    check('en-GB → en', detectBrowserLanguage(N('en-GB')) === 'en');
+    check('en → en', detectBrowserLanguage(N('en')) === 'en');
+
+    check('fr-FR (unsupported) → zh default',
+      detectBrowserLanguage(N('fr-FR')) === 'zh');
+    check('de (unsupported) → zh default',
+      detectBrowserLanguage(N('de')) === 'zh');
+    check('empty string → zh default',
+      detectBrowserLanguage(N('')) === 'zh');
+
+    check('fallback to userLanguage when language is empty',
+      detectBrowserLanguage({ language: '', userLanguage: 'ja-JP' }) === 'ja');
+    check('userLanguage zh-HK → zh',
+      detectBrowserLanguage({ language: undefined, userLanguage: 'zh-HK' }) === 'zh');
+
+    check('null nav → falls through to globalThis.navigator (not "zh")',
+      // null is falsy → uses real navigator. Just verify it returns one of
+      // the 3 supported locales (which one depends on the test browser).
+      ['zh', 'ja', 'en'].includes(detectBrowserLanguage(null)));
+    check('case-insensitive: ZH-CN → zh',
+      detectBrowserLanguage(N('ZH-CN')) === 'zh');
+    check('case-insensitive: JA → ja',
+      detectBrowserLanguage(N('JA')) === 'ja');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
