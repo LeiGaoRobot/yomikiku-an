@@ -1187,28 +1187,13 @@ const headerSpeedValue = $('headerSpeedValue');
     pwaToastIcon.innerHTML = icons[kind] || icons.download;
   }
 
-  // 格式化失败文件的简要列表（最多 N 个）
+  // 格式化失败文件的简要列表 — 委托至 modules/ui/pwa-toast.js (Phase-2 dedup, 2026-04-25)
   function formatFailedAssetsSummary(max = 3) {
-    const list = Array.isArray(PWA_STATE.failedAssets) ? PWA_STATE.failedAssets : [];
-    if (!list.length) return '';
-    
-    // 在控制台打印所有失败的文件
-    console.group('[PWA] 缓存失败的文件列表:');
-    list.forEach((url, index) => {
-      console.log(`${index + 1}. ${url}`);
-    });
-    console.groupEnd();
-    
-    const labels = list.slice(0, max).map((url) => {
-      try {
-        const u = new URL(url, window.location.href);
-        return u.origin === window.location.origin ? u.pathname : url;
-      } catch (_) {
-        return url;
-      }
-    });
-    const more = list.length > max ? ` (+${list.length - max} more)` : '';
-    return `失败文件: ${labels.join(', ')}${more}`;
+    if (window.YomikikuanPwaFormat && window.YomikikuanPwaFormat.formatFailedAssetsSummary) {
+      return window.YomikikuanPwaFormat.formatFailedAssetsSummary(
+        PWA_STATE.failedAssets, max, window.location.href);
+    }
+    return '';
   }
 
   function updatePwaToast(state, { title, message, progress, icon } = {}) {
