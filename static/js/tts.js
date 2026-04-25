@@ -78,7 +78,15 @@
   };
 
   // ----------------- PCM → WAV helpers -----------------
+  // Phase-2 dedup (2026-04-25): canonical impls live in modules/audio/wav.js.
+  // Inline fallbacks are preserved verbatim because tts.js boots BEFORE the
+  // ESM bootstrap chain that loads wav.js — clicking play within the boot-race
+  // window (~tens of ms) must still produce valid audio per CLAUDE.md's
+  // load-bearing playback boundary.
   function base64ToBytes(b64) {
+    if (window.YomikikuanWav && window.YomikikuanWav.base64ToBytes) {
+      return window.YomikikuanWav.base64ToBytes(b64);
+    }
     const bin = atob(b64);
     const len = bin.length;
     const bytes = new Uint8Array(len);
@@ -86,6 +94,9 @@
     return bytes;
   }
   function pcm16ToWav(pcmBytes, sampleRate) {
+    if (window.YomikikuanWav && window.YomikikuanWav.pcm16ToWav) {
+      return window.YomikikuanWav.pcm16ToWav(pcmBytes, sampleRate);
+    }
     const dataLen = pcmBytes.byteLength;
     const buffer = new ArrayBuffer(44 + dataLen);
     const view = new DataView(buffer);
@@ -107,6 +118,9 @@
     return new Blob([buffer], { type: 'audio/wav' });
   }
   function parseSampleRate(mime) {
+    if (window.YomikikuanWav && window.YomikikuanWav.parseSampleRate) {
+      return window.YomikikuanWav.parseSampleRate(mime);
+    }
     let rate = 24000;
     const m = /rate=(\d+)/i.exec(mime || '');
     if (m) rate = parseInt(m[1], 10) || 24000;
