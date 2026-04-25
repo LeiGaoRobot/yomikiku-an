@@ -68,6 +68,7 @@ const TESTS = [
   'static/js/modules/srs/store.test.html',
   'static/js/modules/docs/folders.test.html',
   'static/js/modules/audio/wav.test.html',
+  'static/js/modules/util/index.test.html',
   'static/js/modules/backup/doc-export.test.html',
 ];
 

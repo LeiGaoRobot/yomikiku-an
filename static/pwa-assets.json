@@ -78,6 +78,7 @@
     "static/js/modules/settings/font.js",
     "static/js/modules/settings/theme.js",
     "static/js/modules/srs/store.js",
+    "static/js/modules/util/index.js",
     "static/js/modules/analyzer/ui/jlpt/audio.js",
     "static/js/modules/analyzer/ui/jlpt/coach.js",
     "static/js/modules/analyzer/ui/jlpt/prompts.js",
