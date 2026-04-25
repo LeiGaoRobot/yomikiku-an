@@ -34,15 +34,15 @@ const EXPORT_STYLE = `
   @media print { body { margin: 0; padding: 0; } footer { display: none; } }
 `;
 
-function fmtDate(d) {
+export function fmtDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s || '').replace(/[<>&"]/g, (c) => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]));
 }
 
-function buildHtml(doc) {
+export function buildHtml(doc) {
   const src = document.getElementById('content');
   const bodyContent = src ? src.innerHTML : '<p><i>没有可导出的内容</i></p>';
   const title = escapeHtml(doc?.title || 'document');
