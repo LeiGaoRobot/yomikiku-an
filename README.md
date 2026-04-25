@@ -8,6 +8,8 @@
 
 ![Screenshot](static/yomikikuan.png)
 
+[![Tests](https://github.com/LeiGaoRobot/yomikiku-an/actions/workflows/test.yml/badge.svg)](https://github.com/LeiGaoRobot/yomikiku-an/actions/workflows/test.yml)
+
 ---
 
 ## English
@@ -40,6 +42,21 @@ Local:
 python -m http.server 8000
 # then open http://localhost:8000
 ```
+
+### Tests
+353 cases across 14 `*.test.html` pages, runnable headlessly:
+```bash
+npm test          # boots a local HTTP server + Playwright Chromium, prints
+                  # per-page status + a TOTAL line, exits 0 on full pass.
+```
+The same suite runs on every push and PR via the
+[Tests workflow](.github/workflows/test.yml). Opt in to a local pre-push
+hook with `bash scripts/install-hooks.sh`.
+
+If `playwright` isn't found, install it any of:
+- `npm install --save-dev playwright` (project-local)
+- `npm install -g @playwright/mcp` (Homebrew users get this for free)
+- export `PLAYWRIGHT_NODE_PATH=/path/to/dir/containing/playwright`
 
 ### Local Config (optional)
 AI features need a [Gemini API key](https://aistudio.google.com/apikey). For local development you can skip the in-app Settings panel and use a gitignored config file:
@@ -124,6 +141,15 @@ Pull requests are welcome. For issues and feature requests, use GitHub Issues: h
 - UI：ダークモード、表示切替、多言語 UI、ツールバーのドラッグ、モバイル最適化モーダル。
 - モバイル：768px 以下でモーダルがほぼ全画面、タップ領域は WCAG 2.2 準拠。480px 以下でフラッシュカード採点ボタンが 2×2 に折り返し。
 
+### テスト
+14 ページの `*.test.html` に 353 ケース、ヘッドレスで一括実行できます:
+```bash
+npm test          # ローカル HTTP サーバ + Playwright Chromium を起動して
+                  # 全ページの結果と TOTAL を表示。失敗があれば非ゼロ終了。
+```
+push / PR ごとに [Tests workflow](.github/workflows/test.yml) で同じスイート
+が走ります。ローカルの pre-push フックは `bash scripts/install-hooks.sh`。
+
 ### 使い方
 オンライン：https://leigaorobot.github.io/yomikiku-an
 
@@ -200,6 +226,15 @@ YomiKiku-an（読み聞く庵）是一款基于浏览器的日语阅读与听力
   - 🧠 词汇本 + 错题本 — SM-2 间隔重复，AI 释义可一键收藏、JLPT 答错自动进错题本
 - 界面：暗色模式、显示切换、多语言 UI、工具栏可拖拽、移动端打磨过的模态。
 - 移动端：≤768px 时模态近全屏，tap 目标符合 WCAG 2.2；≤480px 时抽卡 4 档按钮 2×2 排版。
+
+### 测试
+14 个 `*.test.html` 页面共 353 个用例，一条命令跑完：
+```bash
+npm test          # 启动本地 HTTP 服务 + Playwright Chromium，打印每页
+                  # 结果和 TOTAL 行；任何失败都返回非零退出码。
+```
+每次 push / PR 通过 [Tests workflow](.github/workflows/test.yml) 跑同一套
+测试。本地接 pre-push 钩子: `bash scripts/install-hooks.sh`。
 
 ### 使用
 在线版：https://leigaorobot.github.io/yomikiku-an
