@@ -6016,6 +6016,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Text → playable segments — registers window.YomikikuanSegment.
   import('/static/js/modules/player/segment.js')
     .catch((err) => console.warn('[player/segment] import failed', err));
+  // PCM → WAV utilities — registers window.YomikikuanWav for future modules.
+  import('/static/js/modules/audio/wav.js')
+    .catch((err) => console.warn('[audio/wav] import failed', err));
   // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
   try { wireKeyboardShortcuts(); } catch (_) {}
   // #7 — Click-to-seek on the header progress bar.

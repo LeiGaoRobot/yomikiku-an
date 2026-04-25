@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>audio/wav.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>audio/wav.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { base64ToBytes, parseSampleRate, pcm16ToWav } from './wav.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    check('parseSampleRate empty → default 24000',
+      parseSampleRate('') === 24000);
+    check('parseSampleRate null → default 24000',
+      parseSampleRate(null) === 24000);
+    check('parseSampleRate undefined → default 24000',
+      parseSampleRate(undefined) === 24000);
+    check('parseSampleRate "audio/L16;rate=16000" → 16000',
+      parseSampleRate('audio/L16;rate=16000') === 16000);
+    check('parseSampleRate "audio/L16;rate=44100" → 44100',
+      parseSampleRate('audio/L16;rate=44100') === 44100);
+    check('parseSampleRate case-insensitive: "RATE=8000"',
+      parseSampleRate('audio/x;RATE=8000') === 8000);
+    check('parseSampleRate first match wins when multiple',
+      parseSampleRate('rate=22050;rate=44100') === 22050);
+    check('parseSampleRate non-numeric rate → default 24000',
+      parseSampleRate('rate=abc') === 24000);
+
+    {
+      const out = base64ToBytes('AQID');
+      check('base64ToBytes returns Uint8Array',
+        out instanceof Uint8Array);
+      check('base64ToBytes "AQID" → [1,2,3]',
+        out.length === 3 && out[0] === 1 && out[1] === 2 && out[2] === 3,
+        Array.from(out).join(','));
+    }
+    check('base64ToBytes empty → length 0',
+      base64ToBytes('').length === 0);
+    {
+      const out = base64ToBytes('aGVsbG8=');
+      const decoded = String.fromCharCode(...out);
+      check('base64ToBytes round-trip "hello"',
+        decoded === 'hello',
+        decoded);
+    }
+
+    {
+      const pcm = new Uint8Array([0, 0, 0, 0]);
+      const blob = pcm16ToWav(pcm, 24000);
+      check('pcm16ToWav returns Blob',
+        blob instanceof Blob);
+      check('pcm16ToWav blob mime is audio/wav',
+        blob.type === 'audio/wav');
+      check('pcm16ToWav blob size = 44 + dataLen',
+        blob.size === 44 + 4, `got ${blob.size}`);
+    }
+
+    {
+      const pcm = new Uint8Array(8);
+      const blob = pcm16ToWav(pcm, 16000);
+      const buf = await blob.arrayBuffer();
+      const view = new DataView(buf);
+      const readStr = (off, len) => {
+        let s = '';
+        for (let i = 0; i < len; i++) s += String.fromCharCode(view.getUint8(off + i));
+        return s;
+      };
+      check('header[0..4] === "RIFF"', readStr(0, 4) === 'RIFF');
+      check('header[8..12] === "WAVE"', readStr(8, 4) === 'WAVE');
+      check('header[12..16] === "fmt "', readStr(12, 4) === 'fmt ');
+      check('header[36..40] === "data"', readStr(36, 4) === 'data');
+      check('PCM chunk size === 16',
+        view.getUint32(16, true) === 16);
+      check('format === 1 (PCM)',
+        view.getUint16(20, true) === 1);
+      check('channels === 1 (mono)',
+        view.getUint16(22, true) === 1);
+      check('sample rate field === 16000',
+        view.getUint32(24, true) === 16000);
+      check('byte rate === sampleRate * 2 (32000)',
+        view.getUint32(28, true) === 32000);
+      check('block align === 2',
+        view.getUint16(32, true) === 2);
+      check('bits per sample === 16',
+        view.getUint16(34, true) === 16);
+      check('data chunk length === 8',
+        view.getUint32(40, true) === 8);
+      check('RIFF total length field === 36 + dataLen',
+        view.getUint32(4, true) === 36 + 8);
+    }
+
+    {
+      const blob = pcm16ToWav(new Uint8Array(0), 24000);
+      check('pcm16ToWav with empty PCM returns 44-byte blob',
+        blob.size === 44);
+    }
+
+    {
+      const pcm = new Uint8Array([0xDE, 0xAD, 0xBE, 0xEF]);
+      const blob = pcm16ToWav(pcm, 24000);
+      const buf = await blob.arrayBuffer();
+      const view = new DataView(buf);
+      check('PCM payload preserved at offset 44',
+        view.getUint8(44) === 0xDE && view.getUint8(45) === 0xAD &&
+        view.getUint8(46) === 0xBE && view.getUint8(47) === 0xEF);
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
