@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Warn (not block) when staged changes touch a cached static asset but the
+# CACHE_VERSION in service-worker.js is NOT also bumped.
+#
+# Per CLAUDE.md "Service-worker deploy contract": every deploy that changes
+# any cached asset MUST bump CACHE_VERSION; otherwise the activate-sweep
+# won't purge the stale bucket and users never see the new code.
+#
+# This hook is opt-in via scripts/install-hooks.sh and is intentionally a
+# warning (not a hard block) — there are legitimate cases (e.g. fixup of
+# the previous commit, refactor that preserves output bytes) where bumping
+# isn't required. Use the standard git escape flag to skip per-commit if
+# the warning is wrong.
+
+CHANGED="$(git diff --cached --name-only)"
+
+# Cached assets: anything under static/ EXCEPT *.test.html (tests aren't
+# served to end users), plus index.html and service-worker.js itself.
+STATIC_TOUCHED=$(echo "$CHANGED" | grep -E '^(static/|index\.html$)' | grep -v '\.test\.html$' || true)
+SW_TOUCHED=$(echo "$CHANGED" | grep -E '^service-worker\.js$' || true)
+
+if [ -n "$STATIC_TOUCHED" ] && [ -z "$SW_TOUCHED" ]; then
+  cat >&2 <<EOF
+
+[pre-commit] WARNING: staged changes touch cached static assets but
+service-worker.js is not in this commit.
+
+Per CLAUDE.md, every cached-asset change must bump CACHE_VERSION in
+service-worker.js so the SW activate sweep can purge stale buckets.
+
+Touched assets:
+$(echo "$STATIC_TOUCHED" | sed 's/^/  /')
+
+If this commit truly should not bump (e.g. fixup, no output change), this
+warning is fine to ignore — the hook is informational, not blocking.
+
+EOF
+fi
+
+# Always succeed (warning-only)
+exit 0
