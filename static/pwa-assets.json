@@ -80,6 +80,7 @@
     "static/js/modules/analyzer/ui/jlpt/renderers.js",
     "static/js/modules/analyzer/ui/jlpt/session.js",
     "static/js/modules/backup/doc-export.js",
+    "static/js/modules/reading/kana.js",
     "static/js/modules/ui/dialog.js",
     "static/js/modules/ui/inspector.js",
     "static/js/modules/ui/panel-triggers.js",

@@ -6315,6 +6315,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Single-document HTML export (registers __yomikikuanExportDocAsHtml global).
   import('/static/js/modules/backup/doc-export.js')
     .catch((err) => console.warn('[doc-export] import failed', err));
+  // Pure kana / romaji helpers — registers window.YomikikuanKana for future modules.
+  // Phase-1 extraction; in-file copies in main-js.js still authoritative for now.
+  import('/static/js/modules/reading/kana.js')
+    .catch((err) => console.warn('[reading/kana] import failed', err));
   // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
   try { wireKeyboardShortcuts(); } catch (_) {}
   // #7 — Click-to-seek on the header progress bar.
