@@ -193,8 +193,13 @@ function injectCss() {
       background: linear-gradient(135deg, rgba(255,149,0,.16), rgba(255,149,0,.06));
       color: #cc7a00;
     }
+    .inspector-card[data-kind="export"] .card-icon {
+      background: linear-gradient(135deg, rgba(88,86,214,.16), rgba(88,86,214,.06));
+      color: #5856d6;
+    }
     :root[data-theme="dark"] .inspector-card[data-kind="vocab"] .card-icon { color: #30d158; }
     :root[data-theme="dark"] .inspector-card[data-kind="bilingual"] .card-icon { color: #ff9f0a; }
+    :root[data-theme="dark"] .inspector-card[data-kind="export"] .card-icon { color: #5e5ce6; }
 
     .inspector-card .card-body { flex: 1 1 auto; min-width: 0; }
     .inspector-card .card-title {
@@ -346,6 +351,17 @@ function ensureDrawer() {
         </span>
         <span class="card-state" id="inspectorBilingualState">OFF</span>
       </button>
+
+      <button type="button" class="inspector-card" data-kind="export" data-action="__yomikikuanExportDocAsHtml">
+        <span class="card-icon" aria-hidden="true">📄</span>
+        <span class="card-body">
+          <span class="card-title">导出 HTML</span>
+          <span class="card-desc">单文档独立 HTML · 可在浏览器打印为 PDF</span>
+        </span>
+        <svg class="card-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </div>
   `;
 
@@ -378,6 +394,7 @@ function ensureDrawer() {
         jlpt: '/static/js/modules/analyzer/ui/jlptPanel.js',
         summary: '/static/js/modules/analyzer/ui/articleSummary.js',
         vocab: '/static/js/modules/analyzer/ui/vocabPanel.js',
+        export: '/static/js/modules/backup/doc-export.js',
       };
       const path = modulePathMap[kind];
       const openAndClose = () => { invoke(); closeInspector(); };
