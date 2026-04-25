@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>docs/folders.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>docs/folders.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      getActiveFolderId,
+      setActiveFolderId,
+      filterDocByFolder,
+    } from './folders.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    const makeStorage = () => {
+      const map = new Map();
+      return {
+        getItem: (k) => map.has(k) ? map.get(k) : null,
+        setItem: (k, v) => map.set(k, String(v)),
+        removeItem: (k) => map.delete(k),
+        clear: () => map.clear(),
+      };
+    };
+
+    {
+      const s = makeStorage();
+      check('getActiveFolderId default → "all"',
+        getActiveFolderId(s) === 'all');
+
+      setActiveFolderId('favorites', s);
+      check('after set "favorites", get returns "favorites"',
+        getActiveFolderId(s) === 'favorites');
+
+      setActiveFolderId('samples', s);
+      check('after set "samples", get returns "samples"',
+        getActiveFolderId(s) === 'samples');
+    }
+    {
+      const s = makeStorage();
+      setActiveFolderId('', s);
+      check('setActiveFolderId "" coerces to "all"',
+        getActiveFolderId(s) === 'all');
+
+      setActiveFolderId(null, s);
+      check('setActiveFolderId null coerces to "all"',
+        getActiveFolderId(s) === 'all');
+
+      setActiveFolderId(undefined, s);
+      check('setActiveFolderId undefined coerces to "all"',
+        getActiveFolderId(s) === 'all');
+    }
+    {
+      const broken = {
+        getItem: () => { throw new Error('storage broken'); },
+        setItem: () => { throw new Error('storage broken'); },
+      };
+      check('getActiveFolderId on throwing storage → "all" fallback',
+        getActiveFolderId(broken) === 'all');
+      let threw = false;
+      try { setActiveFolderId('x', broken); } catch (_) { threw = true; }
+      check('setActiveFolderId on throwing storage swallows error',
+        !threw);
+    }
+
+    const sampleDoc = { id: '1', folder: 'samples', favorite: false };
+    const userDoc   = { id: '2', folder: null,      favorite: false };
+    const favDoc    = { id: '3', folder: null,      favorite: true  };
+    const favSample = { id: '4', folder: 'samples', favorite: true  };
+
+    check('filter null doc → false', filterDocByFolder(null, 'all') === false);
+    check('filter undefined doc → false',
+      filterDocByFolder(undefined, 'all') === false);
+
+    check('"all" excludes samples',
+      filterDocByFolder(sampleDoc, 'all') === false);
+    check('"all" includes user doc',
+      filterDocByFolder(userDoc, 'all') === true);
+    check('"all" includes favorite (non-sample)',
+      filterDocByFolder(favDoc, 'all') === true);
+    check('"all" excludes favorited sample',
+      filterDocByFolder(favSample, 'all') === false);
+
+    check('"favorites" excludes non-favorite',
+      filterDocByFolder(userDoc, 'favorites') === false);
+    check('"favorites" includes favorite (non-sample)',
+      filterDocByFolder(favDoc, 'favorites') === true);
+    check('"favorites" includes favorited sample',
+      filterDocByFolder(favSample, 'favorites') === true);
+
+    check('"samples" includes sample',
+      filterDocByFolder(sampleDoc, 'samples') === true);
+    check('"samples" excludes user doc',
+      filterDocByFolder(userDoc, 'samples') === false);
+    check('"samples" includes favorited sample',
+      filterDocByFolder(favSample, 'samples') === true);
+
+    check('unknown folder id → permissive (true)',
+      filterDocByFolder(userDoc, 'random-id') === true);
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

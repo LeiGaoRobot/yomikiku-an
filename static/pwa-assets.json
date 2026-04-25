@@ -64,6 +64,7 @@
     "static/js/modules/analyzer/ui/vocabPanel.js",
     "static/js/modules/backup/index.js",
     "static/js/modules/backup/io.js",
+    "static/js/modules/docs/folders.js",
     "static/js/modules/docs/pure.js",
     "static/js/modules/docs/store.js",
     "static/js/modules/editor/editor-toolbar.js",

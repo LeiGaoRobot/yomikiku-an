@@ -6004,6 +6004,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // PCM → WAV utilities — registers window.YomikikuanWav for future modules.
   import('/static/js/modules/audio/wav.js')
     .catch((err) => console.warn('[audio/wav] import failed', err));
+  // Folder helpers — registers window.YomikikuanFolders.
+  import('/static/js/modules/docs/folders.js')
+    .catch((err) => console.warn('[docs/folders] import failed', err));
   // #8 — Keyboard shortcuts (Space / ←→ / ↑↓ / J K / Esc).
   try { wireKeyboardShortcuts(); } catch (_) {}
   // #7 — Click-to-seek on the header progress bar.
