@@ -14,6 +14,8 @@
 <body>
   <h1>srs/store.js — assertions</h1>
   <p>Loads the module, runs pure-function tests (sm2Next, bucketOf) + IDB round-trip tests against the live <code>yomikikuan-srs</code> database, prints PASS/FAIL. Test rows use <code>v_test_*</code> / <code>m_test_*</code> ids and are deleted in <code>finally</code>.</p>
+  <div id="summary"></div>
+  <div id="results"></div>
   <pre id="out">booting…</pre>
 
   <script type="module">
@@ -91,6 +93,43 @@
         bucketOf({ interval: 3, nextDueAt: nowFixed + 1000 }, nowFixed) === 'learning');
       check('bucketOf mastered (interval≥21, future)',
         bucketOf({ interval: 30, nextDueAt: nowFixed + 1000 }, nowFixed) === 'mastered');
+      // Gap coverage: boundary at interval=21 + interval=20
+      check('bucketOf interval=21 (boundary) → mastered',
+        bucketOf({ interval: 21, nextDueAt: nowFixed + 1000 }, nowFixed) === 'mastered');
+      check('bucketOf interval=20 (just below boundary) → learning',
+        bucketOf({ interval: 20, nextDueAt: nowFixed + 1000 }, nowFixed) === 'learning');
+      check('bucketOf nextDueAt === now → due (boundary)',
+        bucketOf({ interval: 5, nextDueAt: nowFixed }, nowFixed) === 'due');
+
+      // Gap coverage: SM-2 quality scores 2/3/4 (only 0/1/5 were tested)
+      log('');
+      log('--- sm2Next quality 2/3/4 (gap coverage) ---');
+      const fresh = { easiness: 2.5, interval: 0, repetitions: 0 };
+      const q2 = sm2Next(fresh, 2);
+      check('sm2Next q=2 (incorrect, easy to recall) → repetitions=0',
+        q2.repetitions === 0, JSON.stringify(q2));
+      check('sm2Next q=2 → interval=1 (reset)',
+        q2.interval === 1, JSON.stringify(q2));
+      const q3 = sm2Next(fresh, 3);
+      check('sm2Next q=3 (correct, hard) → repetitions=1',
+        q3.repetitions === 1, JSON.stringify(q3));
+      check('sm2Next q=3 → easiness drops below 2.5',
+        q3.easiness < 2.5, `ease=${q3.easiness}`);
+      const q4 = sm2Next(fresh, 4);
+      check('sm2Next q=4 (correct, slight hesitation) → repetitions=1',
+        q4.repetitions === 1, JSON.stringify(q4));
+      check('sm2Next q=4 keeps easiness near 2.5',
+        Math.abs(q4.easiness - 2.5) < 0.05, `ease=${q4.easiness}`);
+
+      // Gap coverage: nextDueAt actually equals now+interval*86400000
+      const before = Date.now();
+      const nd = sm2Next({ easiness: 2.5, interval: 6, repetitions: 2 }, 5);
+      const after = Date.now();
+      const expectedDue = before + nd.interval * 86400000;
+      const expectedDueMax = after + nd.interval * 86400000;
+      check('sm2Next nextDueAt = now + interval days',
+        nd.nextDueAt >= expectedDue - 50 && nd.nextDueAt <= expectedDueMax + 50,
+        `got ${nd.nextDueAt}, expected ~${expectedDue}, interval=${nd.interval}`);
 
       // ------------- IDB round-trip: vocab -------------
       log('');
@@ -184,6 +223,23 @@
         st && st.vocab && typeof st.vocab.total === 'number'
         && st.mistakes && typeof st.mistakes.total === 'number',
         JSON.stringify(st));
+
+      // Gap coverage: stats vocab.total reflects added rows
+      const statsBefore = await stats();
+      const tmpVid = 'v_test_stats_' + Date.now();
+      await addVocab({
+        id: tmpVid, word: 'カウント', reading: 'カウント',
+        gloss: 'stats-counter synthetic',
+      });
+      cleanup.vocab.add(tmpVid);
+      const statsAfter = await stats();
+      check('stats vocab.total increments after addVocab',
+        statsAfter.vocab.total === statsBefore.vocab.total + 1,
+        `before=${statsBefore.vocab.total}, after=${statsAfter.vocab.total}`);
+      // Newly added vocab is due immediately (nextDueAt = now)
+      check('stats vocab.due includes the freshly-added row',
+        statsAfter.vocab.due >= statsBefore.vocab.due + 1,
+        `before=${statsBefore.vocab.due}, after=${statsAfter.vocab.due}`);
     } catch (err) {
       append(`<span class="fail">FAIL (threw)</span>: ${err && (err.stack || err.message || String(err))}`);
       failed++;
@@ -199,6 +255,13 @@
       append(failed === 0
         ? '<span class="pass">ALL PASS</span>'
         : '<span class="fail">SOME FAILED</span>');
+      // Standard summary block matching the project's other test pages so
+      // scripts/test.sh can parse pass/fail uniformly.
+      const total = passed + failed;
+      const summaryEl = document.getElementById('summary');
+      summaryEl.innerHTML = `<h3 style="color:${failed===0?'#1d7d3f':'#ff3b30'};">
+        ${failed === 0 ? '✓ ALL PASS' : '✗ ' + failed + ' FAILED'} — ${passed}/${total}
+      </h3>`;
     }
   </script>
 </body>
