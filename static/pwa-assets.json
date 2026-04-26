@@ -63,6 +63,8 @@
     "static/js/modules/analyzer/ui/jlptPanel.js",
     "static/js/modules/analyzer/ui/modalA11y.js",
     "static/js/modules/analyzer/ui/vocabPanel.js",
+    "static/js/modules/analyzer/ui/sentence-text.js",
+    "static/js/modules/pwa/sw-reset.js",
     "static/js/modules/backup/index.js",
     "static/js/modules/backup/io.js",
     "static/js/modules/docs/folders.js",

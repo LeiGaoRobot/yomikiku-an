@@ -52,6 +52,8 @@ const port = process.argv[2];
 const { chromium } = require('playwright');
 
 const TESTS = [
+  'static/js/modules/analyzer/ui/sentence-text.test.html',
+  'static/js/modules/pwa/sw-reset.test.html',
   'static/js/modules/analyzer/ui/jlpt/prompts.test.html',
   'static/js/modules/analyzer/ui/jlpt/session.test.html',
   'static/js/modules/analyzer/ui/jlpt/renderers.test.html',
