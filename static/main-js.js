@@ -794,10 +794,17 @@ const headerSpeedValue = $('headerSpeedValue');
   // 不从 URL 初始化阅读模式，刷新后默认关闭
 
   // ====== 文件夹管理（简化版：仅"全部"和"收藏"） ======
+  // Delegators → modules/docs/folders.js (window.YomikikuanFolders).
+  // Inline fallback retained for boot-race safety. Storage key matches the
+  // module's internal STORAGE_KEY = 'activeFolder' (LS.activeFolder).
   function getActiveFolderId() {
+    const m = (typeof window !== 'undefined') ? window.YomikikuanFolders : null;
+    if (m && typeof m.getActiveFolderId === 'function') return m.getActiveFolderId();
     return localStorage.getItem(LS.activeFolder) || 'all';
   }
   function setActiveFolderId(id) {
+    const m = (typeof window !== 'undefined') ? window.YomikikuanFolders : null;
+    if (m && typeof m.setActiveFolderId === 'function') return m.setActiveFolderId(id);
     localStorage.setItem(LS.activeFolder, id || 'all');
   }
 
@@ -879,12 +886,16 @@ const headerSpeedValue = $('headerSpeedValue');
   let storedLang = localStorage.getItem(LS.lang);
   
   // 如果没有存储的语言设置，根据浏览器语言自动检测
+  // Delegator → modules/i18n/detect.js (window.YomikikuanI18nDetect).
+  // Inline fallback retained for boot-race safety (classic-script load order).
   function detectBrowserLanguage() {
+    const m = (typeof window !== 'undefined') ? window.YomikikuanI18nDetect : null;
+    if (m && typeof m.detectBrowserLanguage === 'function') return m.detectBrowserLanguage();
     const browserLang = navigator.language || navigator.userLanguage || '';
     if (browserLang.startsWith('zh')) return 'zh';
     if (browserLang.startsWith('ja')) return 'ja';
     if (browserLang.startsWith('en')) return 'en';
-    return 'zh'; // 默认使用中文
+    return 'zh';
   }
   
   let currentLang = (storedLang === 'ja' || storedLang === 'en' || storedLang === 'zh') ? storedLang : detectBrowserLanguage();
@@ -899,51 +910,56 @@ const headerSpeedValue = $('headerSpeedValue');
   window.__clearActiveTokenDetails = () => { try { activeTokenDetails = null; } catch (_) {} };
 
   // 计算并设置详情弹层的位置
+  // Geometry delegated to modules/ui/position.js (window.YomikikuanPosition).
+  // DOM mutation half (parent move, measure-then-restore visibility) stays
+  // here because position.js is intentionally pure. Inline fallback keeps
+  // the math available before the ESM module loads (boot-race safety).
   function positionTokenDetails(element, details) {
     if (!element || !details) return;
-    
-    // 将 details 移动到 body 最底层
+
     if (details.parentNode !== document.body) {
-      // 记录归属 token，便于在模态交互后正确归位
       try { details.__ownerTokenElement = element; } catch (_) {}
       document.body.appendChild(details);
     }
-    
-    const rect = element.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
 
-    // 先确保元素可测量
+    const rect = element.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
     const prevDisplay = details.style.display;
     const prevVis = details.style.visibility;
     details.style.display = 'block';
     details.style.visibility = 'hidden';
 
-    const width = Math.min(details.offsetWidth || 300, 320);
-    const height = details.offsetHeight || 220;
+    const panelW = details.offsetWidth || 300;
+    const panelH = details.offsetHeight || 220;
 
-    // 选择上下位置
-    const spaceBelow = viewportHeight - rect.bottom - 8;
-    const spaceAbove = rect.top - 8;
-    let top;
-    if (spaceBelow >= height || spaceBelow >= spaceAbove) {
-      top = rect.bottom + 8; // 放在下方
+    const m = (typeof window !== 'undefined') ? window.YomikikuanPosition : null;
+    let pos;
+    if (m && typeof m.computeTokenDetailsPosition === 'function') {
+      pos = m.computeTokenDetailsPosition({
+        rect,
+        viewport: { width: vw, height: vh },
+        panel: { width: panelW, height: panelH },
+      });
     } else {
-      top = rect.top - height - 8; // 放在上方
+      const width = Math.min(panelW, 320);
+      const spaceBelow = vh - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      let top = (spaceBelow >= panelH || spaceBelow >= spaceAbove)
+        ? rect.bottom + 8
+        : rect.top - panelH - 8;
+      let left = rect.left;
+      if (left + width + 10 > vw) left = vw - width - 10;
+      if (left < 10) left = 10;
+      pos = {
+        left: Math.max(10, Math.min(left, vw - width - 10)),
+        top: Math.max(10, Math.min(top, vh - 10)),
+      };
     }
 
-    // 水平位置：尽量与元素左对齐并避免越界
-    let left = rect.left;
-    if (left + width + 10 > viewportWidth) {
-      left = viewportWidth - width - 10;
-    }
-    if (left < 10) left = 10;
-
-    // 应用位置
-    details.style.left = `${Math.max(10, Math.min(left, viewportWidth - width - 10))}px`;
-    details.style.top = `${Math.max(10, Math.min(top, viewportHeight - 10))}px`;
-
-    // 还原可见性
+    details.style.left = `${pos.left}px`;
+    details.style.top = `${pos.top}px`;
     details.style.visibility = prevVis || 'visible';
     details.style.display = prevDisplay || 'block';
   }
@@ -966,8 +982,12 @@ const headerSpeedValue = $('headerSpeedValue');
   // at the tokens block below). Strictly additive: no playback state touched.
   // Token pills / ruby tokens / play-line button keep their existing click
   // behaviour because we bail out when the target is inside them.
+  // Delegator → modules/analyzer/ui/sentence-text.js (window.YomikikuanSentenceText).
+  // Inline fallback retained for boot-race safety (classic-script load order).
   function extractSentenceText(el) {
-    if (!el) return '';
+    const m = (typeof window !== 'undefined') ? window.YomikikuanSentenceText : null;
+    if (m && typeof m.extractSentenceText === 'function') return m.extractSentenceText(el);
+    if (!el || typeof el.cloneNode !== 'function') return '';
     const clone = el.cloneNode(true);
     clone.querySelectorAll('rt').forEach((rt) => rt.remove());
     clone.querySelectorAll('.play-line-btn, .analyze-line-btn, .ap-analyzer-card').forEach((n) => n.remove());
