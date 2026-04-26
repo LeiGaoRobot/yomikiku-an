@@ -8,8 +8,8 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 - **`main-js.js` < 5000 lines** (currently 8537, was 8835 at session start;
   −298 net so far this session).
-- **Test coverage growing in lockstep** with each extraction (currently 18
-  `*.test.html` pages, 422 cases).
+- **Test coverage growing in lockstep** with each extraction (currently 20
+  `*.test.html` pages, 461 cases).
 
 ## Method (the "Phase-1/Phase-2" pattern)
 
@@ -39,6 +39,8 @@ else is fair game.
 | `modules/ui/position.js`         | computeTokenDetailsPosition                          | 13 |
 | `modules/ui/pwa-toast.js`        | + formatFailedAssetsSummary (additive)               | 13 |
 | `modules/util/index.js`          | createRequestId / isEditingElement / sleep           | 19 |
+| `modules/analyzer/ui/sentence-text.js` | extractSentenceText                            | 18 |
+| `modules/pwa/sw-reset.js`        | createSwResetCoordinator (request / handleMessage)   | 21 |
 | `modules/analyzer/ui/jlpt/`      | prompts / renderers / session split                  | 119 |
 
 Plus orchestrator scaffolding tests (jlptPanel 22, reader-mode 16,
@@ -46,31 +48,35 @@ shortcut-help 15) and the augmented `srs/store.test.html` (36 covering
 SM-2 quality branches + bucketOf boundaries).
 
 Phase-2 dedup completed for: kana, ruby, reading, segment,
-formatFailedAssetsSummary, base64ToBytes/pcm16ToWav/parseSampleRate
-(with thick fallbacks per playback boundary).
+formatFailedAssetsSummary, base64ToBytes/pcm16ToWav/parseSampleRate,
+detectBrowserLanguage, getActiveFolderId/setActiveFolderId,
+extractSentenceText, positionTokenDetails (geometry only — DOM mutation
+half stays in main-js.js), requestServiceWorkerReset (Map + handler
+branch fully collapsed; **−20 LOC net**, the biggest Phase-2 win this
+session — possible because reset is user-initiated only, so the
+fallback can be a bare `Promise.reject('no-coordinator')`)
+(with thick fallbacks per playback boundary unless explicitly safe).
 
 ## Next-wave candidates (audited, not yet started)
 
 Ranked by **value/risk ratio** (top = best ROI):
 
-1. **`extractSentenceText`** (`main-js.js:969`, ~7 lines) — DOM → trim
-   text. Cheap, useful for analyzer tests.
-2. **`requestServiceWorkerReset`** (`main-js.js:744`, ~50 lines) —
-   postMessage + timeout race. Clean boundary, testable with mock controller.
-3. **`positionTokenDetails` Phase-2 dedup** — geometry already extracted
-   to `modules/ui/position.js`; replace main-js.js body with delegator +
-   DOM mutation only. ~50 → ~15 lines.
-4. **`detectBrowserLanguage` Phase-2 dedup** — module exists; main-js.js
-   call site at line 890 can become a delegator. -7 lines.
-5. **`folders.js` Phase-2 dedup** — `getActiveFolderId` /
-   `setActiveFolderId` delegators (~6 lines saved). Tiny win, defer.
-6. **`updateReadingScriptDisplay`** (~12 lines) — DOM walker that
+1. **`updateReadingScriptDisplay`** (~12 lines) — DOM walker that
    re-renders token kana on script toggle. Mostly DOM, modest test value.
-7. **`setupPwaInstaller`** (~22 lines) — beforeinstallprompt handler.
-   DOM-coupled, low extractability.
-8. **`syncReadingLineAttributes`** + **`setReadingLineActive`** (~30 lines)
+2. **`setupPwaInstaller`** (~22 lines) — beforeinstallprompt handler.
+   DOM-coupled, low extractability. Could live next to `modules/pwa/sw-reset.js`
+   in a sibling `modules/pwa/installer.js`.
+3. **`syncReadingLineAttributes`** + **`setReadingLineActive`** (~30 lines)
    — reading-mode state on the DOM. Phase-1 module possible; Phase-2
    dedup risky (touches reading mode UI).
+
+> **Note on Phase-2 LOC math**: Per the playback-boundary rule, every
+> Phase-2 dedup keeps an inline fallback for boot-race safety. So a
+> "delegator" replacement is typically a small *positive* LOC delta
+> (delegator branch + retained inline) — not the negative deltas the
+> ROADMAP previously implied. The win is one-source-of-truth in the
+> module, not raw line savings. Bigger functions (positionTokenDetails)
+> still net-shrink because the DOM mutation half can be deleted.
 
 ## Do-not-touch boundaries
 

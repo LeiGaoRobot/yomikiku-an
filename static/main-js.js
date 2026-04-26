@@ -735,42 +735,30 @@ const headerSpeedValue = $('headerSpeedValue');
     lastError: ''
   };
   let pwaListenerAttached = false;
-  const swResetResolvers = new Map();
 
   function createRequestId(prefix = 'pwa') {
     return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  function requestServiceWorkerReset(controller, timeoutMs = 15000) {
-    return new Promise((resolve, reject) => {
-      const requestId = createRequestId('pwa-reset');
-      const timer = setTimeout(() => {
-        if (swResetResolvers.has(requestId)) {
-          swResetResolvers.delete(requestId);
-          reject(new Error('reset-timeout'));
-        }
-      }, timeoutMs);
+  // SW reset coordinator → modules/pwa/sw-reset.js. Lazily instantiated on
+  // first user-initiated PWA reset, so a missing module at boot is fine —
+  // the user can't trigger a reset until well after ESM modules load. If
+  // the module never loads (offline + cold cache), the inline fallback
+  // rejects with 'no-coordinator' so the toast surfaces a real error.
+  let _swResetCoordinator = null;
+  function getSwResetCoordinator() {
+    if (_swResetCoordinator) return _swResetCoordinator;
+    const m = (typeof window !== 'undefined') ? window.YomikikuanSwReset : null;
+    if (m && typeof m.createSwResetCoordinator === 'function') {
+      _swResetCoordinator = m.createSwResetCoordinator({ cachePrefix: PWA_CACHE_PREFIX });
+    }
+    return _swResetCoordinator;
+  }
 
-      swResetResolvers.set(requestId, {
-        resolve: () => {
-          clearTimeout(timer);
-          swResetResolvers.delete(requestId);
-          resolve();
-        },
-        reject: (error) => {
-          clearTimeout(timer);
-          swResetResolvers.delete(requestId);
-          const err = error instanceof Error ? error : new Error(error?.message || String(error));
-          reject(err);
-        }
-      });
-
-      controller.postMessage({
-        type: 'PWA_RESET',
-        requestId,
-        cachePrefix: PWA_CACHE_PREFIX
-      });
-    });
+  function requestServiceWorkerReset(controller) {
+    const coord = getSwResetCoordinator();
+    if (!coord) return Promise.reject(new Error('no-coordinator'));
+    return coord.request(controller);
   }
 
   let isReadingMode = false;
@@ -1292,16 +1280,8 @@ const headerSpeedValue = $('headerSpeedValue');
     if (!data) return;
 
     if (data.type === 'PWA_RESET_DONE' || data.type === 'PWA_RESET_FAILED') {
-      const resolver = data.requestId ? swResetResolvers.get(data.requestId) : null;
-      if (resolver) {
-        if (data.type === 'PWA_RESET_DONE') {
-          resolver.resolve();
-        } else {
-          resolver.reject(new Error(data.message || 'reset failed'));
-        }
-      } else if (data.type === 'PWA_RESET_FAILED') {
-        console.warn('[PWA] Reset failed without resolver', data.message);
-      }
+      const coord = getSwResetCoordinator();
+      if (coord) coord.handleMessage(event);
       return;
     }
 
