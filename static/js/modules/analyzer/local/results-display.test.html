@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/local/results-display.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/local/results-display.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      JAPANESE_COMMON_PUNCT_RE,
+      MARKDOWN_SYMBOL_RE,
+      DECORATIVE_SYMBOL_RE,
+      MIXED_PUNCT_RE,
+      LATIN_OR_NUMBER_RE,
+      filterPunctuationOnlyLines,
+      classifyTokenForDisplay,
+      shouldRenderRomaji,
+      resolvePlayText,
+      sanitizePlayText,
+      encodeTokenDataAttr,
+      buildTokenPillMarkup,
+      buildRubyTokenMarkup,
+      buildLineContainerMarkup,
+    } from './results-display.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ──── Regex constants ────
+
+    check('regex: JAPANESE_COMMON_PUNCT matches 。', JAPANESE_COMMON_PUNCT_RE.test('。'));
+    check('regex: JAPANESE_COMMON_PUNCT matches 「', JAPANESE_COMMON_PUNCT_RE.test('「'));
+    check('regex: JAPANESE_COMMON_PUNCT matches 〇', JAPANESE_COMMON_PUNCT_RE.test('〇'));
+    check('regex: JAPANESE_COMMON_PUNCT rejects A', !JAPANESE_COMMON_PUNCT_RE.test('A'));
+    check('regex: JAPANESE_COMMON_PUNCT rejects multi-char 。。', !JAPANESE_COMMON_PUNCT_RE.test('。。'));
+
+    check('regex: MARKDOWN_SYMBOL matches ###', MARKDOWN_SYMBOL_RE.test('###'));
+    check('regex: MARKDOWN_SYMBOL matches *', MARKDOWN_SYMBOL_RE.test('*'));
+    check('regex: MARKDOWN_SYMBOL matches `', MARKDOWN_SYMBOL_RE.test('`'));
+    check('regex: MARKDOWN_SYMBOL rejects abc', !MARKDOWN_SYMBOL_RE.test('abc'));
+    check('regex: MARKDOWN_SYMBOL rejects mixed *a', !MARKDOWN_SYMBOL_RE.test('*a'));
+
+    check('regex: DECORATIVE_SYMBOL matches • (U+2022)', DECORATIVE_SYMBOL_RE.test('•'));
+    check('regex: DECORATIVE_SYMBOL matches ASCII space', DECORATIVE_SYMBOL_RE.test(' '));
+    check('regex: DECORATIVE_SYMBOL matches NBSP \\u00A0', DECORATIVE_SYMBOL_RE.test(' '));
+    check('regex: DECORATIVE_SYMBOL matches IDEOGRAPHIC SPACE \\u3000',
+      DECORATIVE_SYMBOL_RE.test('　'));
+    check('regex: DECORATIVE_SYMBOL matches LINE SEP \\u2028',
+      DECORATIVE_SYMBOL_RE.test(' '));
+    check('regex: DECORATIVE_SYMBOL rejects letter', !DECORATIVE_SYMBOL_RE.test('a'));
+
+    check('regex: MIXED_PUNCT matches comma', MIXED_PUNCT_RE.test('a,b'));
+    check('regex: MIXED_PUNCT matches semicolon', MIXED_PUNCT_RE.test('a;b'));
+    check('regex: MIXED_PUNCT matches Japanese 「：」', MIXED_PUNCT_RE.test('a：b'));
+    check('regex: MIXED_PUNCT rejects pure kana', !MIXED_PUNCT_RE.test('あいうえお'));
+
+    check('regex: LATIN_OR_NUMBER matches abc', LATIN_OR_NUMBER_RE.test('abc'));
+    check('regex: LATIN_OR_NUMBER matches 123', LATIN_OR_NUMBER_RE.test('123'));
+    check('regex: LATIN_OR_NUMBER rejects 日本', !LATIN_OR_NUMBER_RE.test('日本'));
+
+    // ──── filterPunctuationOnlyLines ────
+
+    check('filter: null → []', JSON.stringify(filterPunctuationOnlyLines(null)) === '[]');
+    check('filter: undefined → []', JSON.stringify(filterPunctuationOnlyLines()) === '[]');
+    check('filter: empty array → []', JSON.stringify(filterPunctuationOnlyLines([])) === '[]');
+
+    {
+      const lines = [
+        [{ surface: 'A', pos: ['名詞'] }],
+        [{ surface: '。', pos: ['記号'] }, { surface: '、', pos: ['補助記号'] }],
+      ];
+      const out = filterPunctuationOnlyLines(lines);
+      check('filter: punctuation-only line dropped', out.length === 1 && out[0][0].surface === 'A');
+    }
+
+    {
+      const lines = [
+        [],
+        [{ surface: 'B', pos: ['名詞'] }],
+      ];
+      const out = filterPunctuationOnlyLines(lines);
+      check('filter: empty line dropped', out.length === 1 && out[0][0].surface === 'B');
+    }
+
+    {
+      const lines = [
+        [{ surface: 'A', pos: ['名詞'] }, { surface: '。', pos: ['記号'] }],
+      ];
+      const out = filterPunctuationOnlyLines(lines);
+      check('filter: mixed line kept', out.length === 1);
+    }
+
+    {
+      const lines = [
+        [{ surface: 'A', pos: '名詞' }],
+        [{ surface: '。', pos: '記号' }],
+      ];
+      const out = filterPunctuationOnlyLines(lines);
+      check('filter: handles non-array pos shape',
+        out.length === 1 && out[0][0].surface === 'A');
+    }
+
+    {
+      const lines = [
+        [{ surface: 'X' /* missing pos */ }],
+      ];
+      const out = filterPunctuationOnlyLines(lines);
+      check('filter: token with no pos kept (treated as non-punct)', out.length === 1);
+    }
+
+    // ──── classifyTokenForDisplay ────
+
+    check('classify: ## → empty (markdown)',
+      classifyTokenForDisplay('##', ['記号']) === 'empty');
+    check('classify: -- → empty (markdown)',
+      classifyTokenForDisplay('--', ['記号']) === 'empty');
+    check('classify: bullet • → empty (decorative)',
+      classifyTokenForDisplay('•', ['補助記号']) === 'empty');
+    check('classify: NBSP → empty (decorative)',
+      classifyTokenForDisplay(' ', ['補助記号']) === 'empty');
+    check('classify: 。 → japaneseCommonPunct',
+      classifyTokenForDisplay('。', ['記号']) === 'japaneseCommonPunct');
+    check('classify: 「 → japaneseCommonPunct',
+      classifyTokenForDisplay('「', ['記号']) === 'japaneseCommonPunct');
+    check('classify: ASCII , → mixedPunct',
+      classifyTokenForDisplay(',', ['記号']) === 'mixedPunct');
+    check('classify: a,b → mixedPunct (contains punctuation char)',
+      classifyTokenForDisplay('a,b', ['名詞']) === 'mixedPunct');
+    check('classify: ・ alone → japaneseCommonPunct',
+      classifyTokenForDisplay('・', ['記号']) === 'japaneseCommonPunct');
+    check('classify: pure 名詞 word 日本 → normal',
+      classifyTokenForDisplay('日本', ['名詞']) === 'normal');
+    check('classify: 名詞 single kana あ → normal',
+      classifyTokenForDisplay('あ', ['名詞']) === 'normal');
+    check('classify: 記号 with no special surface → plainPos',
+      classifyTokenForDisplay('★', ['記号']) === 'plainPos');
+    check('classify: 補助記号 with no special surface → plainPos',
+      classifyTokenForDisplay('☆', ['補助記号']) === 'plainPos');
+    check('classify: handles null pos',
+      classifyTokenForDisplay('日', null) === 'normal');
+    check('classify: handles non-array pos string',
+      classifyTokenForDisplay('日', '名詞') === 'normal');
+
+    // ──── shouldRenderRomaji ────
+
+    check('romaji: hiragana あ → render', shouldRenderRomaji('あ') === true);
+    check('romaji: katakana カ → render', shouldRenderRomaji('カ') === true);
+    check('romaji: kanji 日 → render', shouldRenderRomaji('日') === true);
+    check('romaji: ASCII letters → skip', shouldRenderRomaji('hello') === false);
+    check('romaji: digits → skip', shouldRenderRomaji('123') === false);
+    check('romaji: ASCII punct → skip', shouldRenderRomaji('a, b!') === false);
+
+    // ──── resolvePlayText ────
+
+    check('play: reading present → reading',
+      resolvePlayText({ surface: '日', reading: 'にち', pos: ['名詞'] }, true) === 'にち');
+    check('play: no reading → surface',
+      resolvePlayText({ surface: '日', pos: ['名詞'] }, true) === '日');
+    check('play: は particle + flag on → わ',
+      resolvePlayText({ surface: 'は', reading: 'は', pos: ['助詞'] }, true) === 'わ');
+    check('play: は particle + flag OFF → reading は',
+      resolvePlayText({ surface: 'は', reading: 'は', pos: ['助詞'] }, false) === 'は');
+    check('play: は as 名詞 (homograph) → no transform',
+      resolvePlayText({ surface: 'は', reading: 'は', pos: ['名詞'] }, true) === 'は');
+    check('play: null token → empty',
+      resolvePlayText(null, true) === '');
+    check('play: handles non-array pos',
+      resolvePlayText({ surface: 'は', reading: 'は', pos: '助詞' }, true) === 'わ');
+
+    // ──── sanitizePlayText ────
+
+    check('sanitize: backslash escaped',
+      sanitizePlayText('a\\b') === 'a\\\\b');
+    check('sanitize: single quote escaped',
+      sanitizePlayText("it's") === "it\\'s");
+    check('sanitize: newline escaped',
+      sanitizePlayText('a\nb') === 'a\\nb');
+    check('sanitize: CRLF normalised',
+      sanitizePlayText('a\r\nb') === 'a\\nb');
+    check('sanitize: empty / null → empty string',
+      sanitizePlayText(null) === '' && sanitizePlayText(undefined) === '' && sanitizePlayText('') === '');
+
+    // ──── encodeTokenDataAttr ────
+
+    {
+      const t = { surface: 'a', reading: 'a' };
+      check('encode: roundtrips simple token',
+        JSON.parse(encodeTokenDataAttr(t).replace(/&apos;/g, "'")).surface === 'a');
+    }
+    {
+      const t = { surface: "it's" };
+      const enc = encodeTokenDataAttr(t);
+      check('encode: replaces single-quote with &apos;',
+        enc.includes('&apos;') && !enc.includes("'"));
+    }
+
+    // ──── buildTokenPillMarkup ────
+
+    {
+      const html = buildTokenPillMarkup({
+        tokenForUi: { surface: '日本', reading: 'にほん', pos: ['名詞'] },
+        surface: '日本',
+        readingText: 'にほん',
+        romaji: 'nihon',
+        posDisplay: '名詞',
+        detailInfo: '<i>info</i>',
+        sanitizedPlayText: 'にほん',
+        playLabel: 'Play',
+      });
+      check('pill: contains class="token-pill"', html.includes('class="token-pill"'));
+      check('pill: contains data-pos="名詞"', html.includes('data-pos="名詞"'));
+      check('pill: contains kana にほん', html.includes('にほん'));
+      check('pill: contains romaji nihon', html.includes('nihon'));
+      check('pill: contains kanji 日本', html.includes('>日本<'));
+      check('pill: contains detail markup',
+        html.includes('<i>info</i>'));
+      check('pill: onclick playToken with sanitized text',
+        html.includes("playToken('にほん'"));
+      check('pill: title uses playLabel', html.includes('title="Play"'));
+    }
+
+    {
+      const html = buildTokenPillMarkup({
+        tokenForUi: { surface: 'a', reading: 'a' },
+        surface: 'a',
+        readingText: 'a',
+        romaji: '',
+        posDisplay: '名詞',
+        detailInfo: '',
+        sanitizedPlayText: 'a',
+        playLabel: 'Play',
+      });
+      check('pill: empty romaji → no display-romaji div',
+        !html.includes('display-romaji'));
+    }
+
+    // ──── buildRubyTokenMarkup ────
+
+    {
+      const html = buildRubyTokenMarkup({
+        rubyInner: '日本<rt>にほん</rt>',
+        posDisplay: '名詞',
+        sanitizedPlayText: 'にほん',
+        escapedSurface: '日本',
+      });
+      check('ruby: outer span class is ruby-token',
+        html.startsWith('<span class="ruby-token"'));
+      check('ruby: contains rubyInner verbatim',
+        html.includes('日本<rt>にほん</rt>'));
+      check('ruby: title is escapedSurface',
+        html.includes('title="日本"'));
+      check('ruby: data-pos preserved',
+        html.includes('data-pos="名詞"'));
+      check('ruby: onclick uses sanitizedPlayText',
+        html.includes("playToken('にほん'"));
+    }
+
+    // ──── buildLineContainerMarkup ────
+
+    {
+      const html = buildLineContainerMarkup({
+        lineHtml: '<span class="token-pill">A</span>',
+        lineIndex: 3,
+        rubyMode: false,
+        analyzeLineLabel: 'Analyse',
+        playLineLabel: 'Play line',
+      });
+      check('line: container class "line-container" no ruby',
+        html.includes('class="line-container"'));
+      check('line: data-line-index="3"', html.includes('data-line-index="3"'));
+      check('line: includes inner lineHtml',
+        html.includes('<span class="token-pill">A</span>'));
+      check('line: analyse button title', html.includes('title="Analyse"'));
+      check('line: play button title', html.includes('title="Play line"'));
+      check('line: play button onclick uses lineIndex',
+        html.includes('playLine(3)'));
+      check('line: analyze button onclick is __yomikikuanAnalyzeLine',
+        html.includes('window.__yomikikuanAnalyzeLine(event)'));
+    }
+
+    {
+      const html = buildLineContainerMarkup({
+        lineHtml: '',
+        lineIndex: 0,
+        rubyMode: true,
+        analyzeLineLabel: 'A',
+        playLineLabel: 'P',
+      });
+      check('line: rubyMode=true adds " ruby-line" suffix to class',
+        html.includes('class="line-container ruby-line"'));
+    }
+
+    // ──── window export ────
+
+    check('exposes window.YomikikuanResultsDisplay',
+      typeof window.YomikikuanResultsDisplay === 'object'
+      && typeof window.YomikikuanResultsDisplay.filterPunctuationOnlyLines === 'function'
+      && typeof window.YomikikuanResultsDisplay.classifyTokenForDisplay === 'function'
+      && typeof window.YomikikuanResultsDisplay.buildTokenPillMarkup === 'function'
+      && typeof window.YomikikuanResultsDisplay.buildLineContainerMarkup === 'function'
+      && typeof window.YomikikuanResultsDisplay.buildRubyTokenMarkup === 'function'
+      && typeof window.YomikikuanResultsDisplay.sanitizePlayText === 'function'
+      && typeof window.YomikikuanResultsDisplay.encodeTokenDataAttr === 'function'
+      && typeof window.YomikikuanResultsDisplay.shouldRenderRomaji === 'function'
+      && typeof window.YomikikuanResultsDisplay.resolvePlayText === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
