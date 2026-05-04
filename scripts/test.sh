@@ -61,6 +61,7 @@ const TESTS = [
   'static/js/modules/analyzer/ui/jlpt/renderers.test.html',
   'static/js/modules/analyzer/ui/jlptPanel.test.html',
   'static/js/modules/analyzer/local/display-tokens.test.html',
+  'static/js/modules/analyzer/translation-modal.test.html',
   'static/js/modules/ui/shortcut-help.test.html',
   'static/js/modules/ui/reader-mode.test.html',
   'static/js/modules/ui/pwa-toast.test.html',
