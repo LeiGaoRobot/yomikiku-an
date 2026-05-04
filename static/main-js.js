@@ -1657,6 +1657,11 @@ const headerSpeedValue = $('headerSpeedValue');
   }
 
   function updateReadingToggleLabels() {
+    if (window.__ESM_READING_MODE && typeof window.updateReadingToggleLabels === 'function'
+        && window.updateReadingToggleLabels !== updateReadingToggleLabels) {
+      window.updateReadingToggleLabels();
+      return;
+    }
     const enterLabel = t('readingToggleEnter') || '阅读模式';
     const exitLabel = t('readingToggleExit') || '退出阅读';
     const enterTooltip = t('readingToggleTooltipEnter') || enterLabel;
@@ -5687,6 +5692,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   }
 
   function updateDisplaySettings() {
+    if (window.__ESM_DISPLAY_SETTINGS && typeof window.updateDisplaySettings === 'function'
+        && window.updateDisplaySettings !== updateDisplaySettings) {
+      window.updateDisplaySettings();
+      return;
+    }
     const showKanaCheckbox = document.getElementById('showKana');
     const showRomajiCheckbox = document.getElementById('showRomaji');
     const showPosCheckbox = document.getElementById('showPos');
@@ -6269,6 +6279,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   // 顶部编辑工具栏：日期、字数与星标
   function updateEditorToolbar() {
+    if (window.__ESM_EDITOR_TOOLBAR && typeof window.updateEditorToolbar === 'function'
+        && window.updateEditorToolbar !== updateEditorToolbar) {
+      window.updateEditorToolbar();
+      return;
+    }
     try {
       const docs = documentManager.getAllDocuments();
       const activeId = documentManager.getActiveId();
@@ -7585,6 +7600,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   }
 
   function applyFontScaleFromStorage() {
+    if (window.__ESM_FONT_SETTINGS && typeof window.applyFontScaleFromStorage === 'function'
+        && window.applyFontScaleFromStorage !== applyFontScaleFromStorage) {
+      window.applyFontScaleFromStorage();
+      return;
+    }
     try {
       const saved = localStorage.getItem('app:fontScale');
       if (saved) {
@@ -7596,6 +7616,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   
   // 字体家族存储应用（输入区与显示区分别控制）
   function applyFontFamilyFromStorage() {
+    if (window.__ESM_FONT_SETTINGS && typeof window.applyFontFamilyFromStorage === 'function'
+        && window.applyFontFamilyFromStorage !== applyFontFamilyFromStorage) {
+      window.applyFontFamilyFromStorage();
+      return;
+    }
     try {
       const inFont = localStorage.getItem('app:inputFont');
       const outFont = localStorage.getItem('app:contentFont');
