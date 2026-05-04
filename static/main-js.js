@@ -1551,13 +1551,27 @@ const headerSpeedValue = $('headerSpeedValue');
     }
   }
 
+  // Phase-2 delegator → modules/pwa/installer.js. Inline fallback retained
+  // per playback-boundary rule (boot-race safety: this runs once at boot
+  // from main-js.js:6944 and must work even before the ESM module loads).
   function setupPwaInstaller() {
     if (!headerDownloadBtn) return;
-
+    const mod = (typeof window !== 'undefined') ? window.YomikikuanPwaInstaller : null;
+    if (mod && typeof mod.setupPwaInstaller === 'function') {
+      mod.setupPwaInstaller({
+        headerDownloadBtn,
+        pwaToastClose,
+        hidePwaToast,
+        updatePwaToast,
+        formatMessage,
+        startPwaDownload,
+      });
+      return;
+    }
+    // Inline fallback (must stay byte-equivalent to the module's behavior).
     if (pwaToastClose) {
       pwaToastClose.addEventListener('click', () => hidePwaToast(0));
     }
-
     if (!('serviceWorker' in navigator) || !(window && 'caches' in window)) {
       headerDownloadBtn.addEventListener('click', (event) => {
         event.preventDefault();
@@ -1569,7 +1583,6 @@ const headerSpeedValue = $('headerSpeedValue');
       });
       return;
     }
-
     headerDownloadBtn.addEventListener('click', startPwaDownload);
   }
 
@@ -6012,6 +6025,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Script-toggle DOM walker — registers window.YomikikuanReadingScriptDisplay.
   import('/static/js/modules/reading/script-display.js')
     .catch((err) => console.warn('[reading/script-display] import failed', err));
+  // PWA install-button wiring — registers window.YomikikuanPwaInstaller.
+  import('/static/js/modules/pwa/installer.js')
+    .catch((err) => console.warn('[pwa/installer] import failed', err));
   // Text → playable segments — registers window.YomikikuanSegment.
   import('/static/js/modules/player/segment.js')
     .catch((err) => console.warn('[player/segment] import failed', err));
