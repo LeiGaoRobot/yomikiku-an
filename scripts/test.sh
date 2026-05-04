@@ -66,6 +66,7 @@ const TESTS = [
   'static/js/modules/reading/kana.test.html',
   'static/js/modules/reading/reading.test.html',
   'static/js/modules/reading/ruby.test.html',
+  'static/js/modules/reading/script-display.test.html',
   'static/js/modules/player/segment.test.html',
   'static/js/modules/srs/store.test.html',
   'static/js/modules/docs/folders.test.html',
