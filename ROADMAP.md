@@ -6,10 +6,29 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 8578, was 8835 at session start;
-  −257 net so far this session).
+- **`main-js.js` < 5000 lines** (currently 8557, was 8835 at the start
+  of the cumulative effort; −278 net).
 - **Test coverage growing in lockstep** with each extraction (currently 22
   `*.test.html` pages, 507 cases).
+
+> **Honest reality check (2026-05-04)**: under the project's current
+> "Phase-2 dedup must keep an inline fallback for boot-race safety"
+> convention, every dedup nets +5..+15 LOC (delegator wrapper +
+> retained inline). The 5000-line target is **structurally unreachable**
+> from refactoring alone. The remaining real-shrinkage path is
+> *fallback-drop for handler-only delegators*: when every external
+> caller is inside a user-interaction handler (click / scroll / async
+> resolution post-boot), the boot-race premise vanishes and the
+> fallback can be deleted as dead code. Audit shows ~4 of the existing
+> delegators qualified (-63 LOC commit `90d0dc8`); the rest have
+> transitive boot reachability via `init*` functions whose
+> `__ESM_*` guard fails before the dynamic import resolves.
+>
+> **Big remaining wins** (handler-only, fallback-free Phase-2 provably
+> safe — but require deep DI work hours-scale):
+> - `displayResults` (~921 LOC; analyzer rendering, called from one
+>   try/catch in async analyze)
+> - `startPwaDownload` (~184 LOC; install-button click handler)
 
 ## Method (the "Phase-1/Phase-2" pattern)
 
