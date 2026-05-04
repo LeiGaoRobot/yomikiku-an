@@ -1586,7 +1586,18 @@ const headerSpeedValue = $('headerSpeedValue');
     headerDownloadBtn.addEventListener('click', startPwaDownload);
   }
 
+  // Phase-2 delegator → modules/editor/reading-mode.js (canonical owner).
+  // Inline fallback retained per playback-boundary rule (boot-race safety:
+  // 8 callers across boot/init paths must work even before the ESM module
+  // finishes loading). The module's own version queries
+  // document.getElementById('content') fresh each call; the inline
+  // fallback uses the closure-captured `content` ref captured at boot.
   function syncReadingLineAttributes(enabled) {
+    if (typeof window !== 'undefined' && typeof window.syncReadingLineAttributes === 'function'
+        && window.syncReadingLineAttributes !== syncReadingLineAttributes) {
+      window.syncReadingLineAttributes(enabled);
+      return;
+    }
     if (!content) return;
     const lines = content.querySelectorAll('.line-container');
     lines.forEach((line) => {

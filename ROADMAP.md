@@ -6,10 +6,10 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 8537, was 8835 at session start;
-  −298 net so far this session).
-- **Test coverage growing in lockstep** with each extraction (currently 20
-  `*.test.html` pages, 461 cases).
+- **`main-js.js` < 5000 lines** (currently 8578, was 8835 at session start;
+  −257 net so far this session).
+- **Test coverage growing in lockstep** with each extraction (currently 22
+  `*.test.html` pages, 507 cases).
 
 ## Method (the "Phase-1/Phase-2" pattern)
 
@@ -61,14 +61,16 @@ fallback can be a bare `Promise.reject('no-coordinator')`)
 
 Ranked by **value/risk ratio** (top = best ROI):
 
-1. **`updateReadingScriptDisplay`** (~12 lines) — DOM walker that
-   re-renders token kana on script toggle. Mostly DOM, modest test value.
-2. **`setupPwaInstaller`** (~22 lines) — beforeinstallprompt handler.
-   DOM-coupled, low extractability. Could live next to `modules/pwa/sw-reset.js`
-   in a sibling `modules/pwa/installer.js`.
-3. **`syncReadingLineAttributes`** + **`setReadingLineActive`** (~30 lines)
-   — reading-mode state on the DOM. Phase-1 module possible; Phase-2
-   dedup risky (touches reading mode UI).
+1. ~~**`updateReadingScriptDisplay`**~~ ✅ shipped — `modules/reading/script-display.js` + 21 tests; Phase-2 delegator in `main-js.js:2665`.
+2. ~~**`setupPwaInstaller`**~~ ✅ shipped — `modules/pwa/installer.js` + 25 tests; Phase-2 delegator in `main-js.js:1554`.
+3. ~~**`syncReadingLineAttributes`**~~ ✅ Phase-2 dedup landed —
+   delegator in `main-js.js:1589` points at the existing canonical
+   `window.syncReadingLineAttributes` from `modules/editor/reading-mode.js`
+   (Phase-1 was already done there — ROADMAP audit was stale).
+   Companion `setReadingLineActive`/`clearReadingLineHighlight` deliberately
+   skipped: their state vars (`activeReadingLine`, `isReadingMode`) live
+   in different closures (main-js IIFE vs. reading-mode module), so a
+   delegator would diverge state. Re-audit before attempting.
 
 > **Note on Phase-2 LOC math**: Per the playback-boundary rule, every
 > Phase-2 dedup keeps an inline fallback for boot-race safety. So a
