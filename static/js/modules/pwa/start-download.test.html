@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>pwa/start-download.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>pwa/start-download.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { startPwaDownload } from './start-download.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    function makeCtx() {
+      const calls = {
+        updatePwaToast: [],
+        toggleHeaderDownloadSpinner: [],
+        clearLocalAppCache: 0,
+        sleep: [],
+        requestServiceWorkerReset: [],
+        handleServiceWorkerMessage: [],
+        createRequestId: 0,
+        formatMessage: [],
+        logError: [],
+        controllerPostMessages: [],
+        addedListeners: [],
+      };
+      const PWA_STATE = {
+        installing: false, failed: 0, lastError: '', total: 0,
+        completed: 0, failedAssets: [], requestId: null,
+      };
+      const pwaListenerAttached = { value: false };
+
+      const controller = {
+        postMessage: (msg) => calls.controllerPostMessages.push(msg),
+      };
+      const sw = {
+        controller,
+        async register() { return { active: controller }; },
+        get ready() { return Promise.resolve({ active: controller }); },
+        addEventListener: (type, fn) => calls.addedListeners.push({ type, fn }),
+      };
+      const navigator = { serviceWorker: sw, onLine: true };
+      const window = { caches: {} };
+
+      const fetchImpl = async () => ({
+        ok: true,
+        json: async () => ({ assets: ['/index.html', 'static/main-js.js', 'https://cdn/x.js', 'no-prefix'] }),
+      });
+
+      const ctx = {
+        PWA_STATE,
+        pwaListenerAttached,
+        PWA_MANIFEST_URL: '/static/pwa-assets.json',
+        updatePwaToast: (state, opts) => calls.updatePwaToast.push({ state, opts }),
+        toggleHeaderDownloadSpinner: (v) => calls.toggleHeaderDownloadSpinner.push(v),
+        clearLocalAppCache: () => { calls.clearLocalAppCache += 1; },
+        sleep: (ms) => { calls.sleep.push(ms); return Promise.resolve(); },
+        requestServiceWorkerReset: async (c) => { calls.requestServiceWorkerReset.push(c); },
+        handleServiceWorkerMessage: (e) => calls.handleServiceWorkerMessage.push(e),
+        createRequestId: (prefix) => { calls.createRequestId += 1; return `${prefix}-test-${calls.createRequestId}`; },
+        formatMessage: (key, params) => {
+          calls.formatMessage.push({ key, params });
+          return `t(${key})`;
+        },
+        navigator,
+        window,
+        fetch: fetchImpl,
+        logError: (scope, err) => calls.logError.push({ scope, err: (err && err.message) || err }),
+      };
+      return { ctx, calls, controller, PWA_STATE };
+    }
+
+    // 1. ctx required
+    {
+      let threw = false;
+      try { await startPwaDownload({}, null); }
+      catch (_) { threw = true; }
+      check('throws when ctx missing', threw);
+    }
+
+    // 2. preventDefault is called when present
+    {
+      const { ctx } = makeCtx();
+      let prevented = false;
+      ctx.navigator = { serviceWorker: undefined };
+      ctx.window = {};
+      const r = await startPwaDownload({ preventDefault() { prevented = true; } }, ctx);
+      check('preventDefault called on event', prevented === true);
+      check('returns unsupported outcome when no SW', r.outcome === 'unsupported');
+    }
+
+    // 3. Unsupported branches
+    {
+      const { ctx, calls } = makeCtx();
+      ctx.navigator = { /* no serviceWorker */ };
+      ctx.window = { caches: {} };
+      const r = await startPwaDownload(null, ctx);
+      check('unsupported: outcome', r.outcome === 'unsupported');
+      check('unsupported: one error toast', calls.updatePwaToast.length === 1
+        && calls.updatePwaToast[0].state === 'error');
+      check('unsupported: pwaUnsupported message',
+        calls.updatePwaToast[0].opts.message === 't(pwaUnsupported)');
+    }
+
+    {
+      const { ctx } = makeCtx();
+      ctx.navigator = { serviceWorker: {} };
+      ctx.window = {};
+      const r = await startPwaDownload(null, ctx);
+      check('unsupported when caches missing', r.outcome === 'unsupported');
+    }
+
+    // 4. Offline branch
+    {
+      const { ctx, calls } = makeCtx();
+      ctx.navigator.onLine = false;
+      const r = await startPwaDownload(null, ctx);
+      check('offline: outcome', r.outcome === 'offline');
+      check('offline: pwaOffline error toast',
+        calls.updatePwaToast[0].state === 'error'
+        && calls.updatePwaToast[0].opts.message === 't(pwaOffline)');
+    }
+
+    // 5. Already-installing branch
+    {
+      const { ctx, calls, PWA_STATE } = makeCtx();
+      PWA_STATE.installing = true;
+      PWA_STATE.total = 100;
+      PWA_STATE.completed = 25;
+      const r = await startPwaDownload(null, ctx);
+      check('already-installing: outcome', r.outcome === 'already-installing');
+      check('already-installing: progress toast 0.25',
+        calls.updatePwaToast[0].state === 'progress'
+        && calls.updatePwaToast[0].opts.progress === 0.25);
+      check('already-installing: state untouched',
+        PWA_STATE.installing === true && PWA_STATE.total === 100);
+    }
+
+    // 6. Happy path
+    {
+      const { ctx, calls, controller, PWA_STATE } = makeCtx();
+      const r = await startPwaDownload(null, ctx);
+      check('happy: outcome=caching', r.outcome === 'caching');
+      check('happy: state.installing flipped true', PWA_STATE.installing === true);
+      check('happy: state.failedAssets reset',
+        Array.isArray(PWA_STATE.failedAssets) && PWA_STATE.failedAssets.length === 0);
+      check('happy: spinner turned on', calls.toggleHeaderDownloadSpinner[0] === true);
+      check('happy: clearLocalAppCache called once', calls.clearLocalAppCache === 1);
+      check('happy: 2 sleeps (1000ms each)',
+        calls.sleep.length === 2 && calls.sleep.every(s => s === 1000));
+      check('happy: requestServiceWorkerReset called with controller',
+        calls.requestServiceWorkerReset.length === 1
+        && calls.requestServiceWorkerReset[0] === controller);
+      check('happy: SW message listener registered',
+        calls.addedListeners.length === 1
+        && calls.addedListeners[0].type === 'message');
+      check('happy: pwaListenerAttached flipped',
+        ctx.pwaListenerAttached.value === true);
+      check('happy: createRequestId called once', calls.createRequestId === 1);
+      check('happy: state.total reflects 4-asset manifest', PWA_STATE.total === 4);
+      check('happy: state.requestId set with pwa- prefix',
+        typeof PWA_STATE.requestId === 'string' && PWA_STATE.requestId.startsWith('pwa-'));
+      check('happy: CACHE_ASSETS posted to controller',
+        calls.controllerPostMessages.length === 1
+        && calls.controllerPostMessages[0].type === 'CACHE_ASSETS');
+      check('happy: posted assets length matches',
+        calls.controllerPostMessages[0].assets.length === 4);
+      check('happy: absolute path preserved',
+        calls.controllerPostMessages[0].assets[0] === '/index.html');
+      check('happy: relative-path stays relative as ./...',
+        calls.controllerPostMessages[0].assets[1] === './static/main-js.js');
+      check('happy: https:// preserved',
+        calls.controllerPostMessages[0].assets[2] === 'https://cdn/x.js');
+      check('happy: bare names get ./ prefix',
+        calls.controllerPostMessages[0].assets[3] === './no-prefix');
+    }
+
+    // 7. SW register failure
+    {
+      const { ctx, calls, PWA_STATE } = makeCtx();
+      ctx.navigator.serviceWorker.register = async () => { throw new Error('fail-register'); };
+      const r = await startPwaDownload(null, ctx);
+      check('reset-failed: outcome', r.outcome === 'reset-failed');
+      check('reset-failed: state.installing reset', PWA_STATE.installing === false);
+      check('reset-failed: spinner turned off',
+        calls.toggleHeaderDownloadSpinner.includes(false));
+      const lastToast = calls.updatePwaToast[calls.updatePwaToast.length - 1];
+      check('reset-failed: error toast at end',
+        lastToast.state === 'error' && lastToast.opts.message.startsWith('t(pwaResetFailed'));
+      check('reset-failed: logError captured', calls.logError.length === 1);
+    }
+
+    // 8. requestServiceWorkerReset rejection
+    {
+      const { ctx } = makeCtx();
+      ctx.requestServiceWorkerReset = async () => { throw new Error('reset-rejected'); };
+      const r = await startPwaDownload(null, ctx);
+      check('reset-failed via reset-rejection', r.outcome === 'reset-failed');
+    }
+
+    // 9. Manifest fetch !ok
+    {
+      const { ctx, calls, PWA_STATE } = makeCtx();
+      ctx.fetch = async () => ({ ok: false, status: 404, json: async () => ({}) });
+      const r = await startPwaDownload(null, ctx);
+      check('manifest-failed: outcome', r.outcome === 'manifest-failed');
+      check('manifest-failed: state.installing reset', PWA_STATE.installing === false);
+      check('manifest-failed: requestId reset', PWA_STATE.requestId === null);
+      check('manifest-failed: spinner turned off',
+        calls.toggleHeaderDownloadSpinner[calls.toggleHeaderDownloadSpinner.length - 1] === false);
+    }
+
+    // 10. Empty manifest assets
+    {
+      const { ctx } = makeCtx();
+      ctx.fetch = async () => ({ ok: true, json: async () => ({ assets: [] }) });
+      const r = await startPwaDownload(null, ctx);
+      check('empty-assets → manifest-failed', r.outcome === 'manifest-failed');
+    }
+
+    // 11. Mixed-type manifest entries → filtered
+    {
+      const { ctx, calls } = makeCtx();
+      ctx.fetch = async () => ({
+        ok: true,
+        json: async () => ({ assets: ['/keep.js', 42, null, undefined, 'real.js'] }),
+      });
+      const r = await startPwaDownload(null, ctx);
+      check('mixed-types: caching outcome', r.outcome === 'caching');
+      check('mixed-types: only string entries kept',
+        calls.controllerPostMessages[0].assets.length === 2
+        && calls.controllerPostMessages[0].assets.includes('/keep.js')
+        && calls.controllerPostMessages[0].assets.includes('./real.js'));
+    }
+
+    // 12. Listener idempotency
+    {
+      const { ctx, calls } = makeCtx();
+      await startPwaDownload(null, ctx);
+      ctx.PWA_STATE.installing = false;
+      await startPwaDownload(null, ctx);
+      check('listener attached only on first run',
+        calls.addedListeners.length === 1);
+    }
+
+    // 13. Window export
+    check('exposes window.YomikikuanPwaStartDownload',
+      typeof window.YomikikuanPwaStartDownload === 'object'
+      && typeof window.YomikikuanPwaStartDownload.startPwaDownload === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
