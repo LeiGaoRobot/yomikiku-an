@@ -922,29 +922,21 @@ const headerSpeedValue = $('headerSpeedValue');
     const panelW = details.offsetWidth || 300;
     const panelH = details.offsetHeight || 220;
 
+    // Geometry fallback dropped — both call sites are handler-only
+    // (scroll/resize listeners + post-async displayResults), so the
+    // dynamic-import block always resolves first. Worst case is a silent
+    // no-op if the user analyses text in the first ~tens of ms after parse.
     const m = (typeof window !== 'undefined') ? window.YomikikuanPosition : null;
-    let pos;
-    if (m && typeof m.computeTokenDetailsPosition === 'function') {
-      pos = m.computeTokenDetailsPosition({
-        rect,
-        viewport: { width: vw, height: vh },
-        panel: { width: panelW, height: panelH },
-      });
-    } else {
-      const width = Math.min(panelW, 320);
-      const spaceBelow = vh - rect.bottom - 8;
-      const spaceAbove = rect.top - 8;
-      let top = (spaceBelow >= panelH || spaceBelow >= spaceAbove)
-        ? rect.bottom + 8
-        : rect.top - panelH - 8;
-      let left = rect.left;
-      if (left + width + 10 > vw) left = vw - width - 10;
-      if (left < 10) left = 10;
-      pos = {
-        left: Math.max(10, Math.min(left, vw - width - 10)),
-        top: Math.max(10, Math.min(top, vh - 10)),
-      };
+    if (!m || typeof m.computeTokenDetailsPosition !== 'function') {
+      details.style.visibility = prevVis;
+      details.style.display = prevDisplay;
+      return;
     }
+    const pos = m.computeTokenDetailsPosition({
+      rect,
+      viewport: { width: vw, height: vh },
+      panel: { width: panelW, height: panelH },
+    });
 
     details.style.left = `${pos.left}px`;
     details.style.top = `${pos.top}px`;
@@ -1186,19 +1178,15 @@ const headerSpeedValue = $('headerSpeedValue');
   }
 
   // Phase-2 delegator → modules/ui/pwa-toast.js (canonical owner).
+  // Fallback dropped: handler-only callers (transitively under
+  // startPwaDownload click handler), so the dynamic-import block always
+  // resolves before any invocation. Worst case is a silent no-op if the
+  // user clicks Install in the first ~tens of ms after parse.
   function setPwaIcon(kind) {
     if (typeof window !== 'undefined' && typeof window.setPwaIcon === 'function'
         && window.setPwaIcon !== setPwaIcon) {
       window.setPwaIcon(kind);
-      return;
     }
-    if (!pwaToastIcon) return;
-    const icons = {
-      download: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 18h16" /></svg>',
-      success: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5" /></svg>',
-      error: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M9 9l6 6" /><path d="M15 9l-6 6" /></svg>'
-    };
-    pwaToastIcon.innerHTML = icons[kind] || icons.download;
   }
 
   // 格式化失败文件的简要列表 — 委托至 modules/ui/pwa-toast.js (Phase-2 dedup, 2026-04-25)
@@ -1214,72 +1202,21 @@ const headerSpeedValue = $('headerSpeedValue');
   // an earlier extraction). Inline fallback retained per playback-boundary
   // rule. The module owns its own hideTimer; legacy PWA_STATE.hideTimer
   // is no external reader concern (only this fn + hidePwaToast mutate it).
+  // Fallback dropped — handler-only callers under startPwaDownload.
   function updatePwaToast(state, opts = {}) {
     if (typeof window !== 'undefined' && typeof window.updatePwaToast === 'function'
         && window.updatePwaToast !== updatePwaToast) {
       window.updatePwaToast(state, opts);
-      return;
     }
-    const { title, message, progress, icon } = opts;
-    if (!pwaToast) return;
-    if (PWA_STATE.hideTimer) {
-      clearTimeout(PWA_STATE.hideTimer);
-      PWA_STATE.hideTimer = null;
-    }
-    if (icon) setPwaIcon(icon);
-    if (title && pwaToastTitle) {
-      pwaToastTitle.textContent = title;
-    }
-    if (message && pwaToastMessage) {
-      pwaToastMessage.textContent = message;
-    }
-    if (pwaToastProgress) {
-      if (typeof progress === 'number' && !Number.isNaN(progress)) {
-        const safe = Math.max(0, Math.min(1, progress));
-        pwaToastProgress.style.display = 'block';
-        pwaToastProgress.setAttribute('aria-valuenow', String(Math.round(safe * 100)));
-        if (pwaToastBar) {
-          pwaToastBar.style.width = `${Math.round(safe * 100)}%`;
-        }
-      } else {
-        pwaToastProgress.style.display = 'none';
-        if (pwaToastBar) {
-          pwaToastBar.style.width = '0%';
-        }
-      }
-    }
-    pwaToast.classList.remove('is-success', 'is-error');
-    if (state === 'success') {
-      pwaToast.classList.add('is-success');
-    } else if (state === 'error') {
-      pwaToast.classList.add('is-error');
-    }
-    pwaToast.removeAttribute('hidden');
-    requestAnimationFrame(() => {
-      pwaToast.classList.add('is-visible');
-    });
   }
 
   // Phase-2 delegator → modules/ui/pwa-toast.js (canonical owner).
+  // Fallback dropped — handler-only callers under startPwaDownload.
   function hidePwaToast(delay = 0) {
     if (typeof window !== 'undefined' && typeof window.hidePwaToast === 'function'
         && window.hidePwaToast !== hidePwaToast) {
       window.hidePwaToast(delay);
-      return;
     }
-    if (!pwaToast) return;
-    if (delay) {
-      if (PWA_STATE.hideTimer) clearTimeout(PWA_STATE.hideTimer);
-      PWA_STATE.hideTimer = setTimeout(() => hidePwaToast(0), delay);
-      return;
-    }
-    pwaToast.classList.remove('is-visible');
-    PWA_STATE.hideTimer = setTimeout(() => {
-      pwaToast.setAttribute('hidden', 'hidden');
-      pwaToast.classList.remove('is-success', 'is-error');
-      if (pwaToastBar) pwaToastBar.style.width = '0%';
-      PWA_STATE.hideTimer = null;
-    }, 320);
   }
 
   // 简易延时工具：用于让提示停留 1s
