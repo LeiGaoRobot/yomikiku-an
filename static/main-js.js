@@ -4048,143 +4048,71 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     const splitKatakanaCompounds = _DT ? _DT.splitKatakanaCompounds : (t) => t;
     const splitLeadingParticleVerbTeDe = _DT ? _DT.splitLeadingParticleVerbTeDe : (t) => t;
 
-    // 按行显示分词结果，先过滤掉空行和只有标点符号的行
-    const nonEmptyLines = result.lines.filter(line => {
-      if (!Array.isArray(line) || line.length === 0) return false;
-      
-      // 检查整行是否都只有标点符号
-      const allPunct = line.every(token => {
-        const pos = Array.isArray(token.pos) ? token.pos : [token.pos || ''];
-        return pos[0] === '記号' || pos[0] === '補助記号';
-      });
-      
-      return !allPunct; // 如果整行都是标点符号，则过滤掉
-    });
-    
+    // results-display module owns the pure helpers (filter / classify /
+    // sanitize / template builders). displayResults is handler-only —
+    // single call site in async-analyze try/catch — so the dynamic ESM
+    // import has long resolved by here. No inline fallback.
+    const RD = window.YomikikuanResultsDisplay;
+
+    const nonEmptyLines = RD.filterPunctuationOnlyLines(result.lines);
     const linesWithoutLeadingPunct = reflowLeadingPunctuation(nonEmptyLines);
-    
+
     const html = linesWithoutLeadingPunct.map((line, lineIndex) => {
-      // 先把可能被合成成单一助词的结构拆开，再应用展示层合并与片假名拆分
       const preSplit = splitLeadingParticleVerbTeDe(line);
       const mergedTokens = mergeTokensForDisplay(preSplit);
       const tokensForDisplay = splitKatakanaCompounds(mergedTokens);
-      const lineHtml = tokensForDisplay.map((token, tokenIndex) => {
+      const lineHtml = tokensForDisplay.map((token) => {
         const override = (window.YomikikuanDict && window.YomikikuanDict.getTechOverride) ? window.YomikikuanDict.getTechOverride(token) : null;
         const tokenForUi = (override && override.reading) ? { ...token, reading: override.reading } : token;
         const surface = tokenForUi.surface || '';
         const reading = tokenForUi.reading || '';
-        const lemma = tokenForUi.lemma || surface;
         const pos = Array.isArray(tokenForUi.pos) ? tokenForUi.pos : [tokenForUi.pos || ''];
-        
-        // 解析词性信息
+
         const posInfo = (window.YomikikuanDict && window.YomikikuanDict.parsePartOfSpeech) ? window.YomikikuanDict.parsePartOfSpeech(pos) : { main: '未知', details: [], original: pos };
         const posDisplay = posInfo.main || '未知';
         const detailInfo = (window.YomikikuanDict && window.YomikikuanDict.formatDetailInfo) ? window.YomikikuanDict.formatDetailInfo(tokenForUi, posInfo, I18N[currentLang] || {}) : '';
-        
-        // 获取罗马音（仅针对日文读音；英文字母或数字时不显示）
-        let romaji = '';
-        let r = reading || surface;
-        
-        // 特殊处理：助词「は」读作「わ」
-        if (surface === 'は' && pos[0] === '助詞' && isHaParticleReadingEnabled()) {
-          r = 'わ';
-        }
-        
-        const isLatinOrNumber = /^[A-Za-z0-9 .,:;!?\-_/+()\[\]{}'"%&@#*]+$/.test(r);
-        if (!isLatinOrNumber) {
-          romaji = getRomaji(r);
-        }
-        
-        // 日文常用标点符号（只有这些可以显示为带样式的punct）
-        const japaneseCommonPunct = /^[。、！？「」『』（）【】〜・※…ー〇]$/;
-        
-        // Markdown标记和装饰性符号（这些需要完全过滤）
-        const isMarkdownSymbol = /^[#*_`>~\-=\[\]]+$/.test(surface);
-        const isDecorativeSymbol = /^[•·\/\s\u00A0\u2000-\u200F\u2028-\u202F\u205F-\u206F\u3000]+$/.test(surface);
 
-        // 先过滤掉markdown标记和装饰性符号
-        if (isDecorativeSymbol || isMarkdownSymbol) {
-          return '';
-        }
-        
-        // 检查surface中是否包含任何标点符号字符
-        const containsPunctuation = /[#*_`>~\-=\[\](){}|\\/:;,.<>!?'"@$%^&+：・×]/.test(surface);
-        
-        // 如果包含标点符号但不是日文常用标点
-        if (containsPunctuation && !japaneseCommonPunct.test(surface)) {
-          // 直接显示为普通文本，不用token-pill
-          return surface;
-        }
-        
-        // 如果是日文常用标点符号
-        if (japaneseCommonPunct.test(surface)) {
-          return `<span class="punct">${surface}</span>`;
-        }
-        
-        // 检查词性是否为标点
-        const isPunct = (pos[0] === '記号' || pos[0] === '補助記号');
-        if (isPunct) {
-          // 其他词性为記号的，也直接显示为普通文本
-          return surface;
-        }
-        
+        const cls = RD.classifyTokenForDisplay(surface, pos);
+        if (cls === 'empty') return '';
+        if (cls === 'mixedPunct' || cls === 'plainPos') return surface;
+        if (cls === 'japaneseCommonPunct') return `<span class="punct">${surface}</span>`;
+
+        const haAsWa = isHaParticleReadingEnabled();
+        const playText = RD.resolvePlayText(tokenForUi, haAsWa);
+        const romaji = RD.shouldRenderRomaji(playText) ? getRomaji(playText) : '';
+        const sanitizedPlayText = RD.sanitizePlayText(playText);
         const readingText = formatReading(tokenForUi, getReadingScript());
-        
-        // 确定播放时使用的文本（考虑助词「は」的特殊情况）
-        let playText = reading || surface;
-        if (surface === 'は' && pos[0] === '助詞' && isHaParticleReadingEnabled()) {
-          playText = 'わ';
-        }
-        const sanitizedPlayText = String(playText || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, '\\n');
 
-        // ふりがな模式：输出内联 <ruby>，无 pill 边框、无词性色、无详情层
         if (getRubyMode()) {
-          const rubyInner = buildRubyMarkup(surface, reading, getReadingScript());
-          return `<span class="ruby-token" data-pos="${posDisplay}" onclick="playToken('${sanitizedPlayText}', event)" title="${escapeHtmlForRuby(surface)}">${rubyInner}</span>`;
+          return RD.buildRubyTokenMarkup({
+            rubyInner: buildRubyMarkup(surface, reading, getReadingScript()),
+            posDisplay,
+            sanitizedPlayText,
+            escapedSurface: escapeHtmlForRuby(surface),
+          });
         }
 
-        return `
-          <span class="token-pill" onclick="toggleTokenDetails(this)" data-token='${JSON.stringify(tokenForUi).replace(/'/g, "&apos;")}' data-pos="${posDisplay}">
-            <div class="token-content">
-              <div class="token-kana display-kana">${readingText}</div>
-              ${romaji ? `<div class="token-romaji display-romaji">${romaji}</div>` : ''}
-              <div class="token-kanji display-kanji">${surface}</div>
-              <div class="token-pos display-pos">${posDisplay}</div>
-            </div>
-            <div class="token-details" style="display: none;">
-              ${detailInfo}
-              <button class="play-token-btn" onclick="playToken('${sanitizedPlayText}', event)" title="${t('play')}">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z"/>
-                </svg>
-              </button>
-            </div>
-          </span>
-        `;
+        return RD.buildTokenPillMarkup({
+          tokenForUi,
+          surface,
+          readingText,
+          romaji,
+          posDisplay,
+          detailInfo,
+          sanitizedPlayText,
+          playLabel: t('play'),
+        });
       }).join('');
-      
-      // 如果行内容为空（所有token都被过滤），不生成line-container
-      if (!lineHtml.trim()) {
-        return '';
-      }
-      
-      const rubyCls = getRubyMode() ? ' ruby-line' : '';
-      return `
-        <div class="line-container${rubyCls}" data-line-index="${lineIndex}" tabindex="-1">
-          ${lineHtml}
-          <button class="analyze-line-btn" onclick="window.__yomikikuanAnalyzeLine(event)" title="${t('analyzer.analyzeLine') || '解析本句'}" aria-label="${t('analyzer.analyzeLine') || '解析本句'}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="7"/>
-              <path d="m21 21-4.3-4.3"/>
-            </svg>
-          </button>
-          <button class="play-line-btn" onclick="playLine(${lineIndex})" title="${t('playThisLine')}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-          </button>
-        </div>
-      `;
+
+      if (!lineHtml.trim()) return '';
+
+      return RD.buildLineContainerMarkup({
+        lineHtml,
+        lineIndex,
+        rubyMode: getRubyMode(),
+        analyzeLineLabel: t('analyzer.analyzeLine') || '解析本句',
+        playLineLabel: t('playThisLine'),
+      });
     }).filter(html => html).join('');
 
     // Tear down any live analyzer cards so in-flight requests abort cleanly.
@@ -5410,6 +5338,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Display-layer token transforms — registers window.YomikikuanDisplayTokens.
   import('/static/js/modules/analyzer/local/display-tokens.js')
     .catch((err) => console.warn('[analyzer/local/display-tokens] import failed', err));
+  // displayResults pure helpers — registers window.YomikikuanResultsDisplay.
+  import('/static/js/modules/analyzer/local/results-display.js')
+    .catch((err) => console.warn('[analyzer/local/results-display] import failed', err));
   // JMdict translation modal — registers window.YomikikuanTranslationModal.
   import('/static/js/modules/analyzer/translation-modal.js')
     .catch((err) => console.warn('[analyzer/translation-modal] import failed', err));
