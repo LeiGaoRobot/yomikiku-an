@@ -1351,158 +1351,36 @@ const headerSpeedValue = $('headerSpeedValue');
     }
   }
 
+  // Phase-2 delegator → modules/pwa/start-download.js (canonical owner).
+  // No inline fallback: this is the install-button click handler, so
+  // the dynamic-import block always resolves before any user click.
+  // Worst case (user clicks Install in the first ~tens of ms after
+  // page parse): the toast silently no-ops for that single click.
+  // Boot-race premise vanishes; 153-LOC inline body deleted as
+  // dead-on-the-happy-path. main-js.js retains the closure-captured
+  // helpers via the ctx object so the module can call them back.
   async function startPwaDownload(event) {
-    if (event) event.preventDefault();
-
-    if (!('serviceWorker' in navigator) || !(window && 'caches' in window)) {
-      updatePwaToast('error', {
-        title: formatMessage('pwaTitle'),
-        message: formatMessage('pwaUnsupported'),
-        icon: 'error'
-      });
+    const mod = (typeof window !== 'undefined') ? window.YomikikuanPwaStartDownload : null;
+    if (!mod || typeof mod.startPwaDownload !== 'function') {
+      if (event && typeof event.preventDefault === 'function') event.preventDefault();
       return;
     }
-
-    if (navigator && 'onLine' in navigator && !navigator.onLine) {
-      updatePwaToast('error', {
-        title: formatMessage('pwaTitle'),
-        message: formatMessage('pwaOffline'),
-        icon: 'error'
-      });
-      return;
-    }
-
-    if (PWA_STATE.installing) {
-      const progressValue = PWA_STATE.total ? PWA_STATE.completed / PWA_STATE.total : 0;
-      updatePwaToast('progress', {
-        title: formatMessage('pwaTitle'),
-        message: formatMessage('pwaAlreadyCaching'),
-        progress: progressValue,
-        icon: 'download'
-      });
-      return;
-    }
-
-    PWA_STATE.installing = true;
-    PWA_STATE.failed = 0;
-    PWA_STATE.lastError = '';
-    PWA_STATE.total = 0;
-    PWA_STATE.completed = 0;
-    PWA_STATE.failedAssets = [];
-    PWA_STATE.requestId = null;
-    toggleHeaderDownloadSpinner(true);
-
-    // 第一步：清除本地浏览器缓存并提示
-    try {
-      clearLocalAppCache();
-      updatePwaToast('success', {
-        title: formatMessage('pwaTitle'),
-        message: formatMessage('localCacheCleared'),
-        icon: 'success'
-      });
-      // 让提示停留 1 秒
-      await sleep(1000);
-    } catch (_) {}
-
-    // 第二步（准备提示）：清除 PWA 离线缓存
-    updatePwaToast('progress', {
-      title: formatMessage('pwaTitle'),
-      message: formatMessage('pwaResetting'),
-      progress: null,
-      icon: 'download'
+    return mod.startPwaDownload(event, {
+      PWA_STATE,
+      pwaListenerAttached: {
+        get value() { return pwaListenerAttached; },
+        set value(v) { pwaListenerAttached = v; },
+      },
+      PWA_MANIFEST_URL,
+      updatePwaToast,
+      toggleHeaderDownloadSpinner,
+      clearLocalAppCache,
+      sleep,
+      requestServiceWorkerReset,
+      handleServiceWorkerMessage,
+      createRequestId,
+      formatMessage,
     });
-
-    let controller; 
-    let registration;
-    try {
-      registration = await navigator.serviceWorker.register('./service-worker.js');
-      PWA_STATE.registration = registration;
-      const ready = await navigator.serviceWorker.ready;
-      controller = navigator.serviceWorker.controller || ready.active || registration.active;
-      if (!controller) {
-        throw new Error('no-controller');
-      }
-
-      if (!pwaListenerAttached) {
-        navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
-        pwaListenerAttached = true;
-      }
-
-      await requestServiceWorkerReset(controller);
-    } catch (error) {
-      console.error('PWA reset failed', error);
-      PWA_STATE.installing = false;
-      toggleHeaderDownloadSpinner(false);
-      updatePwaToast('error', {
-        title: formatMessage('pwaTitle'),
-        message: formatMessage('pwaResetFailed', { message: error?.message || 'unknown' }),
-        progress: 0,
-        icon: 'error'
-      });
-      return;
-    }
-
-    // 第二步完成：提示已清除离线缓存
-    updatePwaToast('success', {
-      title: formatMessage('pwaTitle'),
-      message: formatMessage('pwaCacheCleared'),
-      progress: null,
-      icon: 'success'
-    });
-    // 让提示停留 1 秒
-    await sleep(1000);
-
-    updatePwaToast('progress', {
-      title: formatMessage('pwaTitle'),
-      message: formatMessage('pwaPreparing'),
-      progress: 0,
-      icon: 'download'
-    });
-
-    try {
-      const manifestResponse = await fetch(PWA_MANIFEST_URL, { cache: 'no-store' });
-      if (!manifestResponse.ok) {
-        throw new Error(`manifest ${manifestResponse.status}`);
-      }
-      const manifest = await manifestResponse.json();
-      const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
-      if (!assets.length) {
-        throw new Error('no-assets');
-      }
-
-      const normalizedAssets = assets.map((asset) => {
-        if (typeof asset !== 'string') return '';
-        if (/^https?:/i.test(asset)) return asset;
-        return asset.startsWith('.') || asset.startsWith('/') ? asset : `./${asset}`;
-      }).filter(Boolean);
-
-      PWA_STATE.total = normalizedAssets.length;
-
-      PWA_STATE.requestId = createRequestId('pwa');
-      controller.postMessage({
-        type: 'CACHE_ASSETS',
-        assets: normalizedAssets,
-        requestId: PWA_STATE.requestId
-      });
-
-      updatePwaToast('progress', {
-        title: formatMessage('pwaTitle'),
-        message: formatMessage('pwaProgress', { completed: 0, total: PWA_STATE.total, percent: 0 }),
-        progress: 0,
-        icon: 'download'
-      });
-    } catch (error) {
-      console.error('PWA cache failed', error);
-      PWA_STATE.installing = false;
-      PWA_STATE.requestId = null;
-      toggleHeaderDownloadSpinner(false);
-      updatePwaToast('error', {
-        title: formatMessage('pwaTitle'),
-        message: formatMessage('pwaError', { message: error?.message || 'unknown' }),
-        progress: 0,
-        icon: 'error'
-      });
-    }
   }
 
   // Phase-2 delegator → modules/pwa/installer.js. Inline fallback retained
@@ -6003,6 +5881,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // PWA install-button wiring — registers window.YomikikuanPwaInstaller.
   import('/static/js/modules/pwa/installer.js')
     .catch((err) => console.warn('[pwa/installer] import failed', err));
+  // PWA install/download orchestrator — registers window.YomikikuanPwaStartDownload.
+  import('/static/js/modules/pwa/start-download.js')
+    .catch((err) => console.warn('[pwa/start-download] import failed', err));
   // Text → playable segments — registers window.YomikikuanSegment.
   import('/static/js/modules/player/segment.js')
     .catch((err) => console.warn('[player/segment] import failed', err));
