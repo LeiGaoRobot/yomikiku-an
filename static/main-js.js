@@ -1185,7 +1185,13 @@ const headerSpeedValue = $('headerSpeedValue');
     }
   }
 
+  // Phase-2 delegator → modules/ui/pwa-toast.js (canonical owner).
   function setPwaIcon(kind) {
+    if (typeof window !== 'undefined' && typeof window.setPwaIcon === 'function'
+        && window.setPwaIcon !== setPwaIcon) {
+      window.setPwaIcon(kind);
+      return;
+    }
     if (!pwaToastIcon) return;
     const icons = {
       download: '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 18h16" /></svg>',
@@ -1204,22 +1210,29 @@ const headerSpeedValue = $('headerSpeedValue');
     return '';
   }
 
-  function updatePwaToast(state, { title, message, progress, icon } = {}) {
+  // Phase-2 delegator → modules/ui/pwa-toast.js (canonical owner since
+  // an earlier extraction). Inline fallback retained per playback-boundary
+  // rule. The module owns its own hideTimer; legacy PWA_STATE.hideTimer
+  // is no external reader concern (only this fn + hidePwaToast mutate it).
+  function updatePwaToast(state, opts = {}) {
+    if (typeof window !== 'undefined' && typeof window.updatePwaToast === 'function'
+        && window.updatePwaToast !== updatePwaToast) {
+      window.updatePwaToast(state, opts);
+      return;
+    }
+    const { title, message, progress, icon } = opts;
     if (!pwaToast) return;
     if (PWA_STATE.hideTimer) {
       clearTimeout(PWA_STATE.hideTimer);
       PWA_STATE.hideTimer = null;
     }
-
     if (icon) setPwaIcon(icon);
-
     if (title && pwaToastTitle) {
       pwaToastTitle.textContent = title;
     }
     if (message && pwaToastMessage) {
       pwaToastMessage.textContent = message;
     }
-
     if (pwaToastProgress) {
       if (typeof progress === 'number' && !Number.isNaN(progress)) {
         const safe = Math.max(0, Math.min(1, progress));
@@ -1235,21 +1248,25 @@ const headerSpeedValue = $('headerSpeedValue');
         }
       }
     }
-
     pwaToast.classList.remove('is-success', 'is-error');
     if (state === 'success') {
       pwaToast.classList.add('is-success');
     } else if (state === 'error') {
       pwaToast.classList.add('is-error');
     }
-
     pwaToast.removeAttribute('hidden');
     requestAnimationFrame(() => {
       pwaToast.classList.add('is-visible');
     });
   }
 
+  // Phase-2 delegator → modules/ui/pwa-toast.js (canonical owner).
   function hidePwaToast(delay = 0) {
+    if (typeof window !== 'undefined' && typeof window.hidePwaToast === 'function'
+        && window.hidePwaToast !== hidePwaToast) {
+      window.hidePwaToast(delay);
+      return;
+    }
     if (!pwaToast) return;
     if (delay) {
       if (PWA_STATE.hideTimer) clearTimeout(PWA_STATE.hideTimer);
