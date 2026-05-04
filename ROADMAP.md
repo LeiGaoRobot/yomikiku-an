@@ -6,10 +6,10 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 8557, was 8835 at the start
-  of the cumulative effort; −278 net).
-- **Test coverage growing in lockstep** with each extraction (currently 22
-  `*.test.html` pages, 507 cases).
+- **`main-js.js` < 5000 lines** (currently 7967, was 8835 at the start
+  of the cumulative effort; **−868 net**).
+- **Test coverage growing in lockstep** with each extraction (currently 26
+  `*.test.html` pages, 754 cases — per `scripts/test.sh`).
 
 > **Honest reality check (2026-05-04)**: under the project's current
 > "Phase-2 dedup must keep an inline fallback for boot-race safety"
@@ -19,16 +19,16 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 > *fallback-drop for handler-only delegators*: when every external
 > caller is inside a user-interaction handler (click / scroll / async
 > resolution post-boot), the boot-race premise vanishes and the
-> fallback can be deleted as dead code. Audit shows ~4 of the existing
-> delegators qualified (-63 LOC commit `90d0dc8`); the rest have
-> transitive boot reachability via `init*` functions whose
-> `__ESM_*` guard fails before the dynamic import resolves.
+> fallback can be deleted as dead code. Initial audit found ~4
+> delegators qualified (-63 LOC commit `90d0dc8`); subsequent
+> fallback-free Phase-2 dedups have continued to land (startPwaDownload
+> -119, display-tokens -172, translation-modal -299).
 >
 > **Big remaining wins** (handler-only, fallback-free Phase-2 provably
 > safe — but require deep DI work hours-scale):
 > - `displayResults` (~921 LOC; analyzer rendering, called from one
->   try/catch in async analyze)
-> - `startPwaDownload` (~184 LOC; install-button click handler)
+>   try/catch in async analyze) — **next target**
+> - ~~`startPwaDownload`~~ ✅ shipped commit `8ff2b02` (-119 LOC)
 
 ## Method (the "Phase-1/Phase-2" pattern)
 
@@ -61,6 +61,12 @@ else is fair game.
 | `modules/analyzer/ui/sentence-text.js` | extractSentenceText                            | 18 |
 | `modules/pwa/sw-reset.js`        | createSwResetCoordinator (request / handleMessage)   | 21 |
 | `modules/analyzer/ui/jlpt/`      | prompts / renderers / session split                  | 119 |
+| `modules/reading/script-display.js` | updateReadingScriptDisplay                        | 21 |
+| `modules/pwa/installer.js`       | setupPwaInstaller                                    | 25 |
+| `modules/pwa/start-download.js`  | startPwaDownload (handler-only, no fallback)         | 45 |
+| `modules/analyzer/local/display-tokens.js` | display token helpers                      | 58 |
+| `modules/analyzer/translation-modal.js` | per-line translation modal                    | 55 |
+| `modules/analyzer/local/results-display.js` | displayResults pure helpers (filter / classify / template builders) | 89 |
 
 Plus orchestrator scaffolding tests (jlptPanel 22, reader-mode 16,
 shortcut-help 15) and the augmented `srs/store.test.html` (36 covering
@@ -71,25 +77,47 @@ formatFailedAssetsSummary, base64ToBytes/pcm16ToWav/parseSampleRate,
 detectBrowserLanguage, getActiveFolderId/setActiveFolderId,
 extractSentenceText, positionTokenDetails (geometry only — DOM mutation
 half stays in main-js.js), requestServiceWorkerReset (Map + handler
-branch fully collapsed; **−20 LOC net**, the biggest Phase-2 win this
-session — possible because reset is user-initiated only, so the
-fallback can be a bare `Promise.reject('no-coordinator')`)
-(with thick fallbacks per playback boundary unless explicitly safe).
+branch fully collapsed; **−20 LOC net** — possible because reset is
+user-initiated only, so the fallback can be a bare
+`Promise.reject('no-coordinator')`), updateReadingScriptDisplay,
+setupPwaInstaller, syncReadingLineAttributes, startPwaDownload
+(**−119 LOC**, no fallback — install-button click handler),
+display-tokens helpers (**−172 LOC**), translation-modal
+(**−299 LOC**, biggest single-extraction win to date).
 
 ## Next-wave candidates (audited, not yet started)
 
 Ranked by **value/risk ratio** (top = best ROI):
 
-1. ~~**`updateReadingScriptDisplay`**~~ ✅ shipped — `modules/reading/script-display.js` + 21 tests; Phase-2 delegator in `main-js.js:2665`.
-2. ~~**`setupPwaInstaller`**~~ ✅ shipped — `modules/pwa/installer.js` + 25 tests; Phase-2 delegator in `main-js.js:1554`.
-3. ~~**`syncReadingLineAttributes`**~~ ✅ Phase-2 dedup landed —
-   delegator in `main-js.js:1589` points at the existing canonical
-   `window.syncReadingLineAttributes` from `modules/editor/reading-mode.js`
-   (Phase-1 was already done there — ROADMAP audit was stale).
-   Companion `setReadingLineActive`/`clearReadingLineHighlight` deliberately
-   skipped: their state vars (`activeReadingLine`, `isReadingMode`) live
-   in different closures (main-js IIFE vs. reading-mode module), so a
-   delegator would diverge state. Re-audit before attempting.
+1. **`displayResults` Phase-2 dedup** — Phase-1 landed
+   (`modules/analyzer/local/results-display.js` + 89 tests).
+   `displayResults` itself is 162 LOC (lines 4033–4194 in
+   `main-js.js`), not the ~921 the roadmap previously suggested.
+   Handler-only (single call site in async-analyze try/catch), so
+   Phase-2 dedup can drop the inline fallback. Estimated savings
+   ~80–100 LOC after delegation of the 5 helpers + 5 regex constants.
+2. ~~**Re-audit existing `__ESM_*` delegators for fallback drops**~~
+   ❌ audit completed 2026-05-04, **no candidates**. The 4 guards
+   (`READING_MODE`, `DISPLAY_SETTINGS`, `EDITOR_TOOLBAR`,
+   `FONT_SETTINGS`) all have boot-time reachability:
+   - `updateReadingToggleLabels` ← `applyI18n` ← boot
+     (`main-js.js:5343`)
+   - `updateDisplaySettings` ← `initDisplayControls`
+     ← `initializeApp` (`main-js.js:6336`)
+   - `updateEditorToolbar` ← `initEditorToolbar` ← boot
+     (`main-js.js:5457`)
+   - `applyFontScaleFromStorage` ← boot (`main-js.js:5346`),
+     `applyFontFamilyFromStorage` ← `DOMContentLoaded`
+     (`main-js.js:7010`)
+
+   Same conclusion for the `?? inline` delegators (kana, ruby,
+   sentence-text, etc.) — all reachable from initial document render.
+   No further fallback drops are safe without first untangling boot.
+3. Companion `setReadingLineActive`/`clearReadingLineHighlight`
+   deliberately deferred: their state vars (`activeReadingLine`,
+   `isReadingMode`) live in different closures (main-js IIFE vs.
+   reading-mode module), so a delegator would diverge state. Requires
+   state colocation first.
 
 > **Note on Phase-2 LOC math**: Per the playback-boundary rule, every
 > Phase-2 dedup keeps an inline fallback for boot-race safety. So a

@@ -2,6 +2,10 @@
 
 Browser-based Japanese reading + listening practice tool: Kuromoji.js segmentation, POS tagging, kana/romaji, Web Speech API TTS, JMdict integration, EasyMDE markdown editor, multi-document storage, PWA. Optional Google login + Firestore cloud sync (login.html). AI features (per-sentence analyzer, per-article summary, JLPT question generator, bilingual translation, vocab/mistake book) via Gemini API.
 
+> **See also**: [`ROADMAP.md`](./ROADMAP.md) — extraction goal, next-wave queue, do-not-touch boundaries.
+> **See also**: [`CONTRIBUTING.md`](./CONTRIBUTING.md) — Phase-1/Phase-2 extraction recipe, test runner setup.
+> **Auto-loaded rule**: `.claude/rules/playback-boundary.md` — globs to `static/main-js.js` + `static/js/tts.js`; enforces the playback / SW invariants documented below.
+
 ## Stack
 
 - **Pure static site** — no build step, no framework. HTML + vanilla JS + CSS.
