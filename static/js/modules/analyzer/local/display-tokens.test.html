@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/local/display-tokens.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/local/display-tokens.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      mergeTokensForDisplay,
+      splitKatakanaCompounds,
+      splitLeadingParticleVerbTeDe,
+      reflowLeadingPunctuation,
+    } from './display-tokens.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ──── mergeTokensForDisplay ────
+
+    check('merge: empty array → []', JSON.stringify(mergeTokensForDisplay([])) === '[]');
+    check('merge: null arg → []', JSON.stringify(mergeTokensForDisplay(null)) === '[]');
+    check('merge: undefined arg → []', JSON.stringify(mergeTokensForDisplay()) === '[]');
+    check('merge: single token unchanged', (() => {
+      const t = [{ surface: 'a', pos: ['名詞'] }];
+      return JSON.stringify(mergeTokensForDisplay(t)) === JSON.stringify(t);
+    })());
+
+    // Date merge — year (without given reading)
+    {
+      const tokens = [
+        { surface: '2024', reading: '2024', pos: ['名詞'] },
+        { surface: '年',    reading: 'ねん', pos: ['接尾辞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 2024年 collapses to one token', merged.length === 1);
+      check('merge: 2024年 surface', merged[0].surface === '2024年');
+      check('merge: 2024年 reading appends ねん', merged[0].reading === '2024ねん');
+    }
+
+    // Date merge — month using map fallback
+    {
+      const tokens = [
+        { surface: '6', reading: '6', pos: ['名詞'] },
+        { surface: '月', reading: 'がつ', pos: ['接尾辞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 6月 surface', merged[0].surface === '6月');
+      check('merge: 6月 reading uses MONTH_READING[6]=ろく', merged[0].reading === 'ろくがつ');
+    }
+
+    // Date merge — month with explicit pre-existing reading
+    {
+      const tokens = [
+        { surface: '7', reading: 'なな', pos: ['名詞'] },
+        { surface: '月', reading: 'がつ', pos: ['接尾辞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 7月 prefers explicit reading なな over しち',
+        merged[0].reading === 'なながつ');
+    }
+
+    // Date merge — special-day reading
+    {
+      const tokens = [
+        { surface: '1', reading: 'いち', pos: ['名詞'] },
+        { surface: '日', reading: 'にち', pos: ['接尾辞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 1日 uses DAY_READING[1]=ついたち', merged[0].reading === 'ついたち');
+    }
+
+    // Date merge — fallback for unknown day
+    {
+      const tokens = [
+        { surface: '15', reading: '15', pos: ['名詞'] },
+        { surface: '日',  reading: 'にち', pos: ['接尾辞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 15日 falls back to base+にち', merged[0].reading === '15にち');
+    }
+
+    // Date merge — full-width digits → DAY_READING
+    {
+      const tokens = [
+        { surface: '５', reading: 'ご', pos: ['名詞'] },
+        { surface: '日', reading: 'にち', pos: ['接尾辞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: full-width 5日 → いつか via DAY_READING', merged[0].reading === 'いつか');
+    }
+
+    // Verb + て collapses
+    {
+      const tokens = [
+        { surface: '食べ', reading: 'たべ', pos: ['動詞'] },
+        { surface: 'て',   reading: 'て',   pos: ['助詞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 食べ+て → 食べて', merged.length === 1 && merged[0].surface === '食べて');
+      check('merge: 食べ+て reading concat', merged[0].reading === 'たべて');
+    }
+
+    // Adj + で collapses
+    {
+      const tokens = [
+        { surface: '元気', reading: 'げんき', pos: ['形容詞'] },
+        { surface: 'で',   reading: 'で',     pos: ['助詞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 形容詞+で merges', merged.length === 1 && merged[0].surface === '元気で');
+    }
+
+    // Verb + た merges
+    {
+      const tokens = [
+        { surface: '行っ', reading: 'いっ', pos: ['動詞'] },
+        { surface: 'た',   reading: 'た',   pos: ['助動詞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: verb + た', merged[0].surface === '行った' && merged[0].reading === 'いった');
+    }
+
+    // Non-merge cases stay unchanged
+    {
+      const tokens = [
+        { surface: '名詞', pos: ['名詞'] },
+        { surface: 'て',   pos: ['助詞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 名詞+て NOT merged', merged.length === 2);
+    }
+    {
+      const tokens = [
+        { surface: '食べ', pos: ['動詞'] },
+        { surface: 'を',   pos: ['助詞'] },
+      ];
+      const merged = mergeTokensForDisplay(tokens);
+      check('merge: 動詞+を NOT merged', merged.length === 2);
+    }
+
+    // Input array not mutated
+    {
+      const tokens = [
+        { surface: '2024', pos: ['名詞'] },
+        { surface: '年',    pos: ['接尾辞'] },
+      ];
+      const before = JSON.stringify(tokens);
+      mergeTokensForDisplay(tokens);
+      check('merge: input array not mutated', JSON.stringify(tokens) === before);
+    }
+
+    // ──── splitKatakanaCompounds ────
+
+    check('katakana: empty → []', JSON.stringify(splitKatakanaCompounds([])) === '[]');
+    check('katakana: null → []', JSON.stringify(splitKatakanaCompounds(null)) === '[]');
+
+    // Direct inner-split table hit
+    {
+      const tokens = [{ surface: 'スマートフォン', reading: 'スマートフォン', pos: ['名詞'] }];
+      const out = splitKatakanaCompounds(tokens);
+      check('katakana: inner-split スマートフォン → 2 tokens', out.length === 2);
+      check('katakana: inner-split first surface', out[0].surface === 'スマート');
+      check('katakana: inner-split second surface', out[1].surface === 'フォン');
+    }
+
+    // Suffix match
+    {
+      const tokens = [{ surface: 'メモアプリ', reading: 'メモアプリ', pos: ['名詞'] }];
+      const out = splitKatakanaCompounds(tokens);
+      check('katakana: suffix split メモアプリ → 2 tokens', out.length === 2);
+      check('katakana: prefix surface',  out[0].surface === 'メモ');
+      check('katakana: suffix surface',  out[1].surface === 'アプリ');
+      check('katakana: prefix reading',  out[0].reading === 'メモ');
+      check('katakana: suffix reading',  out[1].reading === 'アプリ');
+    }
+
+    // Suffix + inner-split (prefix further splits)
+    {
+      const tokens = [{ surface: 'スマートフォンアプリ', reading: 'スマートフォンアプリ', pos: ['名詞'] }];
+      const out = splitKatakanaCompounds(tokens);
+      check('katakana: prefix-inner-split + suffix → 3 tokens', out.length === 3);
+      check('katakana: スマート / フォン / アプリ',
+        out[0].surface === 'スマート' && out[1].surface === 'フォン' && out[2].surface === 'アプリ');
+    }
+
+    // Non-katakana names are passed through
+    {
+      const tokens = [{ surface: '日本', reading: 'にほん', pos: ['名詞'] }];
+      const out = splitKatakanaCompounds(tokens);
+      check('katakana: 日本 passed through unchanged', out.length === 1 && out[0].surface === '日本');
+    }
+
+    // Non-noun katakana token is passed through
+    {
+      const tokens = [{ surface: 'メモアプリ', pos: ['動詞'] }];
+      const out = splitKatakanaCompounds(tokens);
+      check('katakana: 動詞 not split', out.length === 1);
+    }
+
+    // Custom override of suffix table (ASCII-prefixed surface fails katakana check)
+    {
+      const tokens = [{ surface: 'AAAテスト', reading: 'AAAテスト', pos: ['名詞'] }];
+      const out = splitKatakanaCompounds(tokens, { suffixes: ['テスト'] });
+      check('katakana: ASCII-prefixed name fails katakana check',
+        out.length === 1 && out[0].surface === 'AAAテスト');
+    }
+
+    // Custom innerSplits table
+    {
+      const tokens = [{ surface: 'メモパッド', reading: 'メモパッド', pos: ['名詞'] }];
+      const out = splitKatakanaCompounds(tokens, { innerSplits: { 'メモパッド': ['メモ', 'パッド'] } });
+      check('katakana: custom innerSplits entry honored',
+        out.length === 2 && out[0].surface === 'メモ' && out[1].surface === 'パッド');
+    }
+
+    // ──── splitLeadingParticleVerbTeDe ────
+
+    check('plv: empty → []', JSON.stringify(splitLeadingParticleVerbTeDe([])) === '[]');
+    check('plv: null → []', JSON.stringify(splitLeadingParticleVerbTeDe(null)) === '[]');
+
+    {
+      const tokens = [{ surface: 'を通じて', reading: 'をつうじて', pos: ['助詞'] }];
+      const out = splitLeadingParticleVerbTeDe(tokens);
+      check('plv: を通じて splits into 2',
+        out.length === 2 && out[0].surface === 'を' && out[1].surface === '通じて');
+      check('plv: を head reading', out[0].reading === 'を');
+      check('plv: 通じて tail reading', out[1].reading === 'つうじて');
+      check('plv: tail tagged 動詞',
+        Array.isArray(out[1].pos) && out[1].pos[0] === '動詞');
+    }
+
+    {
+      const tokens = [{ surface: 'を通して', reading: 'をとおして', pos: ['助詞'] }];
+      const out = splitLeadingParticleVerbTeDe(tokens);
+      check('plv: を通して also splits',
+        out.length === 2 && out[0].surface === 'を' && out[1].surface === '通して');
+    }
+
+    // Non-particle skipped
+    {
+      const tokens = [{ surface: 'を通じて', pos: ['名詞'] }];
+      const out = splitLeadingParticleVerbTeDe(tokens);
+      check('plv: 名詞 surface NOT split', out.length === 1);
+    }
+
+    // Doesn't end with て/で → not split
+    {
+      const tokens = [{ surface: 'を通じる', pos: ['助詞'] }];
+      const out = splitLeadingParticleVerbTeDe(tokens);
+      check('plv: trailing other char NOT split', out.length === 1);
+    }
+
+    // Surface 'を' alone (length 1) → not split
+    {
+      const tokens = [{ surface: 'を', pos: ['助詞'] }];
+      const out = splitLeadingParticleVerbTeDe(tokens);
+      check('plv: solo を NOT split', out.length === 1);
+    }
+
+    // ──── reflowLeadingPunctuation ────
+
+    check('reflow: empty → []', JSON.stringify(reflowLeadingPunctuation([])) === '[]');
+    check('reflow: null → []', JSON.stringify(reflowLeadingPunctuation(null)) === '[]');
+
+    // Two lines: punctuation moves from line 2 to line 1
+    {
+      const lines = [
+        [{ surface: 'A', pos: ['名詞'] }],
+        [{ surface: '、', pos: ['記号'] }, { surface: 'B', pos: ['名詞'] }],
+      ];
+      const out = reflowLeadingPunctuation(lines);
+      check('reflow: 、 moved from line 2 to line 1',
+        out[0].length === 2 && out[0][1].surface === '、' && out[1].length === 1 && out[1][0].surface === 'B');
+    }
+
+    // Multiple leading puncts cascade
+    {
+      const lines = [
+        [{ surface: 'A', pos: ['名詞'] }],
+        [
+          { surface: '、', pos: ['記号'] },
+          { surface: '。', pos: ['補助記号'] },
+          { surface: 'B',  pos: ['名詞'] },
+        ],
+      ];
+      const out = reflowLeadingPunctuation(lines);
+      check('reflow: cascading punctuation moved',
+        out[0].length === 3 && out[0].map(t => t.surface).join('') === 'A、。');
+      check('reflow: line 2 left with B only', out[1].length === 1 && out[1][0].surface === 'B');
+    }
+
+    // First-line leading punctuation kept (no previous line to attach to)
+    {
+      const lines = [
+        [{ surface: '、', pos: ['記号'] }, { surface: 'A', pos: ['名詞'] }],
+      ];
+      const out = reflowLeadingPunctuation(lines);
+      check('reflow: first-line leading punct kept',
+        out[0].length === 2 && out[0][0].surface === '、');
+    }
+
+    // Empty lines remain in the output structure (length is preserved);
+    // a 、 from the next line attaches to the empty (immediate previous)
+    // line because that's the most-recent prev. The empty line therefore
+    // ends up holding the punctuation.
+    {
+      const lines = [
+        [{ surface: 'A', pos: ['名詞'] }],
+        [],
+        [{ surface: '、', pos: ['記号'] }, { surface: 'B', pos: ['名詞'] }],
+      ];
+      const out = reflowLeadingPunctuation(lines);
+      check('reflow: 3-line structure preserved',
+        out.length === 3 && Array.isArray(out[1]));
+      // The 、 attaches to the empty (immediate previous) line
+      check('reflow: 、 attaches to nearest prev line (incl. empty)',
+        out[1].length === 1 && out[1][0].surface === '、');
+      // Line 0 (A) is untouched because line 1 (empty) absorbed the punct
+      check('reflow: original line 0 untouched when empty line caught it',
+        out[0].length === 1 && out[0][0].surface === 'A');
+    }
+
+    // No leading punctuation → no change
+    {
+      const lines = [
+        [{ surface: 'A', pos: ['名詞'] }],
+        [{ surface: 'B', pos: ['名詞'] }],
+      ];
+      const before = JSON.stringify(lines);
+      const out = reflowLeadingPunctuation(lines);
+      check('reflow: no-punct case structurally unchanged',
+        out.length === 2 && out[0].length === 1 && out[1].length === 1);
+      check('reflow: input lines untouched (slice semantics)',
+        JSON.stringify(lines) === before);
+    }
+
+    // Window export
+    check('exposes window.YomikikuanDisplayTokens',
+      typeof window.YomikikuanDisplayTokens === 'object'
+      && typeof window.YomikikuanDisplayTokens.mergeTokensForDisplay === 'function'
+      && typeof window.YomikikuanDisplayTokens.splitKatakanaCompounds === 'function'
+      && typeof window.YomikikuanDisplayTokens.splitLeadingParticleVerbTeDe === 'function'
+      && typeof window.YomikikuanDisplayTokens.reflowLeadingPunctuation === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
