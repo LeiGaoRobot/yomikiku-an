@@ -4390,336 +4390,34 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   });
 
   // 加载翻译信息
+  // Phase-2 delegator → modules/analyzer/translation-modal.js (canonical owner).
+  // No inline fallback: handler-only call sites (displayResults click handler
+  // + setLanguage's refreshOpenCardTexts), so by the time this runs the
+  // dynamic-import block has long resolved. If the module is somehow missing,
+  // silently no-op rather than risk shipping a 100-LOC stale duplicate.
   async function loadTranslation(element) {
-    const tokenData = JSON.parse(element.getAttribute('data-token'));
-    // 详情面板可能被移动到 body 中，优先在元素内查找，找不到则从活动弹层中获取
-    let translationContent = element.querySelector('.translation-content');
-    if (!translationContent && activeTokenDetails && activeTokenDetails.element === element && activeTokenDetails.details) {
-      translationContent = activeTokenDetails.details.querySelector('.translation-content');
-    }
-    if (!translationContent) return;
-    
-    try {
-      // 先应用术语翻译覆盖（多语言）
-      const override = (window.YomikikuanDict && window.YomikikuanDict.getTechOverride) ? window.YomikikuanDict.getTechOverride(tokenData) : null;
-      if (override && override.translations) {
-        const lang = (typeof currentLang === 'string') ? currentLang : 'ja';
-        const text = override.translations[lang] || override.translations.ja || '';
-        if (text) {
-          translationContent.textContent = text;
-          return; // 已覆盖翻译，无需查询词典
-        }
-      }
-
-      // 确保词典服务已初始化
-      if (!window.dictionaryService.isReady()) {
-        translationContent.textContent = t('dict_init') || '正在初始化词典...';
-        await window.dictionaryService.init();
-      }
-      
-      // 查询翻译：优先使用可查询的日文形式
-      // 1) 如果 lemma 为 '*' 或为拉丁字母，则优先使用 reading
-      // 2) 若仍无结果，使用别名映射（如 アプリ -> アプリケーション，Web -> ウェブ）
-      const isLatin = (s) => /^[A-Za-z0-9 .,:;!?\-_/+()\[\]{}'"%&@#*]+$/.test(String(s || ''));
-      const lemma = tokenData.lemma;
-      const surface = tokenData.surface;
-      const reading = tokenData.reading;
-      const aliases = {
-        'アプリ': 'アプリケーション',
-        'web': 'ウェブ',
-        'Web': 'ウェブ',
-        'WEB': 'ウェブ'
-      };
-
-      let query = (lemma && lemma !== '*') ? lemma : (reading || surface);
-      if (isLatin(query) && reading) {
-        query = reading; // 将拉丁字母词转为片假名读音查询
-      }
-
-      let detailedInfo = await window.dictionaryService.getDetailedInfo(query);
-      if (!detailedInfo && aliases[query]) {
-        detailedInfo = await window.dictionaryService.getDetailedInfo(aliases[query]);
-      }
-      
-      if (detailedInfo && detailedInfo.senses && detailedInfo.senses.length > 0) {
-        // 显示主要翻译
-        const mainTranslation = detailedInfo.senses[0].gloss;
-        translationContent.innerHTML = `<span class="main-translation">${mainTranslation}</span>`;
-        
-        // 如果有多个词义，添加展开按钮
-        if (detailedInfo.senses.length > 1) {
-          const expandBtn = document.createElement('button');
-          expandBtn.className = 'expand-translation-btn';
-          expandBtn.textContent = `(+${detailedInfo.senses.length - 1}个词义)`;
-          expandBtn.onclick = (e) => {
-            e.stopPropagation();
-            showDetailedTranslation(detailedInfo, translationContent);
-          };
-          translationContent.appendChild(expandBtn);
-        }
-        
-        // 显示假名读音（如果有）
-        if (detailedInfo.kana && detailedInfo.kana.length > 0) {
-          const kanaInfo = detailedInfo.kana.map(k => k.text).join('、');
-          const kanaElement = document.createElement('div');
-          kanaElement.className = 'translation-kana';
-          kanaElement.textContent = `${t('lbl_reading') || '读音'}: ${kanaInfo}`;
-          translationContent.appendChild(kanaElement);
-        }
-      } else {
-        translationContent.textContent = t('no_translation') || '未找到翻译';
-      }
-    } catch (error) {
-      console.error('加载翻译失败:', error);
-      translationContent.textContent = t('translation_failed') || '翻译加载失败';
-    }
+    const mod = (typeof window !== 'undefined') ? window.YomikikuanTranslationModal : null;
+    if (!mod || typeof mod.loadTranslation !== 'function') return;
+    return mod.loadTranslation(element, {
+      t: (key, fb) => (typeof t === 'function' ? (t(key) || fb || key) : (fb || key)),
+      getCurrentLang: () => currentLang,
+      getActiveTokenDetails: () => activeTokenDetails,
+      setActiveTokenDetails: (v) => { activeTokenDetails = v; },
+    });
   }
 
-  // 显示详细翻译信息
+  // Phase-2 delegator → modules/analyzer/translation-modal.js. Handler-only:
+  // called only from loadTranslation's expand-button onclick (transitively
+  // post-user-click), so no inline fallback. 247 LOC of legacy modal-construction
+  // body deleted in this commit.
   async function showDetailedTranslation(detailedInfo, container) {
-    // 隐藏所有词汇详情弹窗，避免冲突
-    document.querySelectorAll('.token-details').forEach(d => {
-      d.style.display = 'none';
+    const mod = (typeof window !== 'undefined') ? window.YomikikuanTranslationModal : null;
+    if (!mod || typeof mod.showDetailedTranslation !== 'function') return;
+    return mod.showDetailedTranslation(detailedInfo, container, {
+      t: (key, fb) => (typeof t === 'function' ? (t(key) || fb || key) : (fb || key)),
+      getActiveTokenDetails: () => activeTokenDetails,
+      setActiveTokenDetails: (v) => { activeTokenDetails = v; },
     });
-    document.querySelectorAll('.token-pill').forEach(p => {
-      p.classList.remove('active');
-    });
-    // 若当前有活动的详情弹层，确保在打开模态前将其归位到对应 token 元素
-    try {
-      const prev = activeTokenDetails;
-      if (prev && prev.details && prev.element && prev.details.parentNode === document.body) {
-        prev.details.style.display = 'none';
-        prev.details.style.visibility = 'hidden';
-        try { prev.element.appendChild(prev.details); } catch (_) {}
-      }
-    } catch (_) {}
-    activeTokenDetails = null;
-    
-    const modal = document.createElement('div');
-    modal.className = 'translation-modal';
-
-    modal.innerHTML = `
-      <div class="translation-modal-content">
-        <div class="translation-modal-header">
-          <h3>${detailedInfo.word} ${t('dlg_detail_translation') || '的详细翻译'}</h3>
-          <button class="close-modal-btn" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
-        </div>
-        <div class="translation-modal-body">
-          ${detailedInfo.senses.map((sense, index) => `
-            <div class="sense-item">
-              <div class="sense-number">${index + 1}.</div>
-              <div class="sense-content">
-                <div class="sense-gloss">${sense.gloss}</div>
-                ${sense.partOfSpeech.length > 0 ? `<div class="sense-pos">${t('lbl_pos') || '词性'}: ${sense.partOfSpeech.join(', ')}</div>` : ''}
-                ${sense.field.length > 0 ? `<div class="sense-field">${t('lbl_field') || '领域'}: ${sense.field.join(', ')}</div>` : ''}
-                ${sense.misc.length > 0 ? `<div class="sense-misc">${t('lbl_note') || '备注'}: ${sense.misc.join(', ')}</div>` : ''}
-                ${sense.chineseSource ? `<div class="sense-chinese">${t('lbl_chinese') || '中文'}: ${sense.chineseSource}</div>` : ''}
-              </div>
-            </div>
-          `).join('')}
-          <div class="dict-ai-gloss-footer"></div>
-        </div>
-      </div>
-    `;
-
-    // ---- Reading Analyzer T15: AI contextual gloss button ------------------
-    // Adds a single button into the popup footer that calls
-    // window.YomikikuanAnalyzer.glossWord(word, sentence). Sentence is the
-    // surrounding `.line-container` (the codebase's sentence unit) of the
-    // token whose detail panel triggered this popup. When the panel has been
-    // moved to <body> (see the loadTranslation flow above), we fall back to
-    // its `__ownerTokenElement` reference to recover the source pill.
-    (function attachAiGlossButton() {
-      const footer = modal.querySelector('.dict-ai-gloss-footer');
-      if (!footer) return;
-      const tt = (key, fb) => {
-        try {
-          if (typeof window.YomikikuanGetText === 'function') {
-            const v = window.YomikikuanGetText(key, fb);
-            if (typeof v === 'string' && v.length > 0) return v;
-          }
-        } catch (_) {}
-        return fb;
-      };
-
-      // Resolve the originating .token-pill, then its enclosing sentence.
-      function resolveSentence() {
-        let pill = null;
-        try {
-          if (container && container.closest) pill = container.closest('.token-pill');
-          if (!pill && container) {
-            const detailsHost = container.closest && container.closest('.token-details');
-            if (detailsHost && detailsHost.__ownerTokenElement) pill = detailsHost.__ownerTokenElement;
-          }
-        } catch (_) {}
-        const lineEl = pill && pill.closest ? pill.closest('.line-container') : null;
-        if (!lineEl) return '';
-        // Strip ruby <rt> so furigana doesn't bleed kana into the prompt.
-        const clone = lineEl.cloneNode(true);
-        clone.querySelectorAll('rt, .play-line-btn, .ap-analyzer-card').forEach((n) => n.remove());
-        return (clone.textContent || '').trim();
-      }
-
-      const word = (detailedInfo && detailedInfo.word) ? String(detailedInfo.word) : '';
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'dict-ai-gloss-btn';
-      btn.textContent = tt('analyzer.glossBtn', 'AI 释义');
-      footer.appendChild(btn);
-
-      const resultBox = document.createElement('div');
-      resultBox.className = 'dict-ai-gloss';
-      resultBox.style.display = 'none';
-      footer.appendChild(resultBox);
-
-      btn.addEventListener('click', async () => {
-        if (btn.disabled) return;
-        btn.disabled = true;
-        const originalLabel = btn.textContent;
-        btn.textContent = tt('analyzer.loading', '解析中...');
-        resultBox.style.display = '';
-        resultBox.classList.remove('dict-ai-gloss--error');
-        resultBox.textContent = '';
-        const sentence = resolveSentence() || word;
-        try {
-          const api = window && window.YomikikuanAnalyzer;
-          if (!api || typeof api.glossWord !== 'function') {
-            throw new Error('NO_PROVIDER');
-          }
-          const result = await api.glossWord(word, sentence);
-          // Provider responses may be a plain string or an object with a gloss field.
-          let text = '';
-          if (typeof result === 'string') text = result;
-          else if (result && typeof result === 'object') {
-            text = result.gloss || result.translation || result.text || '';
-          }
-          if (!text) text = tt('analyzer.error.generic', '解析失败，重试？');
-          resultBox.textContent = text;
-          // #5 — Offer to save the glossed word into the vocab book.
-          try {
-            if (typeof window.__yomikikuanAddVocab === 'function' && word) {
-              const saveBtn = document.createElement('button');
-              saveBtn.type = 'button';
-              saveBtn.className = 'dict-ai-gloss-save-btn';
-              saveBtn.textContent = '📎 加入词汇本';
-              saveBtn.style.cssText = 'display:block;margin-top:8px;padding:3px 10px;border:1px solid var(--border,#ccc);border-radius:6px;background:transparent;color:inherit;cursor:pointer;font-size:12px;';
-              saveBtn.addEventListener('click', async () => {
-                if (saveBtn.disabled) return;
-                saveBtn.disabled = true;
-                try {
-                  await window.__yomikikuanAddVocab({
-                    word,
-                    reading: (detailedInfo && detailedInfo.reading) || '',
-                    gloss: text,
-                    source: {
-                      docId: (window.documentManager && window.documentManager.getActiveId && window.documentManager.getActiveId()) || '',
-                      sentence: sentence || '',
-                    },
-                  });
-                  saveBtn.textContent = '✓ 已加入';
-                } catch (e) {
-                  console.warn('[vocab] addVocab failed', e);
-                  saveBtn.textContent = '加入失败';
-                  saveBtn.disabled = false;
-                }
-              });
-              resultBox.appendChild(saveBtn);
-            }
-          } catch (_) {}
-        } catch (err) {
-          const msg = err && (err.message || String(err));
-          let label;
-          if (msg === 'NO_API_KEY' || msg === 'NO_PROVIDER') {
-            label = tt('analyzer.needsKey', 'Requires Gemini API key');
-          } else if (msg === 'RATE_LIMITED') {
-            label = tt('analyzer.error.quota', '额度超限，稍后再试');
-          } else {
-            label = tt('analyzer.error.generic', '解析失败，重试？');
-          }
-          resultBox.classList.add('dict-ai-gloss--error');
-          resultBox.textContent = label;
-          // eslint-disable-next-line no-console
-          console.warn('[analyzer] glossWord failed', err);
-        } finally {
-          btn.disabled = false;
-          btn.textContent = originalLabel;
-        }
-      });
-    })();
-    // ---- end T15 ------------------------------------------------------------
-
-    document.body.appendChild(modal);
-    
-    // 添加全局监听器，当翻译模态框出现时自动隐藏词汇详情弹窗
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'childList') {
-          mutation.addedNodes.forEach((node) => {
-            if (node.nodeType === Node.ELEMENT_NODE && node.classList && node.classList.contains('translation-modal')) {
-              // 翻译模态框出现时，隐藏所有词汇详情弹窗
-              document.querySelectorAll('.token-details').forEach(d => {
-                d.style.display = 'none';
-              });
-              document.querySelectorAll('.token-pill').forEach(p => {
-                p.classList.remove('active');
-              });
-              activeTokenDetails = null;
-            }
-          });
-        }
-      });
-    });
-    
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-    
-    // 当模态框被移除时，停止观察
-    const originalRemove = modal.remove;
-    modal.remove = function() {
-      observer.disconnect();
-      originalRemove.call(this);
-    };
-    
-    // 点击模态框外部关闭
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        modal.remove();
-        // 确保关闭翻译模态框时，词汇详情弹窗保持隐藏，并将仍在 body 的详情归位
-        document.querySelectorAll('.token-details').forEach(d => {
-          if (d.parentNode === document.body && d.__ownerTokenElement) {
-            try { d.__ownerTokenElement.appendChild(d); } catch (_) {}
-          }
-          d.style.display = 'none';
-          d.style.visibility = 'hidden';
-        });
-        document.querySelectorAll('.token-pill').forEach(p => {
-          p.classList.remove('active');
-        });
-        activeTokenDetails = null;
-      }
-    });
-    
-    // 监听关闭按钮点击
-    const closeBtn = modal.querySelector('.close-modal-btn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => {
-        modal.remove();
-        // 确保关闭翻译模态框时，词汇详情弹窗保持隐藏，并将仍在 body 的详情归位
-        document.querySelectorAll('.token-details').forEach(d => {
-          if (d.parentNode === document.body && d.__ownerTokenElement) {
-            try { d.__ownerTokenElement.appendChild(d); } catch (_) {}
-          }
-          d.style.display = 'none';
-          d.style.visibility = 'hidden';
-        });
-        document.querySelectorAll('.token-pill').forEach(p => {
-          p.classList.remove('active');
-        });
-        activeTokenDetails = null;
-      });
-    }
   }
 
   // 播放整行文本
@@ -5712,6 +5410,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Display-layer token transforms — registers window.YomikikuanDisplayTokens.
   import('/static/js/modules/analyzer/local/display-tokens.js')
     .catch((err) => console.warn('[analyzer/local/display-tokens] import failed', err));
+  // JMdict translation modal — registers window.YomikikuanTranslationModal.
+  import('/static/js/modules/analyzer/translation-modal.js')
+    .catch((err) => console.warn('[analyzer/translation-modal] import failed', err));
   // Text → playable segments — registers window.YomikikuanSegment.
   import('/static/js/modules/player/segment.js')
     .catch((err) => console.warn('[player/segment] import failed', err));
