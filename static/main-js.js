@@ -4038,86 +4038,15 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
     clearReadingLineHighlight();
 
-    // 展示层词块合并规则：
-    // 1) 数字 + 年/月/日 合并为一个词，并应用专用读法
-    // 2) 动/形 + て/で（助词），动/形 + た（助动）
-    const mergeTokensForDisplay = (tokens) => {
-      const out = [];
-      const isDigits = (s) => /^[0-9０-９]+$/.test(s || '');
-      const toAsciiDigits = (s) => String(s || '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-      const monthMap = {
-        1: 'いち', 2: 'に', 3: 'さん', 4: 'し', 5: 'ご', 6: 'ろく', 7: 'しち', 8: 'はち', 9: 'く', 10: 'じゅう', 11: 'じゅういち', 12: 'じゅうに'
-      };
-      const dayMap = {
-        1: 'ついたち', 2: 'ふつか', 3: 'みっか', 4: 'よっか', 5: 'いつか', 6: 'むいか', 7: 'なのか', 8: 'ようか', 9: 'ここのか', 10: 'とおか',
-        14: 'じゅうよっか', 20: 'はつか', 24: 'にじゅうよっか'
-      };
-      for (let i = 0; i < tokens.length; i++) {
-        const cur = tokens[i];
-        const next = tokens[i + 1];
-        const getMainPos = (tok) => {
-          if (!tok) return '';
-          const p = Array.isArray(tok.pos) ? tok.pos : [tok.pos || ''];
-          return p[0] || '';
-        };
-        // 优先处理：数字 + 年/月/日 的合并与读音
-        if (next) {
-          const curSurface = cur.surface || '';
-          const nextSurface = next.surface || '';
-          if (isDigits(curSurface) && (nextSurface === '年' || nextSurface === '月' || nextSurface === '日')) {
-            const n = parseInt(toAsciiDigits(curSurface), 10);
-            let reading = '';
-            if (nextSurface === '年') {
-              // 若分词阶段已给出年份读法，则直接加「ねん」；否则使用数字读法 + ねん
-              const base = cur.reading || curSurface;
-              reading = base + 'ねん';
-            } else if (nextSurface === '月') {
-              const base = (cur.reading && cur.reading !== curSurface) ? cur.reading : (monthMap[n] || (cur.reading || curSurface));
-              reading = base + 'がつ';
-            } else if (nextSurface === '日') {
-              if (dayMap[n]) reading = dayMap[n];
-              else {
-                const base = cur.reading || curSurface;
-                reading = base + 'にち';
-              }
-            }
-            const merged = {
-              surface: curSurface + nextSurface,
-              reading,
-              lemma: cur.lemma || curSurface + nextSurface,
-              pos: Array.isArray(next.pos) ? next.pos.slice() : [next.pos || '名']
-            };
-            out.push(merged);
-            i++;
-            continue;
-          }
-        }
-        if (next) {
-          const curMain = getMainPos(cur);
-          const nextMain = getMainPos(next);
-          const nextSurface = next.surface || '';
-          const isVerbOrAdj = (curMain === '動詞' || curMain === '形容詞');
-          const ruleTeDe = isVerbOrAdj && nextMain === '助詞' && (nextSurface === 'て' || nextSurface === 'で');
-          const ruleTa = isVerbOrAdj && nextMain === '助動詞' && (nextSurface === 'た');
-          if (ruleTeDe || ruleTa) {
-            const surface = (cur.surface || '') + nextSurface;
-            const reading = (cur.reading || '') + (next.reading || nextSurface);
-            const lemma = cur.lemma || cur.surface || surface;
-            const merged = {
-              surface,
-              reading,
-              lemma,
-              pos: Array.isArray(cur.pos) ? cur.pos.slice() : [cur.pos || '動詞']
-            };
-            out.push(merged);
-            i++;
-            continue;
-          }
-        }
-        out.push(cur);
-      }
-      return out;
-    };
+    // 展示层词块变换委托至 modules/analyzer/local/display-tokens.js (Phase-2 dedup).
+    // displayResults runs only inside the async-analyze try/catch (handler-only),
+    // so by here the dynamic-import has long resolved. Identity-fallback when
+    // the module is missing keeps the function safe (tokens unchanged).
+    const _DT = (typeof window !== 'undefined') ? window.YomikikuanDisplayTokens : null;
+    const mergeTokensForDisplay = _DT ? _DT.mergeTokensForDisplay : (t) => t;
+    const reflowLeadingPunctuation = _DT ? _DT.reflowLeadingPunctuation : (l) => l;
+    const splitKatakanaCompounds = _DT ? _DT.splitKatakanaCompounds : (t) => t;
+    const splitLeadingParticleVerbTeDe = _DT ? _DT.splitLeadingParticleVerbTeDe : (t) => t;
 
     // 按行显示分词结果，先过滤掉空行和只有标点符号的行
     const nonEmptyLines = result.lines.filter(line => {
@@ -4132,112 +4061,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       return !allPunct; // 如果整行都是标点符号，则过滤掉
     });
     
-    // 将行首标点移动到上一行末尾，避免标点出现在行首
-    function reflowLeadingPunctuation(lines) {
-      const adjusted = [];
-      for (let i = 0; i < lines.length; i++) {
-        const line = Array.isArray(lines[i]) ? lines[i].slice() : [];
-        if (line.length === 0) { adjusted.push(line); continue; }
-        // 连续处理多个可能的行首标点
-        while (line.length > 0) {
-          const first = line[0];
-          const posArr = Array.isArray(first && first.pos) ? first.pos : [first && first.pos || ''];
-          const mainPos = posArr[0] || '';
-          const isPunct = (mainPos === '記号' || mainPos === '補助記号');
-          if (!isPunct) break;
-          // 若存在上一行，把标点移动到上一行末尾；否则保留（避免信息丢失）
-          if (adjusted.length > 0 && Array.isArray(adjusted[adjusted.length - 1])) {
-            adjusted[adjusted.length - 1].push(first);
-            line.shift();
-          } else {
-            // 第一行没有上一行，停止移动以保留内容
-            break;
-          }
-        }
-        adjusted.push(line);
-      }
-      return adjusted;
-    }
     const linesWithoutLeadingPunct = reflowLeadingPunctuation(nonEmptyLines);
     
-    // 片假名复合词拆分（如「スマート フォン アプリ」）
-    const isKatakana = (s) => /^[\u30A0-\u30FFー・]+$/.test(String(s || ''));
-    function splitKatakanaCompounds(tokens) {
-      const suffixes = ['アプリ', 'サイト', 'サービス', 'システム', 'インターフェース'];
-      // 常见内部拆分映射：键为需要进一步拆分的前缀整体
-      const innerSplits = {
-        'スマートフォン': ['スマート', 'フォン']
-      };
-      const out = [];
-      for (const tok of tokens) {
-        const surface = tok && tok.surface ? tok.surface : '';
-        const posArr = Array.isArray(tok && tok.pos) ? tok.pos : [tok && tok.pos || ''];
-        const mainPos = posArr[0] || '';
-        if (mainPos === '名詞' && isKatakana(surface)) {
-          const readingFull = tok.reading || surface;
-
-          // 情况A：整词命中内部拆分
-          const directInner = innerSplits[surface];
-          if (directInner) {
-            const left = directInner[0];
-            const right = directInner[1];
-            const leftReading = readingFull.slice(0, left.length);
-            const rightReading = readingFull.slice(left.length);
-            out.push({ surface: left, lemma: tok.lemma || left, reading: leftReading, pos: tok.pos });
-            out.push({ surface: right, lemma: right, reading: rightReading, pos: tok.pos });
-            continue;
-          }
-
-          // 情况B：命中后缀，先拆分前缀+后缀；前缀再做内部拆分
-          const suf = suffixes.find(sf => surface.endsWith(sf) && surface.length > sf.length);
-          if (suf) {
-            const prefix = surface.slice(0, surface.length - suf.length);
-            const prefixReading = readingFull.slice(0, prefix.length);
-            const suffixReading = readingFull.slice(prefix.length);
-
-            const inner = innerSplits[prefix];
-            if (inner) {
-              const left = inner[0];
-              const right = inner[1];
-              const leftReading = prefixReading.slice(0, left.length);
-              const rightReading = prefixReading.slice(left.length);
-              out.push({ surface: left, lemma: tok.lemma || left, reading: leftReading, pos: tok.pos });
-              out.push({ surface: right, lemma: right, reading: rightReading, pos: tok.pos });
-            } else {
-              out.push({ surface: prefix, lemma: tok.lemma || prefix, reading: prefixReading, pos: tok.pos });
-            }
-            out.push({ surface: suf, lemma: suf, reading: suffixReading || suf, pos: tok.pos });
-            continue;
-          }
-        }
-        out.push(tok);
-      }
-      return out;
-    }
-
-    // 将误判为单一助词的「を通じて／を通して」等拆成「を」+「通じて/通して」
-    function splitLeadingParticleVerbTeDe(tokens) {
-      const out = [];
-      for (const tok of tokens) {
-        const surface = tok && tok.surface ? tok.surface : '';
-        const posArr = Array.isArray(tok && tok.pos) ? tok.pos : [tok && tok.pos || ''];
-        const mainPos = posArr[0] || '';
-        if (mainPos === '助詞' && /^を.+[てで]$/.test(surface) && surface.length > 2) {
-          const readingFull = tok.reading || surface;
-          const headSurface = 'を';
-          const tailSurface = surface.slice(1);
-          const headReading = readingFull.slice(0, 1);
-          const tailReading = readingFull.slice(1);
-          // 「を」保留助词，后部按动词处理（用于着色/朗读逻辑）
-          out.push({ surface: headSurface, lemma: headSurface, reading: headReading, pos: ['助詞'] });
-          out.push({ surface: tailSurface, lemma: tok.lemma || tailSurface, reading: tailReading, pos: ['動詞'] });
-          continue;
-        }
-        out.push(tok);
-      }
-      return out;
-    }
-
     const html = linesWithoutLeadingPunct.map((line, lineIndex) => {
       // 先把可能被合成成单一助词的结构拆开，再应用展示层合并与片假名拆分
       const preSplit = splitLeadingParticleVerbTeDe(line);
@@ -5884,6 +5709,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // PWA install/download orchestrator — registers window.YomikikuanPwaStartDownload.
   import('/static/js/modules/pwa/start-download.js')
     .catch((err) => console.warn('[pwa/start-download] import failed', err));
+  // Display-layer token transforms — registers window.YomikikuanDisplayTokens.
+  import('/static/js/modules/analyzer/local/display-tokens.js')
+    .catch((err) => console.warn('[analyzer/local/display-tokens] import failed', err));
   // Text → playable segments — registers window.YomikikuanSegment.
   import('/static/js/modules/player/segment.js')
     .catch((err) => console.warn('[player/segment] import failed', err));
