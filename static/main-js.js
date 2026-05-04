@@ -2662,8 +2662,19 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   }
 
   // 切换脚本时即时更新已渲染的读音
+  // Phase-2 delegator → modules/reading/script-display.js. Inline fallback
+  // retained per playback-boundary rule (boot-race safety: classic-script
+  // call sites at main-js.js:5258/5462/5554/5632 must work even before
+  // the ESM module finishes loading).
   function updateReadingScriptDisplay() {
     const script = getReadingScript();
+    const mod = (typeof window !== 'undefined')
+      ? window.YomikikuanReadingScriptDisplay : null;
+    if (mod && typeof mod.updateReadingScriptDisplay === 'function') {
+      mod.updateReadingScriptDisplay({ script, formatReading });
+      return;
+    }
+    // Inline fallback (must stay byte-equivalent to the module's behavior).
     const pills = document.querySelectorAll('.token-pill');
     pills.forEach(el => {
       try {
@@ -5998,6 +6009,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // Reading display formatter — registers window.YomikikuanReading.
   import('/static/js/modules/reading/reading.js')
     .catch((err) => console.warn('[reading/reading] import failed', err));
+  // Script-toggle DOM walker — registers window.YomikikuanReadingScriptDisplay.
+  import('/static/js/modules/reading/script-display.js')
+    .catch((err) => console.warn('[reading/script-display] import failed', err));
   // Text → playable segments — registers window.YomikikuanSegment.
   import('/static/js/modules/player/segment.js')
     .catch((err) => console.warn('[player/segment] import failed', err));
