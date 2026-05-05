@@ -51,6 +51,11 @@ NODE_PATH="$RESOLVED_NODE_PATH" node - "$PORT" <<'NODE_EOF'
 const port = process.argv[2];
 const { chromium } = require('playwright');
 
+// Files NOT listed here are intentional manual-only fixtures:
+//   • analyzer/local/syntax.test.html      — visual table; eyeball-only
+//   • analyzer/local/difficulty.test.html  — needs JMdict chunks loaded
+//   • analyzer/cache/idb.test.html         — uses console.assert, not the
+//     standard #summary harness (could be migrated later)
 const TESTS = [
   'static/js/modules/analyzer/ui/sentence-text.test.html',
   'static/js/modules/pwa/sw-reset.test.html',
@@ -62,6 +67,7 @@ const TESTS = [
   'static/js/modules/analyzer/ui/jlptPanel.test.html',
   'static/js/modules/analyzer/local/display-tokens.test.html',
   'static/js/modules/analyzer/local/results-display.test.html',
+  'static/js/modules/analyzer/local/tokenizer.test.html',
   'static/js/modules/analyzer/translation-modal.test.html',
   'static/js/modules/ui/shortcut-help.test.html',
   'static/js/modules/ui/reader-mode.test.html',

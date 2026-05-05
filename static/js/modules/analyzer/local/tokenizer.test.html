@@ -14,6 +14,7 @@
 <body>
   <h1>analyzer/local/tokenizer.js — assertions</h1>
   <p>Loads kuromoji + the shared tokenizer module, runs basic segmentation + idempotent-cache + POS-shape checks. Prints PASS/FAIL.</p>
+  <div id="summary"></div>
   <pre id="out">booting…</pre>
 
   <!-- Match classic-script load order from index.html -->
@@ -86,6 +87,10 @@
       append(failed === 0
         ? '<span class="pass">ALL PASS</span>'
         : '<span class="fail">SOME FAILED</span>');
+      // Standard harness summary node — picked up by scripts/test.sh.
+      const total = passed + failed;
+      const summary = document.getElementById('summary');
+      summary.innerHTML = `<h3 style="color:${failed===0?'#1d7d3f':'#ff3b30'};">${failed === 0 ? '✓ ALL PASS' : '✗ ' + failed + ' FAILED'} — ${passed}/${total}</h3>`;
     }
   </script>
 </body>
