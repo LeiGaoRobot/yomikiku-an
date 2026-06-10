@@ -1,0 +1,349 @@
+/* =====================================================================
+   Inline sentence analysis card — Reading Analyzer (T11)
+   Scoped under .ap-analyzer-card. Reuses theme-apple.css tokens with
+   sane fallbacks so the layout still degrades cleanly if the Apple
+   theme layer is missing or replaced.
+
+   Theme tokens used (from static/theme-apple.css):
+     --ap-surface, --ap-surface-2, --ap-surface-3,
+     --ap-ink, --ap-ink-64, --ap-ink-48, --ap-ink-08, --ap-ink-04,
+     --ap-blue, --ap-blue-hover, --ap-error,
+     --ap-shadow-2, --ap-shadow-3,
+     --ap-r-md, --ap-r-lg, --ap-r-pill,
+     --ap-s-1..--ap-s-6, --ap-ease, --ap-dur
+
+   NOTE: the design brief mentioned a `--ap-accent` token but the actual
+   theme variable is `--ap-blue`; we use that with the #0071e3 literal
+   fallback to match the rest of the codebase.
+   ===================================================================== */
+
+.ap-analyzer-card {
+  margin: 12px 0 16px;
+  padding: 0;
+  background: var(--ap-surface, #ffffff);
+  color: var(--ap-ink, #1d1d1f);
+  border: 1px solid var(--ap-ink-08, rgba(29, 29, 31, 0.08));
+  border-radius: var(--ap-r-lg, 12px);
+  box-shadow: var(--ap-shadow-2, 0 4px 16px rgba(0, 0, 0, 0.06));
+  font-family: var(--ap-font-text, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow: hidden;
+  /* fade+slide entry */
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 150ms var(--ap-ease, cubic-bezier(0.4, 0, 0.2, 1)),
+    transform 150ms var(--ap-ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.ap-analyzer-card.ap-analyzer-card--mounted {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-analyzer-card {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ---------- Tabs --------------------------------------------------- */
+.ap-analyzer-card__tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 0;
+  border-bottom: 1px solid var(--ap-ink-08, rgba(29, 29, 31, 0.08));
+  background: var(--ap-surface-2, #f5f5f7);
+}
+
+.ap-analyzer-card__tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ap-ink-64, rgba(29, 29, 31, 0.64));
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 14px;
+  margin-bottom: 6px;
+  border-radius: var(--ap-r-pill, 980px);
+  cursor: pointer;
+  transition:
+    background-color var(--ap-dur, 200ms) var(--ap-ease, cubic-bezier(0.4, 0, 0.2, 1)),
+    color var(--ap-dur, 200ms) var(--ap-ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.ap-analyzer-card__tab:hover {
+  background: var(--ap-surface-3, #ededf0);
+  color: var(--ap-ink, #1d1d1f);
+}
+
+.ap-analyzer-card__tab--active {
+  background: var(--ap-blue, #0071e3);
+  color: #ffffff;
+}
+
+.ap-analyzer-card__tab--active:hover {
+  background: var(--ap-blue-hover, #0077ed);
+  color: #ffffff;
+}
+
+/* ---------- Body / panels ----------------------------------------- */
+.ap-analyzer-card__body {
+  padding: 12px 14px;
+}
+
+.ap-analyzer-card__panel {
+  display: none;
+}
+
+.ap-analyzer-card__panel--active {
+  display: block;
+}
+
+.ap-analyzer-card__loading,
+.ap-analyzer-card__loading-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ap-ink-64, rgba(29, 29, 31, 0.64));
+  font-size: 13px;
+}
+
+.ap-analyzer-card__spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--ap-ink-08, rgba(29, 29, 31, 0.08));
+  border-top-color: var(--ap-blue, #0071e3);
+  animation: ap-analyzer-card-spin 800ms linear infinite;
+}
+
+@keyframes ap-analyzer-card-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-analyzer-card__spinner {
+    animation: none;
+    border-top-color: var(--ap-blue, #0071e3);
+  }
+}
+
+.ap-analyzer-card__empty {
+  color: var(--ap-ink-48, rgba(29, 29, 31, 0.48));
+  font-size: 13px;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* ---------- Structure table --------------------------------------- */
+.ap-analyzer-card__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  table-layout: auto;
+}
+
+.ap-analyzer-card__table th,
+.ap-analyzer-card__table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ap-ink-04, rgba(29, 29, 31, 0.04));
+  vertical-align: top;
+}
+
+.ap-analyzer-card__table th {
+  font-weight: 600;
+  color: var(--ap-ink-64, rgba(29, 29, 31, 0.64));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+
+.ap-analyzer-card__cell--surface { font-weight: 600; }
+.ap-analyzer-card__cell--pos     { color: var(--ap-ink-64, rgba(29, 29, 31, 0.64)); }
+.ap-analyzer-card__cell--reading {
+  color: var(--ap-ink-64, rgba(29, 29, 31, 0.64));
+  font-family: var(--ap-font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  font-size: 11.5px;
+}
+.ap-analyzer-card__cell--role    { font-size: 11px; }
+
+.ap-analyzer-card__cell--role::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--ap-ink-24, rgba(29, 29, 31, 0.24));
+}
+.ap-analyzer-card__role--subject::before    { background: #30d158; }
+.ap-analyzer-card__role--predicate::before  { background: var(--ap-blue, #0071e3); }
+.ap-analyzer-card__role--object::before     { background: #ff9f0a; }
+.ap-analyzer-card__role--modifier::before   { background: #bf5af2; }
+.ap-analyzer-card__role--conjunction::before{ background: #64d2ff; }
+
+/* ---------- Explanation panel ------------------------------------- */
+.ap-analyzer-card__section-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ap-ink-64, rgba(29, 29, 31, 0.64));
+  margin-bottom: 4px;
+}
+
+.ap-analyzer-card__translation,
+.ap-analyzer-card__grammar,
+.ap-analyzer-card__vocab {
+  margin-bottom: 12px;
+}
+
+.ap-analyzer-card__vocab:last-child,
+.ap-analyzer-card__grammar:last-child,
+.ap-analyzer-card__translation:last-child {
+  margin-bottom: 0;
+}
+
+.ap-analyzer-card__translation-body {
+  font-size: 14px;
+  color: var(--ap-ink, #1d1d1f);
+}
+
+.ap-analyzer-card__grammar-list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.ap-analyzer-card__grammar-list li {
+  margin: 2px 0;
+}
+
+.ap-analyzer-card__vocab-list {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+
+.ap-analyzer-card__vocab-list dt {
+  font-weight: 600;
+}
+
+.ap-analyzer-card__vocab-list dd {
+  margin: 0;
+  color: var(--ap-ink-64, rgba(29, 29, 31, 0.64));
+}
+
+/* ---------- Keywords pills ---------------------------------------- */
+.ap-analyzer-card__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ap-analyzer-card__pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: var(--ap-r-pill, 980px);
+  background: var(--ap-surface-2, #f5f5f7);
+  border: 1px solid var(--ap-ink-08, rgba(29, 29, 31, 0.08));
+  color: var(--ap-ink, #1d1d1f);
+  font-size: 12.5px;
+}
+
+/* ---------- Errors ------------------------------------------------- */
+.ap-analyzer-card__error {
+  background: rgba(255, 59, 48, 0.06);
+  border: 1px solid rgba(255, 59, 48, 0.18);
+  color: var(--ap-error, #ff3b30);
+  padding: 10px 12px;
+  border-radius: var(--ap-r-md, 11px);
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ap-analyzer-card__error-link {
+  color: var(--ap-blue, #0071e3);
+  text-decoration: none;
+  font-weight: 500;
+  align-self: flex-start;
+}
+
+.ap-analyzer-card__error-link:hover {
+  text-decoration: underline;
+}
+
+.ap-analyzer-card__retry {
+  appearance: none;
+  border: 1px solid var(--ap-ink-08, rgba(29, 29, 31, 0.08));
+  background: var(--ap-surface, #ffffff);
+  color: var(--ap-ink, #1d1d1f);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 10px;
+  border-radius: var(--ap-r-pill, 980px);
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.ap-analyzer-card__retry:hover {
+  background: var(--ap-surface-3, #ededf0);
+}
+
+/* ---------- Footer / Pin ------------------------------------------ */
+.ap-analyzer-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  border-top: 1px solid var(--ap-ink-04, rgba(29, 29, 31, 0.04));
+  background: var(--ap-surface, #ffffff);
+}
+
+.ap-analyzer-card__pin {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ap-blue, #0071e3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--ap-r-pill, 980px);
+  cursor: pointer;
+  transition: background-color var(--ap-dur, 200ms) var(--ap-ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+
+.ap-analyzer-card__pin:hover {
+  background: rgba(0, 113, 227, 0.10);
+}
+
+.ap-analyzer-card__pin--on {
+  background: var(--ap-blue, #0071e3);
+  color: #ffffff;
+}
+
+.ap-analyzer-card__pin--on:hover {
+  background: var(--ap-blue-hover, #0077ed);
+}
+
+.ap-analyzer-card__pin:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ap-analyzer-card__pin-note {
+  font-size: 12px;
+  color: var(--ap-error, #ff3b30);
+  align-self: center;
+}

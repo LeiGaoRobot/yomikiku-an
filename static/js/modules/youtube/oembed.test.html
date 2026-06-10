@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>youtube/oembed.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>youtube/oembed.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { fetchVideoMeta } from './oembed.js';
+
+    const results = [];
+    const check = (name, cond, detail) => results.push({ name, pass: !!cond, detail: detail || '' });
+
+    const origFetch = window.fetch;
+    function withFetch(impl, fn) {
+      window.fetch = impl;
+      return fn().finally(() => { window.fetch = origFetch; });
+    }
+
+    await withFetch(
+      async (_url) => ({
+        ok: true, status: 200,
+        json: async () => ({
+          title: 'Test Video', author_name: 'Tester',
+          thumbnail_url: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
+        }),
+      }),
+      async () => {
+        const meta = await fetchVideoMeta('dQw4w9WgXcQ');
+        check('happy path → fields mapped',
+          meta.title === 'Test Video'
+          && meta.author === 'Tester'
+          && meta.thumbnail === 'https://i.ytimg.com/vi/abc/hqdefault.jpg');
+      }
+    );
+
+    await withFetch(
+      async () => ({ ok: false, status: 404, json: async () => ({}) }),
+      async () => {
+        let err;
+        try { await fetchVideoMeta('zzzzzzzzzzz'); } catch (e) { err = e; }
+        check('404 → NOT_EMBEDDABLE', err && err.message === 'NOT_EMBEDDABLE');
+      }
+    );
+
+    await withFetch(
+      async () => { throw new TypeError('Failed to fetch'); },
+      async () => {
+        let err;
+        try { await fetchVideoMeta('aaaaaaaaaaa'); } catch (e) { err = e; }
+        check('network failure → NETWORK', err && err.message === 'NETWORK');
+      }
+    );
+
+    let badIdErr;
+    try { await fetchVideoMeta(''); } catch (e) { badIdErr = e; }
+    check('rejects bad id', badIdErr && badIdErr.message === 'BAD_ID');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    document.getElementById('summary').innerHTML =
+      `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+        ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+      </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

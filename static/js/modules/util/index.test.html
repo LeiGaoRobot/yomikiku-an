@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>util/index.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>util/index.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <input id="probeInput" type="text" style="position:absolute;top:-9999px;" />
+  <textarea id="probeTextarea" style="position:absolute;top:-9999px;"></textarea>
+  <select id="probeSelect" style="position:absolute;top:-9999px;"><option>x</option></select>
+  <div id="probeContentEditable" contenteditable="true" style="position:absolute;top:-9999px;"></div>
+  <div class="EasyMDEContainer" style="position:absolute;top:-9999px;">
+    <div id="probeEasyMDEChild"></div>
+  </div>
+  <button id="probeButton" style="position:absolute;top:-9999px;">btn</button>
+
+  <script type="module">
+    import { createRequestId, isEditingElement, sleep } from './index.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    {
+      const id = createRequestId('test', () => 1714013123456, () => 0.5);
+      check('createRequestId pinned values',
+        id === 'test-1714013123456-8',
+        id);
+    }
+    {
+      const id = createRequestId(undefined, () => 1, () => 0.5);
+      check('createRequestId default prefix is "pwa"',
+        id.startsWith('pwa-'),
+        id);
+    }
+    {
+      const id = createRequestId(null, () => 1, () => 0.5);
+      check('createRequestId null prefix → "pwa"',
+        id.startsWith('pwa-'),
+        id);
+    }
+    {
+      const id = createRequestId(123, () => 1, () => 0.5);
+      check('createRequestId numeric prefix coerced to string',
+        id.startsWith('123-'),
+        id);
+    }
+    {
+      const a = createRequestId('x');
+      const b = createRequestId('x');
+      check('two real calls produce different ids',
+        a !== b,
+        `${a} vs ${b}`);
+    }
+    {
+      const id = createRequestId('x');
+      check('default-arg id format: prefix-<digits>-<hex>',
+        /^x-\d+-[0-9a-f]+$/.test(id),
+        id);
+    }
+
+    check('null → false', isEditingElement(null) === false);
+    check('undefined → false', isEditingElement(undefined) === false);
+    check('<input> → true',
+      isEditingElement(document.getElementById('probeInput')) === true);
+    check('<textarea> → true',
+      isEditingElement(document.getElementById('probeTextarea')) === true);
+    check('<select> → true',
+      isEditingElement(document.getElementById('probeSelect')) === true);
+    check('contenteditable div → true',
+      isEditingElement(document.getElementById('probeContentEditable')) === true);
+    check('child of .EasyMDEContainer → true',
+      isEditingElement(document.getElementById('probeEasyMDEChild')) === true);
+    check('plain <button> → false',
+      isEditingElement(document.getElementById('probeButton')) === false);
+    check('document.body → false',
+      isEditingElement(document.body) === false);
+    {
+      const fake = {};
+      check('no tagName + no flags → false', isEditingElement(fake) === false);
+    }
+
+    {
+      const start = performance.now();
+      await sleep(50);
+      const dur = performance.now() - start;
+      check('sleep(50) waits ~50ms (within 200ms tolerance)',
+        dur >= 40 && dur <= 250,
+        `${Math.round(dur)}ms`);
+    }
+    {
+      let resolved = false;
+      await sleep(99999, (cb) => { cb(); return 0; });
+      resolved = true;
+      check('sleep with injected immediate timer resolves now',
+        resolved === true);
+    }
+    {
+      const p = sleep(0);
+      check('sleep returns a Promise',
+        p && typeof p.then === 'function');
+      await p;
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

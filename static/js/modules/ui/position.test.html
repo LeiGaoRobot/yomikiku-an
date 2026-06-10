@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ui/position.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>ui/position.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { computeTokenDetailsPosition } from './position.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    const VP = { width: 1024, height: 768 };
+    const PANEL = { width: 300, height: 220 };
+
+    {
+      const r = { top: 50, bottom: 70, left: 100 };
+      const out = computeTokenDetailsPosition({ rect: r, viewport: VP, panel: PANEL });
+      check('top anchor → place below (rect.bottom + 8)',
+        out.top === 78,
+        JSON.stringify(out));
+      check('horizontal aligned to rect.left',
+        out.left === 100,
+        JSON.stringify(out));
+    }
+
+    {
+      const r = { top: 600, bottom: 620, left: 100 };
+      const out = computeTokenDetailsPosition({ rect: r, viewport: VP, panel: PANEL });
+      check('bottom anchor → place above (rect.top - panelH - 8)',
+        out.top === 600 - 220 - 8,
+        JSON.stringify(out));
+    }
+
+    {
+      const r = { top: 100, bottom: 120, left: 900 };
+      const out = computeTokenDetailsPosition({ rect: r, viewport: VP, panel: PANEL });
+      check('right overflow clamped to vw - panelW - inset',
+        out.left === 1024 - 300 - 10,
+        JSON.stringify(out));
+    }
+
+    {
+      const r = { top: 100, bottom: 120, left: 0 };
+      const out = computeTokenDetailsPosition({ rect: r, viewport: VP, panel: PANEL });
+      check('left=0 clamped to edge inset 10',
+        out.left === 10,
+        JSON.stringify(out));
+    }
+
+    {
+      const tinyVP = { width: 200, height: 100 };
+      const r = { top: 50, bottom: 60, left: 0 };
+      const out = computeTokenDetailsPosition({ rect: r, viewport: tinyVP, panel: { width: 300, height: 220 } });
+      check('tiny viewport → top clamped within [10, vh - 10]',
+        out.top <= tinyVP.height - 10 && out.top >= 10,
+        JSON.stringify(out));
+      check('tiny viewport → left clamped to >= 10',
+        out.left >= 10,
+        JSON.stringify(out));
+    }
+
+    {
+      const r = { top: 50, bottom: 70, left: 100 };
+      const out = computeTokenDetailsPosition({
+        rect: r, viewport: VP, panel: { width: 500, height: 100 }
+      });
+      check('panel.width above 320 cap doesn\'t break placement',
+        out.left === 100,
+        JSON.stringify(out));
+    }
+
+    {
+      const r = { top: 50, bottom: 70, left: 100 };
+      const out = computeTokenDetailsPosition({ rect: r, viewport: VP });
+      check('default panel size used when omitted',
+        typeof out.left === 'number' && typeof out.top === 'number',
+        JSON.stringify(out));
+    }
+
+    {
+      const out = computeTokenDetailsPosition({ viewport: VP, panel: PANEL });
+      check('missing rect doesn\'t throw', typeof out.left === 'number');
+      check('missing rect → top placed below (rect.bottom=0 + 8) = 8 → clamp to 10',
+        out.top === 10,
+        JSON.stringify(out));
+    }
+
+    {
+      const out = computeTokenDetailsPosition({ rect: { top: 0, bottom: 0, left: 0 }, panel: PANEL });
+      check('missing viewport doesn\'t throw',
+        typeof out.left === 'number' && typeof out.top === 'number');
+    }
+
+    {
+      const r = { top: 250, bottom: 280, left: 100 };
+      const tieVP = { width: 1024, height: 530 };
+      const out = computeTokenDetailsPosition({ rect: r, viewport: tieVP, panel: { width: 300, height: 220 } });
+      check('ties on space prefer below (>= heuristic)',
+        out.top === 280 + 8,
+        JSON.stringify(out));
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

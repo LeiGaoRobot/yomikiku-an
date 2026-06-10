@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/ui/sentence-text.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/ui/sentence-text.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { extractSentenceText } from './sentence-text.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    const make = (html) => {
+      const div = document.createElement('div');
+      div.className = 'line-container';
+      div.innerHTML = html;
+      return div;
+    };
+
+    // 1. null / undefined input
+    check('null input → empty string', extractSentenceText(null) === '');
+    check('undefined input → empty string', extractSentenceText(undefined) === '');
+
+    // 2. non-element input
+    check('string input → empty string (no cloneNode)', extractSentenceText('hello') === '');
+    check('plain object input → empty string', extractSentenceText({}) === '');
+
+    // 3. plain text
+    {
+      const el = make('日本語のテスト');
+      check('plain text returned verbatim',
+        extractSentenceText(el) === '日本語のテスト');
+    }
+
+    // 4. trims surrounding whitespace
+    {
+      const el = make('  \n  これはテスト。  \n  ');
+      const out = extractSentenceText(el);
+      check('trims leading/trailing whitespace',
+        out === 'これはテスト。',
+        JSON.stringify(out));
+    }
+
+    // 5. <rt> ruby annotations stripped
+    {
+      const el = make('<ruby>日本語<rt>にほんご</rt></ruby>を勉強する');
+      const out = extractSentenceText(el);
+      check('ruby <rt> stripped (kana annotation removed)',
+        out === '日本語を勉強する',
+        JSON.stringify(out));
+    }
+
+    // 6. multiple <rt> stripped
+    {
+      const el = make('<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ');
+      const out = extractSentenceText(el);
+      check('multiple <rt> elements all stripped',
+        out === '今日は晴れ',
+        JSON.stringify(out));
+    }
+
+    // 7. .play-line-btn stripped
+    {
+      const el = make('<button class="play-line-btn">▶</button>こんにちは');
+      const out = extractSentenceText(el);
+      check('.play-line-btn text removed',
+        out === 'こんにちは',
+        JSON.stringify(out));
+    }
+
+    // 8. .analyze-line-btn stripped
+    {
+      const el = make('<button class="analyze-line-btn">🔍</button>テキスト');
+      const out = extractSentenceText(el);
+      check('.analyze-line-btn text removed',
+        out === 'テキスト',
+        JSON.stringify(out));
+    }
+
+    // 9. .ap-analyzer-card stripped (mounted card under the line)
+    {
+      const el = make('文章<div class="ap-analyzer-card">分析結果ノイズ</div>');
+      const out = extractSentenceText(el);
+      check('.ap-analyzer-card content removed',
+        out === '文章',
+        JSON.stringify(out));
+    }
+
+    // 10. all strip selectors at once + ruby
+    {
+      const el = make(
+        '<button class="play-line-btn">▶</button>' +
+        '<ruby>日本語<rt>にほんご</rt></ruby>を勉強する' +
+        '<button class="analyze-line-btn">🔍</button>' +
+        '<div class="ap-analyzer-card">noise</div>'
+      );
+      const out = extractSentenceText(el);
+      check('combined: ruby + buttons + card all stripped',
+        out === '日本語を勉強する',
+        JSON.stringify(out));
+    }
+
+    // 11. nested ruby inside a token pill
+    {
+      const el = make('<span class="ruby-token"><ruby>日<rt>ひ</rt></ruby></span>本');
+      const out = extractSentenceText(el);
+      check('nested <rt> inside token pill stripped',
+        out === '日本',
+        JSON.stringify(out));
+    }
+
+    // 12. does not mutate the original element
+    {
+      const el = make('<ruby>本<rt>ほん</rt></ruby>を読む');
+      const beforeHtml = el.innerHTML;
+      extractSentenceText(el);
+      check('input element is NOT mutated by extraction',
+        el.innerHTML === beforeHtml,
+        'html unchanged');
+    }
+
+    // 13. empty element
+    {
+      const el = make('');
+      check('empty element → empty string', extractSentenceText(el) === '');
+    }
+
+    // 14. element with only ruby annotations
+    {
+      const el = make('<ruby><rt>ふりがな</rt></ruby>');
+      const out = extractSentenceText(el);
+      check('<ruby> with only <rt> child → empty string',
+        out === '',
+        JSON.stringify(out));
+    }
+
+    // 15. text with internal newlines
+    {
+      const el = make('一行目\n二行目');
+      const out = extractSentenceText(el);
+      check('internal newlines preserved (only outer trim)',
+        out === '一行目\n二行目',
+        JSON.stringify(out));
+    }
+
+    // 16. side effect: window.YomikikuanSentenceText registered
+    check('window.YomikikuanSentenceText.extractSentenceText registered',
+      typeof window.YomikikuanSentenceText?.extractSentenceText === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

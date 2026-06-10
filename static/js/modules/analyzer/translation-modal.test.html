@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/translation-modal.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/translation-modal.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      resolveDictionaryQuery,
+      aliasFor,
+      buildDetailedTranslationMarkup,
+      loadTranslation,
+      showDetailedTranslation,
+    } from './translation-modal.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ──── resolveDictionaryQuery ────
+
+    check('query: null → ""', resolveDictionaryQuery(null) === '');
+    check('query: undefined → ""', resolveDictionaryQuery() === '');
+    check('query: empty token → ""', resolveDictionaryQuery({}) === '');
+
+    check('query: lemma preferred over reading',
+      resolveDictionaryQuery({ lemma: '食べる', reading: 'たべる', surface: '食べる' }) === '食べる');
+
+    check('query: lemma="*" falls through to reading',
+      resolveDictionaryQuery({ lemma: '*', reading: 'たべる', surface: '食べ' }) === 'たべる');
+
+    check('query: no lemma → reading',
+      resolveDictionaryQuery({ reading: 'にほん', surface: '日本' }) === 'にほん');
+
+    check('query: no lemma/reading → surface',
+      resolveDictionaryQuery({ surface: '日本' }) === '日本');
+
+    check('query: latin lemma + reading → uses reading',
+      resolveDictionaryQuery({ lemma: 'API', reading: 'エーピーアイ', surface: 'API' }) === 'エーピーアイ');
+
+    check('query: latin lemma + no reading → keeps latin',
+      resolveDictionaryQuery({ lemma: 'API', surface: 'API' }) === 'API');
+
+    check('query: kanji lemma stays as-is',
+      resolveDictionaryQuery({ lemma: '日本', reading: 'にほん' }) === '日本');
+
+    // ──── aliasFor ────
+
+    check('alias: アプリ → アプリケーション',
+      aliasFor('アプリ') === 'アプリケーション');
+    check('alias: web → ウェブ', aliasFor('web') === 'ウェブ');
+    check('alias: Web → ウェブ', aliasFor('Web') === 'ウェブ');
+    check('alias: WEB → ウェブ', aliasFor('WEB') === 'ウェブ');
+    check('alias: missing → ""', aliasFor('hello') === '');
+    check('alias: empty → ""', aliasFor('') === '');
+    check('alias: custom table',
+      aliasFor('foo', { foo: 'bar' }) === 'bar');
+    check('alias: custom table — missing key',
+      aliasFor('baz', { foo: 'bar' }) === '');
+
+    // ──── buildDetailedTranslationMarkup ────
+
+    {
+      const html = buildDetailedTranslationMarkup({
+        word: '日本',
+        senses: [{ gloss: 'Japan', partOfSpeech: ['名詞'], field: [], misc: [] }],
+      });
+      check('markup: contains word', html.includes('日本'));
+      check('markup: contains gloss', html.includes('Japan'));
+      check('markup: contains pos label fallback "词性"', html.includes('词性'));
+      check('markup: pos value', html.includes('名詞'));
+      check('markup: empty field → no field section',
+        !html.includes('class="sense-field"'));
+    }
+
+    {
+      const html = buildDetailedTranslationMarkup({ word: 'X', senses: [] });
+      check('markup: empty senses → no .sense-item',
+        !html.includes('class="sense-item"'));
+      check('markup: still has footer mount-point',
+        html.includes('class="dict-ai-gloss-footer"'));
+    }
+
+    {
+      const html = buildDetailedTranslationMarkup({ word: '猫', senses: [
+        { gloss: 'cat', partOfSpeech: ['名'], field: ['biology'], misc: ['common'], chineseSource: '猫(汉)' },
+      ]});
+      check('markup: chineseSource included', html.includes('猫(汉)'));
+      check('markup: field section present', html.includes('biology'));
+      check('markup: misc section present', html.includes('common'));
+    }
+
+    {
+      const html = buildDetailedTranslationMarkup({ word: 'A', senses: [
+        { gloss: 'a' }, { gloss: 'b' }, { gloss: 'c' },
+      ]});
+      check('markup: 3 sense-items rendered',
+        (html.match(/class="sense-item"/g) || []).length === 3);
+      check('markup: numbered 1./2./3.',
+        html.includes('>1.<') && html.includes('>2.<') && html.includes('>3.<'));
+    }
+
+    {
+      const tt = (k, fb) => `T(${k})`;
+      const html = buildDetailedTranslationMarkup({ word: 'X', senses: [
+        { gloss: 'g', partOfSpeech: ['n'] },
+      ]}, tt);
+      check('markup: i18n function honored',
+        html.includes('T(lbl_pos)') && html.includes('T(dlg_detail_translation)'));
+    }
+
+    // ──── loadTranslation: testable subset ────
+
+    function makeHostElement(token) {
+      const el = document.createElement('span');
+      el.className = 'token-pill';
+      el.setAttribute('data-token', JSON.stringify(token).replace(/'/g, '&apos;'));
+      const tc = document.createElement('div');
+      tc.className = 'translation-content';
+      el.appendChild(tc);
+      return el;
+    }
+
+    // 1. no-host outcomes
+    {
+      const r = await loadTranslation(null, { dict: { isReady: () => true, getDetailedInfo: async () => null } });
+      check('load: null element → no-host', r.outcome === 'no-host');
+    }
+    {
+      const elNoTC = document.createElement('span');
+      elNoTC.setAttribute('data-token', '{"surface":"x"}');
+      const r = await loadTranslation(elNoTC, { dict: { isReady: () => true, getDetailedInfo: async () => null } });
+      check('load: no .translation-content → no-host', r.outcome === 'no-host');
+    }
+    {
+      const el = document.createElement('span');
+      el.setAttribute('data-token', '{not json');
+      const tc = document.createElement('div'); tc.className = 'translation-content';
+      el.appendChild(tc);
+      const r = await loadTranslation(el, { dict: { isReady: () => true, getDetailedInfo: async () => null } });
+      check('load: invalid JSON → no-host', r.outcome === 'no-host');
+    }
+
+    // 2. override path
+    {
+      const el = makeHostElement({ surface: 'API' });
+      const r = await loadTranslation(el, {
+        getCurrentLang: () => 'zh',
+        getTechOverride: () => ({ translations: { zh: '应用程序接口', ja: 'API' } }),
+        dict: { isReady: () => true, getDetailedInfo: async () => null },
+      });
+      check('load: override path returns "override"', r.outcome === 'override');
+      check('load: override writes language-specific text',
+        el.querySelector('.translation-content').textContent === '应用程序接口');
+    }
+    {
+      const el = makeHostElement({ surface: 'API' });
+      await loadTranslation(el, {
+        getCurrentLang: () => 'fr',  // not in override.translations
+        getTechOverride: () => ({ translations: { ja: 'API JP' } }),
+        dict: { isReady: () => true, getDetailedInfo: async () => null },
+      });
+      check('load: missing lang falls back to ja',
+        el.querySelector('.translation-content').textContent === 'API JP');
+    }
+    {
+      const el = makeHostElement({ surface: 'API' });
+      const r = await loadTranslation(el, {
+        getTechOverride: () => null,
+        dict: { isReady: () => true, getDetailedInfo: async () => null },
+      });
+      check('load: no override + no result → no-result', r.outcome === 'no-result');
+    }
+
+    // 3. dict service missing → error path
+    {
+      const el = makeHostElement({ surface: 'X' });
+      const r = await loadTranslation(el, {
+        getTechOverride: () => null,
+        dict: null,
+      });
+      check('load: missing dict → error', r.outcome === 'error');
+      check('load: missing dict writes failure message',
+        el.querySelector('.translation-content').textContent.length > 0);
+    }
+
+    // 4. main-translation path with multi-sense expand button
+    {
+      const el = makeHostElement({ lemma: '食べる', reading: 'たべる', surface: '食べ' });
+      const detailedInfo = { word: '食べる', senses: [
+        { gloss: 'eat' }, { gloss: 'consume' }, { gloss: 'devour' },
+      ], kana: [{ text: 'たべる' }] };
+      const r = await loadTranslation(el, {
+        getTechOverride: () => null,
+        dict: {
+          isReady: () => true,
+          getDetailedInfo: async (q) => (q === '食べる' ? detailedInfo : null),
+        },
+      });
+      check('load: main path returns "main"', r.outcome === 'main');
+      const tc = el.querySelector('.translation-content');
+      check('load: main-translation rendered',
+        tc.querySelector('.main-translation').textContent === 'eat');
+      check('load: expand button shows "(+2个词义)"',
+        tc.querySelector('.expand-translation-btn').textContent === '(+2个词义)');
+      check('load: kana section appended',
+        tc.querySelector('.translation-kana').textContent.includes('たべる'));
+    }
+
+    // 5. alias fallback
+    {
+      const el = makeHostElement({ surface: 'アプリ' });
+      let lookups = 0;
+      const r = await loadTranslation(el, {
+        getTechOverride: () => null,
+        dict: {
+          isReady: () => true,
+          getDetailedInfo: async (q) => {
+            lookups += 1;
+            if (q === 'アプリ') return null;
+            if (q === 'アプリケーション') return { word: 'アプリ', senses: [{ gloss: 'app' }] };
+            return null;
+          },
+        },
+      });
+      check('load: alias fallback returns "main"', r.outcome === 'main');
+      check('load: dict queried twice (primary + alias)', lookups === 2);
+      check('load: alias gloss rendered',
+        el.querySelector('.main-translation').textContent === 'app');
+    }
+
+    // 6. dict.init called when not ready
+    {
+      const el = makeHostElement({ surface: 'X' });
+      let inits = 0;
+      const r = await loadTranslation(el, {
+        getTechOverride: () => null,
+        dict: {
+          isReady: () => false,
+          init: async () => { inits += 1; },
+          getDetailedInfo: async () => null,
+        },
+      });
+      check('load: dict.init called when not ready', inits === 1);
+      check('load: post-init no-result outcome', r.outcome === 'no-result');
+    }
+
+    // 7. expand button calls showDetailed callback
+    {
+      const el = makeHostElement({ surface: 'X' });
+      let showDetailedCalls = 0;
+      let capturedInfo = null;
+      const detailedInfo = { word: 'X', senses: [{ gloss: 'a' }, { gloss: 'b' }] };
+      await loadTranslation(el, {
+        getTechOverride: () => null,
+        dict: { isReady: () => true, getDetailedInfo: async () => detailedInfo },
+        showDetailed: (info) => { showDetailedCalls += 1; capturedInfo = info; },
+      });
+      const expandBtn = el.querySelector('.expand-translation-btn');
+      expandBtn.click();
+      check('load: expand-btn click → showDetailed called', showDetailedCalls === 1);
+      check('load: expand-btn passes detailedInfo to callback',
+        capturedInfo && capturedInfo.word === 'X');
+    }
+
+    // ──── showDetailedTranslation: light DOM-mount sanity ────
+
+    {
+      const detailedInfo = { word: 'TEST', senses: [{ gloss: 'a test' }] };
+      const r = await showDetailedTranslation(detailedInfo, null, {
+        t: (k, fb) => fb || k,
+      });
+      check('showDetailed: mounts modal', r.outcome === 'mounted');
+      check('showDetailed: modal has expected class',
+        r.modal && r.modal.classList.contains('translation-modal'));
+      check('showDetailed: word rendered in header',
+        r.modal && r.modal.innerHTML.includes('TEST'));
+      try { r.modal.remove(); } catch (_) {}
+    }
+
+    // ──── window export ────
+    check('exposes window.YomikikuanTranslationModal',
+      typeof window.YomikikuanTranslationModal === 'object'
+      && typeof window.YomikikuanTranslationModal.loadTranslation === 'function'
+      && typeof window.YomikikuanTranslationModal.showDetailedTranslation === 'function'
+      && typeof window.YomikikuanTranslationModal.buildDetailedTranslationMarkup === 'function'
+      && typeof window.YomikikuanTranslationModal.resolveDictionaryQuery === 'function'
+      && typeof window.YomikikuanTranslationModal.aliasFor === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

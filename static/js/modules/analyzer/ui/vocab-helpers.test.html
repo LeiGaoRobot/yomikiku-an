@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/ui/vocab-helpers.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/ui/vocab-helpers.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { fmtRelDate, escapeHtml } from './vocab-helpers.js';
+
+    const results = [];
+    const check = (name, cond, detail) => results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // Fixed anchor for deterministic fmtRelDate tests: 2026-05-12T03:00:00Z
+    const NOW = new Date('2026-05-12T03:00:00Z').getTime();
+
+    // --- fmtRelDate — null/zero ---
+
+    check('fmtRelDate(0)  → ""',         fmtRelDate(0) === '');
+    check('fmtRelDate(null) → ""',       fmtRelDate(null) === '');
+    check('fmtRelDate(undefined) → ""',  fmtRelDate(undefined) === '');
+    check('fmtRelDate("") → ""',         fmtRelDate('') === '');
+
+    // --- fmtRelDate — under 60s ---
+
+    check('fmtRelDate now-30s → "刚刚"',
+      fmtRelDate(NOW - 30 * 1000, { now: NOW }) === '刚刚');
+    check('fmtRelDate now+30s → "马上"',
+      fmtRelDate(NOW + 30 * 1000, { now: NOW }) === '马上');
+    check('fmtRelDate now exactly → "马上" (diff=0, treated as future)',
+      fmtRelDate(NOW, { now: NOW }) === '马上');
+
+    // --- fmtRelDate — minutes ---
+
+    check('fmtRelDate now-5min → "5 分钟前"',
+      fmtRelDate(NOW - 5 * 60 * 1000, { now: NOW }) === '5 分钟前');
+    check('fmtRelDate now+5min → "5 分钟后"',
+      fmtRelDate(NOW + 5 * 60 * 1000, { now: NOW }) === '5 分钟后');
+    check('fmtRelDate now-59min → "59 分钟前"',
+      fmtRelDate(NOW - 59 * 60 * 1000, { now: NOW }) === '59 分钟前');
+
+    // --- fmtRelDate — hours ---
+
+    check('fmtRelDate now-60min → "1 小时前"',
+      fmtRelDate(NOW - 60 * 60 * 1000, { now: NOW }) === '1 小时前');
+    check('fmtRelDate now-3hr → "3 小时前"',
+      fmtRelDate(NOW - 3 * 60 * 60 * 1000, { now: NOW }) === '3 小时前');
+    check('fmtRelDate now+12hr → "12 小时后"',
+      fmtRelDate(NOW + 12 * 60 * 60 * 1000, { now: NOW }) === '12 小时后');
+    check('fmtRelDate now-23hr → "23 小时前"',
+      fmtRelDate(NOW - 23 * 60 * 60 * 1000, { now: NOW }) === '23 小时前');
+
+    // --- fmtRelDate — days ---
+
+    check('fmtRelDate now-24hr → "1 天前"',
+      fmtRelDate(NOW - 24 * 60 * 60 * 1000, { now: NOW }) === '1 天前');
+    check('fmtRelDate now+7d → "7 天后"',
+      fmtRelDate(NOW + 7 * 24 * 60 * 60 * 1000, { now: NOW }) === '7 天后');
+    check('fmtRelDate now-365d → "365 天前"',
+      fmtRelDate(NOW - 365 * 24 * 60 * 60 * 1000, { now: NOW }) === '365 天前');
+
+    // --- fmtRelDate — rounding boundaries ---
+
+    check('fmtRelDate now-59.999s → "刚刚" (boundary)',
+      fmtRelDate(NOW - 59999, { now: NOW }) === '刚刚');
+    check('fmtRelDate now-60.000s → "1 分钟前" (boundary)',
+      fmtRelDate(NOW - 60000, { now: NOW }) === '1 分钟前');
+
+    // --- fmtRelDate — default `now` defaults to Date.now() ---
+
+    {
+      const offset = 5 * 60 * 1000;
+      const got = fmtRelDate(Date.now() - offset);
+      check('fmtRelDate default `now` uses Date.now() (~5 分钟前)',
+        got === '5 分钟前' || got === '4 分钟前' || got === '6 分钟前',
+        `got="${got}"`);
+    }
+
+    // --- escapeHtml ---
+
+    check('escapeHtml plain text passes through',
+      escapeHtml('hello world') === 'hello world');
+    check('escapeHtml escapes &',
+      escapeHtml('a & b') === 'a &amp; b');
+    check('escapeHtml escapes < and >',
+      escapeHtml('<script>x<\/script>') === '&lt;script&gt;x&lt;\/script&gt;');
+    check('escapeHtml escapes "',
+      escapeHtml('say "hi"') === 'say &quot;hi&quot;');
+    check("escapeHtml escapes '",
+      escapeHtml("it's") === 'it&#39;s');
+    check('escapeHtml escapes all 5 specials in one pass',
+      escapeHtml(`&<>"'`) === '&amp;&lt;&gt;&quot;&#39;');
+    check('escapeHtml null → ""',
+      escapeHtml(null) === '');
+    check('escapeHtml undefined → ""',
+      escapeHtml(undefined) === '');
+    check('escapeHtml empty string → ""',
+      escapeHtml('') === '');
+    check('escapeHtml number coerces to string',
+      escapeHtml(42) === '42');
+    check('escapeHtml CJK passes through unchanged',
+      escapeHtml('日本語テスト') === '日本語テスト');
+    check('escapeHtml & followed by entity-name still single-pass (no double-escape)',
+      escapeHtml('&amp;') === '&amp;amp;');
+
+    // --- render ---
+
+    const root = document.getElementById('results');
+    const summary = document.getElementById('summary');
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

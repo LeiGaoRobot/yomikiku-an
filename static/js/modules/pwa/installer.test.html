@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>pwa/installer.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>pwa/installer.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { setupPwaInstaller } from './installer.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    function makeBtn() {
+      const listeners = [];
+      return {
+        listeners,
+        addEventListener(type, fn) { listeners.push({ type, fn }); },
+      };
+    }
+
+    // 1. noop guards
+    check('null btn → noop',
+      JSON.stringify(setupPwaInstaller({ headerDownloadBtn: null }))
+        === '{"wired":"noop","toastClose":false}');
+
+    check('undefined opts → noop',
+      JSON.stringify(setupPwaInstaller())
+        === '{"wired":"noop","toastClose":false}');
+
+    check('btn without addEventListener → noop',
+      JSON.stringify(setupPwaInstaller({ headerDownloadBtn: { foo: 1 } }))
+        === '{"wired":"noop","toastClose":false}');
+
+    // 2. Toast-close wiring
+    {
+      const btn = makeBtn();
+      const close = makeBtn();
+      let hideCalls = 0;
+      const r = setupPwaInstaller({
+        headerDownloadBtn: btn,
+        pwaToastClose: close,
+        hidePwaToast: (n) => { hideCalls += (n === 0 ? 1 : 0); },
+        isPwaSupported: () => true,
+        startPwaDownload: () => {},
+      });
+      check('toastClose wired when both close + hide present', r.toastClose === true);
+      check('close listener registered', close.listeners.length === 1);
+      close.listeners[0].fn();
+      check('hidePwaToast(0) called on close click', hideCalls === 1);
+    }
+
+    {
+      const btn = makeBtn();
+      const close = makeBtn();
+      const r = setupPwaInstaller({
+        headerDownloadBtn: btn,
+        pwaToastClose: close,
+        // hidePwaToast intentionally missing
+        isPwaSupported: () => true,
+      });
+      check('no toast wiring when hidePwaToast missing',
+        r.toastClose === false && close.listeners.length === 0);
+    }
+
+    {
+      const btn = makeBtn();
+      const r = setupPwaInstaller({
+        headerDownloadBtn: btn,
+        pwaToastClose: null,
+        hidePwaToast: () => {},
+        isPwaSupported: () => true,
+      });
+      check('null pwaToastClose → toastClose=false', r.toastClose === false);
+    }
+
+    // 3. Unsupported branch
+    {
+      const btn = makeBtn();
+      const toastCalls = [];
+      const r = setupPwaInstaller({
+        headerDownloadBtn: btn,
+        isPwaSupported: () => false,
+        updatePwaToast: (level, payload) => toastCalls.push({ level, payload }),
+        formatMessage: (k) => `t(${k})`,
+        startPwaDownload: () => {
+          throw new Error('startPwaDownload should NOT be wired in unsupported branch');
+        },
+      });
+      check('unsupported branch reports wired=unsupported', r.wired === 'unsupported');
+      check('one click handler attached', btn.listeners.length === 1);
+
+      let prevented = false;
+      btn.listeners[0].fn({ preventDefault() { prevented = true; } });
+      check('unsupported handler calls preventDefault', prevented === true);
+      check('updatePwaToast called once', toastCalls.length === 1);
+      check('toast level=error', toastCalls[0].level === 'error');
+      check('toast title from formatMessage("pwaTitle")',
+        toastCalls[0].payload.title === 't(pwaTitle)');
+      check('toast message from formatMessage("pwaUnsupported")',
+        toastCalls[0].payload.message === 't(pwaUnsupported)');
+      check('toast icon=error', toastCalls[0].payload.icon === 'error');
+    }
+
+    // 4. Unsupported branch tolerates missing pieces
+    {
+      const btn = makeBtn();
+      const toastCalls = [];
+      setupPwaInstaller({
+        headerDownloadBtn: btn,
+        isPwaSupported: () => false,
+        updatePwaToast: (level, payload) => toastCalls.push({ level, payload }),
+        // formatMessage intentionally missing → identity fallback
+      });
+      btn.listeners[0].fn({}); // no preventDefault on event — must not throw
+      check('handler safe without preventDefault method', toastCalls.length === 1);
+      check('formatMessage default returns key as-is',
+        toastCalls[0].payload.title === 'pwaTitle'
+          && toastCalls[0].payload.message === 'pwaUnsupported');
+    }
+
+    {
+      const btn = makeBtn();
+      setupPwaInstaller({
+        headerDownloadBtn: btn,
+        isPwaSupported: () => false,
+      });
+      let threw = false;
+      try { btn.listeners[0].fn({ preventDefault: () => {} }); }
+      catch (_) { threw = true; }
+      check('no updatePwaToast → click silently no-ops', !threw);
+    }
+
+    // 5. Supported branch
+    {
+      const btn = makeBtn();
+      const downloadCalls = [];
+      const handler = (e) => downloadCalls.push(e);
+      const r = setupPwaInstaller({
+        headerDownloadBtn: btn,
+        isPwaSupported: () => true,
+        startPwaDownload: handler,
+      });
+      check('supported branch reports wired=supported', r.wired === 'supported');
+      check('startPwaDownload attached as click handler',
+        btn.listeners.length === 1
+          && btn.listeners[0].type === 'click'
+          && btn.listeners[0].fn === handler);
+      btn.listeners[0].fn({ tag: 'EV' });
+      check('handler invoked with event arg',
+        downloadCalls.length === 1 && downloadCalls[0].tag === 'EV');
+    }
+
+    {
+      const btn = makeBtn();
+      const r = setupPwaInstaller({
+        headerDownloadBtn: btn,
+        isPwaSupported: () => true,
+        // startPwaDownload missing
+      });
+      check('supported but no handler → no listener',
+        r.wired === 'supported' && btn.listeners.length === 0);
+    }
+
+    // 6. Default isPwaSupported (env-dependent — just sanity)
+    {
+      const btn = makeBtn();
+      const r = setupPwaInstaller({
+        headerDownloadBtn: btn,
+        startPwaDownload: () => {},
+      });
+      check('default detector picks one of the two branches',
+        r.wired === 'supported' || r.wired === 'unsupported');
+    }
+
+    // 7. Window export
+    check('exposes window.YomikikuanPwaInstaller',
+      typeof window.YomikikuanPwaInstaller === 'object'
+      && typeof window.YomikikuanPwaInstaller.setupPwaInstaller === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/ui/article-summary-helpers.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/ui/article-summary-helpers.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { buildPrompt, parseJson, toMarkdown, safeFilenameSlug } from './article-summary-helpers.js';
+
+    const results = [];
+    const check = (name, cond, detail) => results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // --- buildPrompt ---
+
+    {
+      const p = buildPrompt('今日は良い天気だ。');
+      check('buildPrompt embeds article between triple quotes',
+        p.includes('"""\n今日は良い天気だ。\n"""'));
+      check('buildPrompt requests strict JSON',
+        p.includes('Output strict JSON only'));
+      check('buildPrompt declares JLPT N5..N1 union',
+        p.includes('"N5" | "N4" | "N3" | "N2" | "N1"'));
+      check('buildPrompt mentions vocabulary schema',
+        p.includes('"surface"') && p.includes('"meaning_zh"'));
+      check('buildPrompt mentions grammarPoints schema',
+        p.includes('"point"') && p.includes('"note_zh"'));
+    }
+    {
+      const p = buildPrompt('');
+      check('buildPrompt accepts empty article (still emits schema)',
+        p.includes('"""\n\n"""'));
+    }
+
+    // --- parseJson ---
+
+    {
+      const r = parseJson('{"a": 1}');
+      check('parseJson plain JSON', r.a === 1);
+    }
+    {
+      const r = parseJson('```json\n{"a":2}\n```');
+      check('parseJson strips ```json fences', r.a === 2);
+    }
+    {
+      const r = parseJson('```\n{"a":3}\n```');
+      check('parseJson strips bare ``` fences', r.a === 3);
+    }
+    {
+      const r = parseJson('   {"a":4}   ');
+      check('parseJson trims surrounding whitespace', r.a === 4);
+    }
+    {
+      const r = parseJson('```JSON\n{"a":5}\n```');
+      check('parseJson is case-insensitive on json tag', r.a === 5);
+    }
+    {
+      let err = null;
+      try { parseJson('{bad json'); } catch (e) { err = e; }
+      check('parseJson throws on malformed body', err instanceof SyntaxError);
+    }
+    {
+      let err = null;
+      try { parseJson(null); } catch (e) { err = e; }
+      check('parseJson(null) throws SyntaxError (empty body)', err instanceof SyntaxError);
+    }
+
+    // --- toMarkdown ---
+
+    const FIXED_NOW = new Date('2026-05-12T03:00:00Z');
+
+    {
+      const md = toMarkdown({ title: 'Test Doc' }, {}, { now: FIXED_NOW });
+      check('toMarkdown emits H1 with doc title', md.includes('# Test Doc\n'));
+      check('toMarkdown emits export-line with ISO date',
+        md.includes('> Exported from YomiKiku-an · 2026-05-12'));
+      check('toMarkdown export-line omits JLPT when no recommendedLevel',
+        !md.includes('JLPT'));
+    }
+    {
+      const md = toMarkdown(null, { recommendedLevel: 'N3' }, { now: FIXED_NOW });
+      check('toMarkdown defaults title to "Article" when doc null',
+        md.startsWith('# Article\n'));
+      check('toMarkdown export-line includes "· JLPT N3" when level provided',
+        md.includes('· JLPT N3'));
+    }
+    {
+      const md = toMarkdown({ title: 'X' }, {
+        summary: '要約テキスト',
+      }, { now: FIXED_NOW });
+      check('toMarkdown emits ## 要約 section when summary present',
+        md.includes('## 要約\n\n要約テキスト'));
+    }
+    {
+      const md = toMarkdown({ title: 'X' }, {
+        keySentences: ['一つ目。', '二つ目。'],
+      }, { now: FIXED_NOW });
+      check('toMarkdown emits numbered ## キー文 list',
+        md.includes('1. 一つ目。\n2. 二つ目。'));
+    }
+    {
+      const md = toMarkdown({ title: 'X' }, {
+        vocabulary: [
+          { surface: '気持ち', reading: 'きもち', meaning_zh: '心情', example_ja: '良い気持ちだ' },
+          { surface: 'A | B', reading: 'r', meaning: '回退', example_ja: 'ex' },
+        ],
+      }, { now: FIXED_NOW });
+      check('toMarkdown emits vocabulary table header',
+        md.includes('| 単語 | 読み | 意味 | 例文 |'));
+      check('toMarkdown emits vocabulary row',
+        md.includes('| 気持ち | きもち | 心情 | 良い気持ちだ |'));
+      check('toMarkdown escapes pipes in vocabulary cell',
+        md.includes('| A \\| B | r | 回退 | ex |'));
+      check('toMarkdown falls back from meaning_zh to meaning',
+        md.includes('回退'));
+    }
+    {
+      const md = toMarkdown({ title: 'X' }, {
+        grammarPoints: [
+          { point: '〜わけではない', note_zh: '并非', example_ja: '本文の例' },
+          { point: '〜つもり', note: '打算' },
+        ],
+      }, { now: FIXED_NOW });
+      check('toMarkdown emits grammar bullet with note_zh',
+        md.includes('- **〜わけではない** — 并非'));
+      check('toMarkdown emits sub-bullet for example_ja',
+        md.includes('  - 例：本文の例'));
+      check('toMarkdown falls back from note_zh to note',
+        md.includes('- **〜つもり** — 打算'));
+    }
+    {
+      const md = toMarkdown({ title: 'X' }, {
+        learningPoints: ['語彙：〇〇（意味）', '句型：〇〇（用法）'],
+      }, { now: FIXED_NOW });
+      check('toMarkdown emits learning bullets',
+        md.includes('- 語彙：〇〇（意味）\n- 句型：〇〇（用法）'));
+    }
+    {
+      const md = toMarkdown({ title: 'X' }, {}, { now: FIXED_NOW });
+      check('toMarkdown empty payload omits all optional sections',
+        !md.includes('##'));
+    }
+    {
+      const md = toMarkdown({ title: 'X' }, {
+        keySentences: [],
+        vocabulary: [],
+        grammarPoints: [],
+        learningPoints: [],
+      }, { now: FIXED_NOW });
+      check('toMarkdown empty arrays still skipped',
+        !md.includes('##'));
+    }
+    {
+      const payload = { summary: 'X', recommendedLevel: 'N2' };
+      const a = toMarkdown({ title: 'D' }, payload, { now: FIXED_NOW });
+      const b = toMarkdown({ title: 'D' }, payload, { now: FIXED_NOW });
+      check('toMarkdown deterministic on identical inputs', a === b);
+    }
+
+    // --- safeFilenameSlug ---
+
+    {
+      check('safeFilenameSlug keeps word chars',
+        safeFilenameSlug('Hello_World-123') === 'Hello_World-123');
+      check('safeFilenameSlug keeps CJK ideographs',
+        safeFilenameSlug('日本語の記事') === '日本語の記事');
+      check('safeFilenameSlug keeps hiragana / katakana',
+        safeFilenameSlug('カタカナひらがな') === 'カタカナひらがな');
+      check('safeFilenameSlug collapses spaces to underscore',
+        safeFilenameSlug('hello world') === 'hello_world');
+      check('safeFilenameSlug collapses punctuation',
+        safeFilenameSlug('a@b#c$d') === 'a_b_c_d');
+      check('safeFilenameSlug falls back to "article" when blank',
+        safeFilenameSlug('') === 'article');
+      check('safeFilenameSlug falls back to "article" when null/undefined',
+        safeFilenameSlug(null) === 'article' && safeFilenameSlug(undefined) === 'article');
+      check('safeFilenameSlug truncates to 60 chars',
+        safeFilenameSlug('a'.repeat(100)).length === 60);
+    }
+
+    // --- render ---
+
+    const root = document.getElementById('results');
+    const summary = document.getElementById('summary');
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

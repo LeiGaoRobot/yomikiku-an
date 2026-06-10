@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>backup/doc-export.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+    #content { display: none; }
+  </style>
+</head>
+<body>
+  <h1>backup/doc-export.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <div id="content">
+    <div class="line-container">こんにちは、世界。</div>
+    <div class="line-container">これは <span class="ruby-token">テスト</span> です。</div>
+    <button class="play-line-btn">▶</button>
+    <button class="analyze-line-btn">🔍</button>
+  </div>
+
+  <script type="module">
+    import {
+      escapeHtml,
+      fmtDate,
+      buildHtml,
+    } from './doc-export.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    check('escapeHtml escapes <', escapeHtml('<') === '&lt;');
+    check('escapeHtml escapes >', escapeHtml('>') === '&gt;');
+    check('escapeHtml escapes &', escapeHtml('&') === '&amp;');
+    check('escapeHtml escapes "', escapeHtml('"') === '&quot;');
+    check("escapeHtml leaves ' as-is (not in the [<>&\"] set)",
+      escapeHtml("'") === "'");
+    check('escapeHtml null → ""', escapeHtml(null) === '');
+    check('escapeHtml undefined → ""', escapeHtml(undefined) === '');
+    check('escapeHtml mixed string',
+      escapeHtml('a<b>c&d"e') === 'a&lt;b&gt;c&amp;d&quot;e');
+    check('escapeHtml preserves japanese',
+      escapeHtml('日本語<test>') === '日本語&lt;test&gt;');
+
+    check('fmtDate(2026-01-05) → "2026-01-05"',
+      fmtDate(new Date(2026, 0, 5)) === '2026-01-05');
+    check('fmtDate(2026-12-31) → "2026-12-31"',
+      fmtDate(new Date(2026, 11, 31)) === '2026-12-31');
+    check('fmtDate zero-pads single-digit month + day',
+      fmtDate(new Date(2026, 2, 7)) === '2026-03-07');
+    check('fmtDate(2099-09-09) → "2099-09-09"',
+      fmtDate(new Date(2099, 8, 9)) === '2099-09-09');
+
+    {
+      const doc = { title: 'テスト記事', createdAt: new Date(2026, 3, 25).getTime() };
+      const out = buildHtml(doc);
+
+      check('buildHtml returns full HTML doc with DOCTYPE',
+        typeof out === 'string' && out.startsWith('<!DOCTYPE html>'));
+      check('buildHtml embeds escaped title in <title>',
+        out.includes('<title>テスト記事</title>'));
+      check('buildHtml embeds escaped title in <h1>',
+        out.includes('<h1>テスト記事</h1>'));
+      check('buildHtml embeds the #content innerHTML',
+        out.includes('こんにちは、世界。'));
+      check('buildHtml embeds inline EXPORT_STYLE',
+        out.includes('font-family') && out.includes('@media print'));
+      check('buildHtml shows createdAt date in meta line',
+        out.includes('2026-04-25'));
+      check('buildHtml has YomiKiku-an attribution footer',
+        out.includes('YomiKiku-an'));
+      check('buildHtml CSS hides buttons (display:none rule)',
+        out.includes('display: none'));
+    }
+
+    {
+      const orig = document.getElementById('content');
+      const parent = orig.parentNode;
+      orig.remove();
+      const out = buildHtml({ title: 'no-content' });
+      check('buildHtml with missing #content embeds placeholder text',
+        out.includes('没有可导出的内容') || out.includes('<i>'));
+      parent.appendChild(orig);
+    }
+
+    {
+      const out = buildHtml({});
+      check('buildHtml with no doc title falls back to "document"',
+        out.includes('<title>document</title>'));
+    }
+
+    {
+      const out = buildHtml({ title: '<script>alert(1)' + '</' + 'script>' });
+      check('buildHtml escapes script tags in title',
+        out.includes('&lt;script&gt;') &&
+        !out.includes('<script>alert(1)'),
+        'no raw script tag in output');
+    }
+
+    {
+      const out = buildHtml({ title: 'x', createdAt: 'not-a-date' });
+      check('buildHtml handles invalid createdAt gracefully',
+        !out.includes('Invalid Date') && !out.includes('NaN'));
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ui/toolbar-content.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>ui/toolbar-content.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { createToolbarContentHTML } from './toolbar-content.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // Identity translator: returns "T:<key>" so we can assert keys are wired.
+    const idT = (k) => `T:${k}`;
+
+    function makeCountingT() {
+      const calls = [];
+      const t = (k) => { calls.push(k); return `T:${k}`; };
+      t.calls = calls;
+      return t;
+    }
+
+    // ──── id prefix behavior ────
+
+    {
+      const html = createToolbarContentHTML('sidebar', idT);
+      check('sidebar: capitalized prefix on voiceSelect',
+        html.includes('id="sidebarVoiceSelect"'));
+      check('sidebar: capitalized prefix on showKana',
+        html.includes('id="sidebarShowKana"'));
+      check('sidebar: capitalized prefix on readingScriptOptionHiragana',
+        html.includes('id="sidebarReadingScriptOptionHiragana"'));
+      check('sidebar: NO bare voiceSelect id',
+        !html.includes('id="voiceSelect"'));
+      check('sidebar: NO bare showKana id',
+        !html.includes('id="showKana"'));
+    }
+
+    {
+      const html = createToolbarContentHTML('modal', idT);
+      check('modal: bare voiceSelect id',
+        html.includes('id="voiceSelect"'));
+      check('modal: bare showKana id',
+        html.includes('id="showKana"'));
+      check('modal: NO sidebar prefix',
+        !html.includes('id="sidebarVoiceSelect"'));
+    }
+
+    {
+      const html = createToolbarContentHTML('anything-else', idT);
+      check('other context: bare ids (same as modal)',
+        html.includes('id="voiceSelect"') && !html.includes('id="sidebarVoiceSelect"'));
+    }
+
+    // ──── i18n key wiring ────
+
+    {
+      const t = makeCountingT();
+      createToolbarContentHTML('modal', t);
+      const expected = [
+        'voiceTitle', 'voiceSelectLabel', 'selectVoice', 'speedLabel',
+        'displayTitle', 'showKana', 'readingScript', 'katakanaLabel', 'hiraganaLabel',
+        'showRomaji', 'showPos', 'tokenAlignLeft', 'showDetails', 'showUnderline',
+        'autoRead', 'haAsWaLabel', 'repeatPlay', 'fontSizeLabel',
+      ];
+      const missing = expected.filter((k) => !t.calls.includes(k));
+      check('i18n: all expected keys are looked up', missing.length === 0,
+        missing.length ? `missing: ${missing.join(', ')}` : '');
+    }
+
+    {
+      const html = createToolbarContentHTML('modal', idT);
+      check('i18n: voiceTitle output rendered',
+        html.includes('>T:voiceTitle</div>'));
+      check('i18n: katakanaLabel option text rendered',
+        html.includes('>T:katakanaLabel</option>'));
+    }
+
+    // ──── checkbox default checked state ────
+
+    {
+      const html = createToolbarContentHTML('modal', idT);
+      check('checked: showKana checkbox is checked',
+        /id="showKana" checked/.test(html));
+      check('checked: showRomaji is checked',
+        /id="showRomaji" checked/.test(html));
+      check('checked: showPos is checked',
+        /id="showPos" checked/.test(html));
+      check('checked: showDetails is checked',
+        /id="showDetails" checked/.test(html));
+      check('checked: showUnderline is checked',
+        /id="showUnderline" checked/.test(html));
+      check('checked: haAsWa is checked',
+        /id="haAsWa" checked/.test(html));
+      check('unchecked: tokenAlignLeft has no checked attr',
+        /id="tokenAlignLeft"(?!\s+checked)/.test(html));
+      check('unchecked: autoRead has no checked attr',
+        /id="autoRead"(?!\s+checked)/.test(html));
+      check('unchecked: repeatPlay has no checked attr',
+        /id="repeatPlay"(?!\s+checked)/.test(html));
+    }
+
+    // ──── range inputs ────
+
+    {
+      const html = createToolbarContentHTML('modal', idT);
+      check('range: speedRange min/max/step/value',
+        html.includes('id="speedRange" min="0.25" max="4" step="0.05" value="1"'));
+      check('range: fontSizeRange min/max/step/value',
+        html.includes('id="fontSizeRange" min="0.8" max="1.5" step="0.05" value="1"'));
+      check('display: speedValue defaults to 1.0x',
+        html.includes('id="speedValue">1.0x</div>'));
+      check('display: fontSizeValue defaults to 100%',
+        html.includes('id="fontSizeValue">100%</div>'));
+    }
+
+    // ──── select options structure ────
+
+    {
+      const html = createToolbarContentHTML('modal', idT);
+      check('select: voiceSelect contains empty-value placeholder option',
+        /<select id="voiceSelect">\s*<option value="">T:selectVoice<\/option>/.test(html));
+      check('select: readingScriptSelect has katakana + hiragana options',
+        html.includes('value="katakana">T:katakanaLabel</option>')
+        && html.includes('value="hiragana">T:hiraganaLabel</option>'));
+    }
+
+    // ──── parses as DOM ────
+
+    {
+      const html = createToolbarContentHTML('sidebar', idT);
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      const sections = tmp.querySelectorAll('.settings-section');
+      check('parses as DOM: 2 settings-section divs', sections.length === 2);
+      check('parses as DOM: sidebarShowKana element exists',
+        !!tmp.querySelector('#sidebarShowKana'));
+      check('parses as DOM: NO bare showKana under sidebar context',
+        !tmp.querySelector('#showKana'));
+    }
+
+    // ──── window export ────
+
+    check('exposes window.YomikikuanToolbarContent',
+      typeof window.YomikikuanToolbarContent === 'object'
+      && typeof window.YomikikuanToolbarContent.createToolbarContentHTML === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

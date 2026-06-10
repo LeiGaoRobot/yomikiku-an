@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <title>登录 - 読み聞く庵</title>
+  <link rel="icon" type="image/png" href="static/logo.png">
+
+  <!-- 旧存储键迁移：必须在所有其他脚本之前执行 -->
+  <script src="static/js/migrate-legacy-keys.js"></script>
+
+  <!-- 清除缓存脚本 - 必须在其他脚本之前执行 -->
+  <script>
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const shouldClear = urlParams.get('clear');
+
+      if (shouldClear === '1' || shouldClear === 'true') {
+        console.log('🧹 清除缓存模式已启动...');
+
+        const keysToPreserve = ['texts', 'activeId'];
+        const allKeys = Object.keys(localStorage);
+        let clearedCount = 0;
+
+        allKeys.forEach(key => {
+          if (!keysToPreserve.includes(key)) {
+            localStorage.removeItem(key);
+            clearedCount++;
+          }
+        });
+
+        console.log(`✅ 已清除 ${clearedCount} 个 localStorage 项`);
+
+        const sessionCount = sessionStorage.length;
+        sessionStorage.clear();
+        console.log(`✅ 已清除 ${sessionCount} 个 sessionStorage 项`);
+
+        if ('caches' in window) {
+          caches.keys().then(function(cacheNames) {
+            return Promise.all(
+              cacheNames.map(function(cacheName) {
+                console.log(`🗑️  删除缓存: ${cacheName}`);
+                return caches.delete(cacheName);
+              })
+            );
+          }).then(function() {
+            console.log('✅ 已清除所有 PWA 缓存');
+
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                  registration.unregister();
+                  console.log('✅ 已注销 Service Worker');
+                }
+              });
+            }
+
+            showClearMessage();
+          }).catch(function(error) {
+            console.error('❌ 清除缓存时出错:', error);
+            showClearMessage();
+          });
+        } else {
+          showClearMessage();
+        }
+
+        function showClearMessage() {
+          const addMessage = function() {
+            const message = document.createElement('div');
+            message.className = 'ap-clear-toast';
+            message.innerHTML = `
+              <div class="ap-clear-toast__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 6L9 17l-5-5"></path>
+                </svg>
+              </div>
+              <div class="ap-clear-toast__title">缓存清除完成</div>
+              <div class="ap-clear-toast__body">正在退出登录…</div>
+            `;
+            document.body.appendChild(message);
+          };
+
+          if (document.body) {
+            addMessage();
+          } else {
+            document.addEventListener('DOMContentLoaded', addMessage);
+          }
+
+          setTimeout(function() {
+            sessionStorage.setItem('yomikikuan_logging_out', 'true');
+            localStorage.removeItem('yomikikuan_user');
+
+            console.log('✅ 已设置登出状态，准备刷新页面');
+
+            urlParams.delete('clear');
+            const newUrl = window.location.pathname +
+                          (urlParams.toString() ? '?' + urlParams.toString() : '') +
+                          window.location.hash;
+            window.location.href = newUrl;
+          }, 1500);
+        }
+      }
+    })();
+  </script>
+
+  <style>
+    /* ============================================================
+       Login page — Apple-inspired design system (source: DESIGN.md)
+       Standalone stylesheet. Mirrors tokens from theme-apple.css.
+       No full-screen hero: centered card on a solid neutral field.
+       ============================================================ */
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --ap-bg:              #fbfbfd;
+      --ap-surface:         #ffffff;
+      --ap-surface-2:       #f5f5f7;
+      --ap-surface-3:       #ededf0;
+      --ap-ink:             #1d1d1f;
+      --ap-ink-80:          rgba(29,29,31,.80);
+      --ap-ink-64:          rgba(29,29,31,.64);
+      --ap-ink-48:          rgba(29,29,31,.48);
+      --ap-ink-24:          rgba(29,29,31,.24);
+      --ap-ink-08:          rgba(29,29,31,.08);
+      --ap-ink-04:          rgba(29,29,31,.04);
+
+      --ap-blue:            #0071e3;
+      --ap-blue-hover:      #0077ed;
+      --ap-blue-press:      #006edb;
+      --ap-link:            #0066cc;
+      --ap-link-dark:       #2997ff;
+      --ap-error:           #ff3b30;
+
+      --ap-shadow-1:        0 1px 2px rgba(0,0,0,.04);
+      --ap-shadow-2:        0 4px 16px rgba(0,0,0,.06);
+      --ap-shadow-3:        0 12px 40px rgba(0,0,0,.10);
+      --ap-shadow-card:     3px 5px 30px 0px rgba(0,0,0,.22);
+
+      --ap-r-xs:   5px;
+      --ap-r-sm:   8px;
+      --ap-r-md:  11px;
+      --ap-r-lg:  12px;
+      --ap-r-xl:  18px;
+      --ap-r-2xl: 22px;
+      --ap-r-pill: 980px;
+
+      --ap-ease: cubic-bezier(0.4, 0, 0.2, 1);
+      --ap-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
+      --ap-dur-fast: 120ms;
+      --ap-dur: 200ms;
+      --ap-dur-slow: 320ms;
+
+      --ap-font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+        "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+        "Yu Gothic", "Meiryo", sans-serif;
+      --ap-font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont,
+        "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+        "Yu Gothic", "Meiryo", sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ap-bg:         #000000;
+        --ap-surface:    #1d1d1f;
+        --ap-surface-2:  #161618;
+        --ap-surface-3:  #28282a;
+        --ap-ink:        #f5f5f7;
+        --ap-ink-80:     rgba(245,245,247,.80);
+        --ap-ink-64:     rgba(245,245,247,.64);
+        --ap-ink-48:     rgba(245,245,247,.48);
+        --ap-ink-24:     rgba(245,245,247,.24);
+        --ap-ink-08:     rgba(245,245,247,.08);
+        --ap-ink-04:     rgba(245,245,247,.04);
+        --ap-shadow-card: 0 12px 40px rgba(0,0,0,.48);
+      }
+    }
+
+    html, body { min-height: 100%; }
+    body {
+      font-family: var(--ap-font-text);
+      font-size: 15px;
+      line-height: 1.47;
+      letter-spacing: -0.01em;
+      color: var(--ap-ink);
+      background: var(--ap-bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      font-synthesis: none;
+
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 20px;
+      position: relative;
+    }
+
+    /* Language switcher — fixed glass pill top-right */
+    .language-switcher {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+    }
+    .lang-dropdown-toggle {
+      background: rgba(255,255,255,.72);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      backdrop-filter: saturate(180%) blur(20px);
+      border: 1px solid var(--ap-ink-08);
+      color: var(--ap-ink);
+      padding: 6px 12px;
+      border-radius: var(--ap-r-pill);
+      cursor: pointer;
+      font-family: var(--ap-font-text);
+      font-size: 13px;
+      letter-spacing: -0.008em;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      transition: background var(--ap-dur-fast) var(--ap-ease),
+                  border-color var(--ap-dur-fast) var(--ap-ease);
+    }
+    .lang-dropdown-toggle:hover {
+      background: rgba(255,255,255,.96);
+      border-color: var(--ap-ink-24);
+    }
+    @media (prefers-color-scheme: dark) {
+      .lang-dropdown-toggle { background: rgba(29,29,31,.72); color: var(--ap-ink); }
+      .lang-dropdown-toggle:hover { background: rgba(29,29,31,.96); }
+    }
+    .lang-current {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .lang-arrow {
+      width: 0; height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 4px solid var(--ap-ink-64);
+      transition: transform var(--ap-dur) var(--ap-ease);
+    }
+    .language-switcher.open .lang-arrow { transform: rotate(180deg); }
+
+    .lang-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      min-width: 88px;
+      background: var(--ap-surface);
+      border: 1px solid var(--ap-ink-08);
+      border-radius: var(--ap-r-lg);
+      box-shadow: var(--ap-shadow-3);
+      padding: 4px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-4px);
+      transition: opacity var(--ap-dur) var(--ap-ease),
+                  transform var(--ap-dur) var(--ap-ease),
+                  visibility var(--ap-dur) var(--ap-ease);
+    }
+    .language-switcher.open .lang-dropdown-menu {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    .lang-option {
+      width: 100%;
+      padding: 8px 10px;
+      border: none;
+      background: transparent;
+      color: var(--ap-ink);
+      font-family: var(--ap-font-text);
+      font-size: 13px;
+      letter-spacing: -0.008em;
+      border-radius: var(--ap-r-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background var(--ap-dur-fast) var(--ap-ease);
+    }
+    .lang-option:hover { background: var(--ap-ink-04); }
+    .lang-option.active {
+      background: rgba(0,113,227,.08);
+      color: var(--ap-blue);
+    }
+    @media (prefers-color-scheme: dark) {
+      .lang-option.active {
+        background: rgba(41,151,255,.16);
+        color: var(--ap-link-dark);
+      }
+    }
+    .lang-option span { display: none; }
+    .flag-icon {
+      height: 14px;
+      width: auto;
+      border-radius: 2px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .language-switcher #currentLangName { display: none; }
+
+    /* Login container */
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .login-card {
+      width: 100%;
+      background: var(--ap-surface);
+      border: 1px solid var(--ap-ink-08);
+      border-radius: var(--ap-r-2xl);
+      padding: 48px 40px 40px;
+      text-align: center;
+      box-shadow: var(--ap-shadow-card);
+      animation: apCardIn 520ms var(--ap-ease-spring) both;
+    }
+    @keyframes apCardIn {
+      from { opacity: 0; transform: translateY(12px) scale(.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .logo-container { margin-bottom: 28px; }
+    .logo {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 20px;
+    }
+    .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    .login-title {
+      font-family: var(--ap-font-display);
+      font-size: 32px;
+      font-weight: 600;
+      line-height: 1.1;
+      letter-spacing: -0.022em;
+      color: var(--ap-ink);
+      margin-bottom: 10px;
+    }
+
+    .login-subtitle {
+      font-family: var(--ap-font-text);
+      font-size: 17px;
+      font-weight: 400;
+      line-height: 1.47;
+      letter-spacing: -0.022em;
+      color: var(--ap-ink-64);
+      margin-bottom: 36px;
+    }
+
+    /* Google login button — Apple 8px-radius secondary button */
+    .google-login-btn {
+      width: 100%;
+      padding: 12px 20px;
+      background: var(--ap-surface);
+      border: 1px solid var(--ap-ink-08);
+      border-radius: var(--ap-r-sm);
+      font-family: var(--ap-font-text);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--ap-ink);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 44px;
+      box-shadow: var(--ap-shadow-1);
+      transition: background var(--ap-dur-fast) var(--ap-ease),
+                  border-color var(--ap-dur-fast) var(--ap-ease),
+                  transform var(--ap-dur-fast) var(--ap-ease),
+                  box-shadow var(--ap-dur-fast) var(--ap-ease);
+      position: relative;
+    }
+    .google-login-btn:hover {
+      background: var(--ap-surface-2);
+      border-color: var(--ap-ink-24);
+      box-shadow: var(--ap-shadow-2);
+    }
+    .google-login-btn:active {
+      transform: scale(0.99);
+      background: var(--ap-surface-3);
+    }
+    .google-login-btn:focus-visible {
+      outline: 2px solid var(--ap-blue);
+      outline-offset: 2px;
+    }
+    .google-login-btn:disabled {
+      opacity: 0.56;
+      cursor: default;
+    }
+    .google-icon {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .btn-text { letter-spacing: -0.01em; }
+
+    .loading {
+      display: none;
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--ap-ink-08);
+      border-top-color: var(--ap-blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-left: 2px;
+    }
+    .google-login-btn.loading .loading { display: inline-block; }
+    .google-login-btn.loading .btn-text { opacity: 0.56; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Divider — thin rule with inline label */
+    .divider {
+      margin: 28px 0 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .divider::before,
+    .divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--ap-ink-08);
+    }
+    .divider-text {
+      font-family: var(--ap-font-text);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: -0.008em;
+      color: var(--ap-ink-48);
+      white-space: nowrap;
+    }
+
+    /* Footer */
+    .login-footer {
+      font-family: var(--ap-font-text);
+      font-size: 12px;
+      line-height: 1.33;
+      color: var(--ap-ink-48);
+    }
+    .footer-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .footer-copy { color: var(--ap-ink-48); }
+    .footer-sep { color: var(--ap-ink-24); }
+    .footer-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--ap-link);
+      text-decoration: none;
+      transition: opacity var(--ap-dur-fast) var(--ap-ease);
+    }
+    .footer-link:hover { text-decoration: underline; }
+    @media (prefers-color-scheme: dark) {
+      .footer-link { color: var(--ap-link-dark); }
+    }
+    .footer-link svg { display: block; }
+    .footer-link-label { letter-spacing: -0.008em; }
+
+    /* Cache-clear transient toast (?clear=1 flow) */
+    .ap-clear-toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--ap-surface);
+      border: 1px solid var(--ap-ink-08);
+      color: var(--ap-ink);
+      padding: 28px 32px;
+      border-radius: var(--ap-r-xl);
+      box-shadow: var(--ap-shadow-card);
+      z-index: 999999;
+      font-family: var(--ap-font-text);
+      text-align: center;
+      min-width: 220px;
+      animation: apCardIn 360ms var(--ap-ease-spring) both;
+    }
+    .ap-clear-toast__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(0,113,227,.10);
+      color: var(--ap-blue);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+    .ap-clear-toast__title {
+      font-family: var(--ap-font-display);
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.012em;
+      color: var(--ap-ink);
+      margin-bottom: 4px;
+    }
+    .ap-clear-toast__body {
+      font-size: 13px;
+      color: var(--ap-ink-64);
+      letter-spacing: -0.008em;
+    }
+
+    ::selection { background: rgba(0,113,227,.20); color: inherit; }
+    @media (prefers-color-scheme: dark) {
+      ::selection { background: rgba(41,151,255,.28); }
+    }
+    :focus-visible {
+      outline: 2px solid var(--ap-blue);
+      outline-offset: 2px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .login-card { padding: 44px 32px 36px; }
+      .login-title { font-size: 28px; }
+      .login-subtitle { font-size: 16px; margin-bottom: 32px; }
+    }
+    @media (max-width: 480px) {
+      body { padding: 20px 16px; }
+      .login-card {
+        padding: 36px 24px 28px;
+        border-radius: var(--ap-r-xl);
+      }
+      .logo { width: 48px; height: 48px; margin-bottom: 16px; }
+      .login-title { font-size: 24px; }
+      .login-subtitle { font-size: 15px; margin-bottom: 28px; }
+      .google-login-btn { padding: 11px 16px; font-size: 14px; }
+      .language-switcher { top: 12px; right: 12px; }
+      .divider { margin: 22px 0 18px; }
+    }
+    @media (max-width: 375px) {
+      .login-card { padding: 32px 20px 24px; }
+      .login-title { font-size: 22px; }
+      .login-subtitle { font-size: 14px; margin-bottom: 24px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0ms !important;
+        animation-duration: 0ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 语言切换器 -->
+  <div class="language-switcher" id="languageSwitcher">
+    <button class="lang-dropdown-toggle" id="langDropdownToggle" aria-haspopup="listbox" aria-expanded="false">
+      <div class="lang-current">
+        <img src="static/flags/zh.svg" alt="中文" class="flag-icon" id="currentFlag" onerror="this.style.display='none'">
+        <span id="currentLangName">中文</span>
+      </div>
+      <div class="lang-arrow" aria-hidden="true"></div>
+    </button>
+    <div class="lang-dropdown-menu" id="langDropdownMenu" role="listbox">
+      <button class="lang-option" data-lang="zh" data-name="中文" role="option">
+        <img src="static/flags/zh.svg" alt="中文" class="flag-icon" onerror="this.style.display='none'">
+        <span>中文</span>
+      </button>
+      <button class="lang-option" data-lang="ja" data-name="日本語" role="option">
+        <img src="static/flags/ja.svg" alt="日本語" class="flag-icon" onerror="this.style.display='none'">
+        <span>日本語</span>
+      </button>
+      <button class="lang-option" data-lang="en" data-name="English" role="option">
+        <img src="static/flags/en.svg" alt="English" class="flag-icon" onerror="this.style.display='none'">
+        <span>English</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 登录容器 -->
+  <main class="login-container" role="main">
+    <div class="login-card">
+      <div class="logo-container">
+        <div class="logo">
+          <img src="static/logo.png" alt="読み聞く庵 Logo">
+        </div>
+        <h1 class="login-title" data-i18n="title">欢迎来到 読み聞く庵</h1>
+        <p class="login-subtitle" data-i18n="subtitle">记录语言的风土，探索文字的奥秘</p>
+      </div>
+
+      <button class="google-login-btn" id="googleLoginBtn" type="button">
+        <svg class="google-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        <span class="btn-text" data-i18n="loginButton">使用 Google 账号登录</span>
+        <span class="loading" aria-hidden="true"></span>
+      </button>
+
+      <div class="divider">
+        <span class="divider-text" data-i18n="divider">安全且快速</span>
+      </div>
+
+      <div class="login-footer">
+        <div class="footer-inner">
+          <span class="footer-copy">© YomiKiku-an</span>
+          <span class="footer-sep" aria-hidden="true">•</span>
+          <a href="https://github.com/LeiGaoRobot/yomikiku-an" target="_blank" rel="noreferrer noopener" class="footer-link" aria-label="GitHub">
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" fill="currentColor"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.42c.58.11.8-.25.8-.56v-2.02c-3.26.71-3.95-1.4-3.95-1.4-.53-1.36-1.3-1.72-1.3-1.72-1.06-.72.08-.71.08-.71 1.18.08 1.8 1.21 1.8 1.21 1.04 1.79 2.73 1.27 3.4.97.11-.76.41-1.27.75-1.56-2.6-.3-5.33-1.3-5.33-5.8 0-1.28.46-2.32 1.21-3.14-.12-.3-.52-1.52.11-3.17 0 0 .98-.31 3.2 1.2.94-.26 1.95-.39 2.95-.39s2.01.13 2.95.39c2.22-1.51 3.19-1.2 3.19-1.2.64 1.65.24 2.87.12 3.17.76.82 1.21 1.86 1.21 3.14 0 4.51-2.73 5.5-5.34 5.79.42.36.8 1.08.8 2.18v3.23c0 .31.21.68.81.56A11.5 11.5 0 0 0 12 .5Z"></path></svg>
+            <span class="footer-link-label">GitHub</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    // Import Firebase SDK
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-analytics.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-auth.js";
+
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyCULsnd2JYsVTbMP-XTSOaCFS7ae4-a2hw",
+      authDomain: "fudoki-f370e.firebaseapp.com",
+      projectId: "fudoki-f370e",
+      storageBucket: "fudoki-f370e.firebasestorage.app",
+      messagingSenderId: "1031570984525",
+      appId: "1:1031570984525:web:6b173b3764a99ed0091604",
+      measurementId: "G-747S3VQ0YJ"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    const translations = {
+      zh: {
+        title: '欢迎来到 読み聞く庵',
+        subtitle: '记录语言的风土，探索文字的奥秘',
+        loginButton: '使用 Google 账号登录',
+        divider: '安全且快速',
+        footerText: '继续即表示您同意我们的',
+        terms: '服务条款',
+        and: '和',
+        privacy: '隐私政策',
+        termsAlert: '这里将显示服务条款',
+        privacyAlert: '这里将显示隐私政策',
+        loginClick: 'Google 登录被点击',
+        oauthNotice: 'Google 登录功能需要配置 OAuth。点击确定查看控制台。',
+        loginError: '登录失败，请重试',
+        pageTitle: '登录 - 読み聞く庵'
+      },
+      ja: {
+        title: '読み聞く庵 へようこそ',
+        subtitle: '言葉の風土を記し、文字の奥義を探る',
+        loginButton: 'Google アカウントでログイン',
+        divider: '安全で高速',
+        footerText: '続行することで、当社の',
+        terms: '利用規約',
+        and: 'と',
+        privacy: 'プライバシーポリシー',
+        termsAlert: 'ここに利用規約が表示されます',
+        privacyAlert: 'ここにプライバシーポリシーが表示されます',
+        loginClick: 'Google ログインがクリックされました',
+        oauthNotice: 'Google ログイン機能には OAuth の設定が必要です。OK をクリックしてコンソールを確認してください。',
+        loginError: 'ログインに失敗しました。もう一度お試しください',
+        pageTitle: 'ログイン - 読み聞く庵'
+      },
+      en: {
+        title: 'Welcome to YomiKiku-an',
+        subtitle: 'Record the landscape of language, explore the mysteries of text',
+        loginButton: 'Sign in with Google',
+        divider: 'Secure & Fast',
+        footerText: 'By continuing, you agree to our',
+        terms: 'Terms of Service',
+        and: 'and',
+        privacy: 'Privacy Policy',
+        termsAlert: 'Terms of Service will be displayed here',
+        privacyAlert: 'Privacy Policy will be displayed here',
+        loginClick: 'Google login clicked',
+        oauthNotice: 'Google login requires OAuth configuration. Click OK to check the console.',
+        loginError: 'Login failed, please try again',
+        pageTitle: 'Login - YomiKiku-an'
+      }
+    };
+
+    const langNames = {
+      zh: { name: '中文', flag: 'static/flags/zh.svg' },
+      ja: { name: '日本語', flag: 'static/flags/ja.svg' },
+      en: { name: 'English', flag: 'static/flags/en.svg' }
+    };
+
+    let currentLang = localStorage.getItem('yomikikuan_lang') || 'zh';
+
+    const languageSwitcher = document.getElementById('languageSwitcher');
+    const langDropdownToggle = document.getElementById('langDropdownToggle');
+    const langDropdownMenu = document.getElementById('langDropdownMenu');
+    const currentFlag = document.getElementById('currentFlag');
+    const currentLangName = document.getElementById('currentLangName');
+
+    function updateLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('yomikikuan_lang', lang);
+      document.documentElement.lang = lang;
+      document.title = translations[lang].pageTitle;
+
+      document.querySelectorAll('[data-i18n]').forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        if (translations[lang][key]) {
+          element.textContent = translations[lang][key];
+        }
+      });
+
+      currentFlag.src = langNames[lang].flag;
+      currentFlag.alt = langNames[lang].name;
+      currentLangName.textContent = langNames[lang].name;
+
+      document.querySelectorAll('.lang-option').forEach(option => {
+        option.classList.toggle('active', option.getAttribute('data-lang') === lang);
+      });
+
+      languageSwitcher.classList.remove('open');
+      langDropdownToggle.setAttribute('aria-expanded', 'false');
+    }
+
+    langDropdownToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const willOpen = !languageSwitcher.classList.contains('open');
+      languageSwitcher.classList.toggle('open');
+      langDropdownToggle.setAttribute('aria-expanded', String(willOpen));
+    });
+
+    document.querySelectorAll('.lang-option').forEach(option => {
+      option.addEventListener('click', () => {
+        const lang = option.getAttribute('data-lang');
+        updateLanguage(lang);
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!languageSwitcher.contains(e.target)) {
+        languageSwitcher.classList.remove('open');
+        langDropdownToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    updateLanguage(currentLang);
+
+    let authCheckCompleted = false;
+    onAuthStateChanged(auth, async (user) => {
+      if (authCheckCompleted) return;
+      authCheckCompleted = true;
+
+      const isLoggingOut = sessionStorage.getItem('yomikikuan_logging_out');
+      if (isLoggingOut) {
+        console.log('User is logging out, clearing auth state...');
+        if (user) {
+          try {
+            await auth.signOut();
+            console.log('Firebase auth cleared');
+          } catch (error) {
+            console.error('Error signing out:', error);
+          }
+        }
+        localStorage.removeItem('yomikikuan_user');
+        sessionStorage.removeItem('yomikikuan_logging_out');
+        console.log('Staying on login page');
+        return;
+      }
+
+      if (user) {
+        console.log('User already signed in, redirecting to index...', user.email);
+        localStorage.setItem('yomikikuan_user', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL
+        }));
+        sessionStorage.removeItem('yomikikuan_logging_out');
+        window.location.href = 'index.html';
+      } else {
+        console.log('User not signed in, showing login page');
+      }
+    });
+
+    async function signInWithGoogle() {
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const token = credential.accessToken;
+        const user = result.user;
+
+        console.log('Login successful:', user);
+
+        sessionStorage.removeItem('yomikikuan_logging_out');
+
+        localStorage.setItem('yomikikuan_user', JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL
+        }));
+
+        console.log('Redirecting to index.html...');
+        window.location.href = 'index.html';
+
+        return user;
+      } catch (error) {
+        const errorCode = error.code;
+        const errorMessage = error.message;
+        const email = error.customData?.email;
+        const credential = GoogleAuthProvider.credentialFromError(error);
+
+        console.error('Login error:', errorCode, errorMessage);
+        throw error;
+      }
+    }
+
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
+
+    googleLoginBtn.addEventListener('click', async () => {
+      googleLoginBtn.classList.add('loading');
+      googleLoginBtn.disabled = true;
+
+      try {
+        await signInWithGoogle();
+      } catch (error) {
+        console.error('Login error:', error);
+        googleLoginBtn.classList.remove('loading');
+        googleLoginBtn.disabled = false;
+
+        let errorMsg = translations[currentLang].loginError;
+        if (error.code === 'auth/popup-closed-by-user') {
+          errorMsg = currentLang === 'zh' ? '登录已取消' :
+                     currentLang === 'ja' ? 'ログインがキャンセルされました' :
+                     'Login cancelled';
+        } else if (error.code === 'auth/popup-blocked') {
+          errorMsg = currentLang === 'zh' ? '弹窗被阻止，请允许弹窗后重试' :
+                     currentLang === 'ja' ? 'ポップアップがブロックされました' :
+                     'Popup blocked, please allow popups';
+        }
+        alert(errorMsg);
+      }
+    });
+
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !googleLoginBtn.disabled) {
+        googleLoginBtn.click();
+      }
+    });
+  </script>
+</body>
+</html>

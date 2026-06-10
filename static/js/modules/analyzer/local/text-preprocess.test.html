@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/local/text-preprocess.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/local/text-preprocess.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    // Silence the module's debug console.log calls to keep test output readable.
+    const origLog = console.log;
+    console.log = () => {};
+
+    import { filterParentheses, computeStructureSignature } from './text-preprocess.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ──── filterParentheses ────
+
+    check('filter: empty string → empty', filterParentheses('') === '');
+    check('filter: null pass-through', filterParentheses(null) === null);
+    check('filter: undefined pass-through', filterParentheses(undefined) === undefined);
+    check('filter: number coerced to string',
+      filterParentheses(123) === '123');
+
+    check('filter: kana-only zenkaku stripped',
+      filterParentheses('あいう（かな）えお') === 'あいうえお');
+    check('filter: kanji-bearing zenkaku kept',
+      filterParentheses('読書（読み書き）です') === '読書（読み書き）です');
+    check('filter: english-bearing zenkaku kept',
+      filterParentheses('テスト（test）') === 'テスト（test）');
+    check('filter: katakana-only zenkaku stripped',
+      filterParentheses('猫（ニャン）') === '猫');
+    check('filter: hiragana-only zenkaku stripped',
+      filterParentheses('家（うち）に帰る') === '家に帰る');
+
+    check('filter: kana-only hankaku stripped',
+      filterParentheses('hello (かな) world') === 'hello  world');
+    check('filter: kanji-bearing hankaku kept',
+      filterParentheses('hello (日本) world') === 'hello (日本) world');
+    check('filter: english-bearing hankaku kept',
+      filterParentheses('hello (abc) world') === 'hello (abc) world');
+
+    check('filter: multiple zenkaku each evaluated independently',
+      filterParentheses('A（かな）B（漢字）C（kana mixed）')
+        === 'AB（漢字）C（kana mixed）');
+    check('filter: mixed zenkaku + hankaku',
+      filterParentheses('A（かな）B(test)C(かな)')
+        === 'AB(test)C');
+
+    check('filter: digit-only parens stripped (no kanji/english)',
+      filterParentheses('A（123）B') === 'AB');
+    check('filter: mixed digit+english kept (english bearing)',
+      filterParentheses('A（v2）B') === 'A（v2）B');
+
+    check('filter: nested-looking — first match is greedy up to first ）',
+      // First match consumes 「（あ（い）」 (kana-only, stripped); 「う）」 has no
+      // opening 「（」 left so it stays as-is.
+      filterParentheses('（あ（い）う）') === 'う）');
+
+    check('filter: no parens unchanged',
+      filterParentheses('plain text 日本語') === 'plain text 日本語');
+
+    check('filter: preserves leading/trailing whitespace',
+      filterParentheses('  （かな）  ') === '    ');
+
+    // ──── computeStructureSignature ────
+
+    check('sig: empty string → "0|0"', computeStructureSignature('') === '0|0');
+    check('sig: null → "0|0"', computeStructureSignature(null) === '0|0');
+    check('sig: undefined → "0|0"', computeStructureSignature(undefined) === '0|0');
+    check('sig: whitespace only → "0|0"',
+      computeStructureSignature('   \n\n  \t  ') === '0|0');
+
+    check('sig: single line, single sentence (no terminator)',
+      computeStructureSignature('hello') === '1|1');
+    check('sig: single sentence with 。',
+      computeStructureSignature('こんにちは。') === '1|1');
+    check('sig: two sentences with 。',
+      computeStructureSignature('こんにちは。さようなら。') === '1|2');
+    check('sig: trailing terminator does not add empty sentence',
+      computeStructureSignature('one.two.') === '1|2');
+
+    check('sig: ASCII period sentence split',
+      computeStructureSignature('abc. def.') === '1|2');
+    check('sig: ! and ? terminators',
+      computeStructureSignature('hi! there? ok') === '1|3');
+    check('sig: full-width ？ is a terminator (but ！ is NOT — char class only has ASCII !)',
+      computeStructureSignature('やった！本当？うん') === '1|2');
+    check('sig: ；; terminators',
+      computeStructureSignature('a；b;c') === '1|3');
+
+    check('sig: two lines without terminators are still ONE sentence (regex has no \\n)',
+      computeStructureSignature('one\ntwo') === '2|1');
+    check('sig: blank-line collapses by \\n+ in line count',
+      computeStructureSignature('one\n\n\ntwo') === '2|1');
+    check('sig: three lines mixed — \\n stays inside sentences (only 。!?;: split)',
+      // 'a。b。\nc\nd。e' splits on 。 → ['a','b','\nc\nd','e']; 4 non-empty after trim.
+      computeStructureSignature('a。b。\nc\nd。e') === '3|4');
+
+    check('sig: leading/trailing whitespace trimmed before split',
+      computeStructureSignature('   hello   ') === '1|1');
+
+    // ──── window export ────
+
+    check('exposes window.YomikikuanTextPreprocess',
+      typeof window.YomikikuanTextPreprocess === 'object'
+      && typeof window.YomikikuanTextPreprocess.filterParentheses === 'function'
+      && typeof window.YomikikuanTextPreprocess.computeStructureSignature === 'function');
+
+    // Restore console.log for the renderer below.
+    console.log = origLog;
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>backup / index test</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; max-width: 920px; margin: 0 auto; }
+    h1 { margin-top: 0; }
+    pre { background: #f4f4f5; padding: 12px; border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
+    .pass { color: #0a7f3f; font-weight: 600; }
+    .fail { color: #c62828; font-weight: 600; }
+    .warn { color: #b26a00; }
+  </style>
+</head>
+<body>
+  <h1>backup/index.js — schema v3 + v2 compat + SRS merge</h1>
+  <p>
+    Verifies <code>collectBackupPayload</code> emits schema v3 with expected
+    shape, and <code>applyBackup</code> round-trips documents/settings/SRS
+    plus v2 backups (no <code>data.srs</code>) import without clobbering
+    local SRS state (merge-by-id).
+  </p>
+  <p><strong>Run order matters</strong>: the test mutates <code>localStorage</code>
+    and <code>yomikikuan-srs</code>. A snapshot is taken at start and restored
+    in <code>finally</code>. If the page is closed mid-run you may see
+    synthetic rows — they all start with <code>backup_test_</code> and can be
+    deleted from the vocab panel.</p>
+  <pre id="out">booting…</pre>
+
+  <script type="module">
+    import { collectBackupPayload, applyBackup } from './index.js';
+
+    // Wire minimal SRS hooks for the test: applyBackup reads
+    // window.__yomikikuanRestoreSrs and collectBackupPayload reads
+    // window.__yomikikuanDumpSrs. We mount the real srs/store module.
+    import * as srs from '../srs/store.js';
+    window.__yomikikuanDumpSrs = () => srs.dumpAll();
+    window.__yomikikuanRestoreSrs = (payload) => srs.restoreAll(payload);
+
+    const out = document.getElementById('out');
+    out.textContent = '';
+    const log = (line) => { out.textContent += line + '\n'; };
+    const append = (html) => { out.insertAdjacentHTML('beforeend', html + '\n'); };
+
+    let passed = 0, failed = 0;
+    function check(name, cond, details) {
+      if (cond) { append(`<span class="pass">PASS</span> ${name}`); passed++; }
+      else {
+        append(`<span class="fail">FAIL</span> ${name}`);
+        if (details != null) log('  details: ' + (typeof details === 'string' ? details : JSON.stringify(details)));
+        failed++;
+      }
+    }
+
+    const LS_KEYS_TOUCHED = [
+      'yomikikuan_texts', 'yomikikuan_activeId',
+      'yomikikuan_theme', 'yomikikuan_lang',
+    ];
+    const lsSnapshot = {};
+    LS_KEYS_TOUCHED.forEach((k) => { lsSnapshot[k] = localStorage.getItem(k); });
+
+    // Track SRS rows inserted so we can clean them.
+    const inserted = { vocab: new Set(), mistakes: new Set() };
+
+    try {
+      // -------- collectBackupPayload: shape + v3 --------
+      log('--- collectBackupPayload shape ---');
+
+      const sampleDocs = [
+        { id: 'backup_test_doc_A', title: 'A', content: 'こんにちは' },
+        { id: 'backup_test_doc_B', title: 'B', content: '今日は' },
+      ];
+      const sampleSettings = {
+        yomikikuan_theme: 'paper',
+        yomikikuan_lang: 'ja',
+      };
+
+      const payload = await collectBackupPayload({
+        getDocuments: () => sampleDocs,
+        getActiveId:  () => 'backup_test_doc_A',
+        getSettings:  () => sampleSettings,
+      });
+
+      check('payload.app = YomiKiku-an', payload.app === 'YomiKiku-an');
+      check('payload.version = 3',       payload.version === 3);
+      check('createdAt is ISO-8601',     typeof payload.createdAt === 'string' && !isNaN(Date.parse(payload.createdAt)));
+      check('data.documents matches',    JSON.stringify(payload.data.documents) === JSON.stringify(sampleDocs));
+      check('data.activeId preserved',   payload.data.activeId === 'backup_test_doc_A');
+      check('data.settings preserved',   payload.data.settings.yomikikuan_theme === 'paper' && payload.data.settings.yomikikuan_lang === 'ja');
+      check('data.srs present',          payload.data.srs && Array.isArray(payload.data.srs.vocab) && Array.isArray(payload.data.srs.mistakes),
+            payload.data.srs);
+
+      // -------- collectBackupPayload: defensive fallbacks --------
+      log('--- collectBackupPayload defensive fallbacks ---');
+
+      const empty = await collectBackupPayload({}); // no ctx
+      check('empty ctx → documents = []', Array.isArray(empty.data.documents) && empty.data.documents.length === 0);
+      check('empty ctx → activeId = ""', empty.data.activeId === '');
+      check('empty ctx → settings = {}', empty.data.settings && typeof empty.data.settings === 'object');
+
+      const throwCtx = await collectBackupPayload({
+        getDocuments: () => { throw new Error('boom'); },
+        getActiveId: () => { throw new Error('boom'); },
+        getSettings: () => { throw new Error('boom'); },
+      });
+      check('throwing getters → defaults (docs)', Array.isArray(throwCtx.data.documents));
+      check('throwing getters → defaults (active)', throwCtx.data.activeId === '');
+
+      // -------- applyBackup: round-trip --------
+      log('--- applyBackup round-trip ---');
+
+      // Seed SRS with a pre-existing row so merge-by-id semantics are observable.
+      const preExistingVocabId = await srs.addVocab({
+        id: 'backup_test_existing_v',
+        word: 'existing', reading: 'existing', gloss: 'existing gloss',
+      });
+      inserted.vocab.add(preExistingVocabId);
+      const preExistingMistakeId = await srs.addMistake({
+        id: 'backup_test_existing_m',
+        stem: 'existing stem', options: ['a','b','c','d'],
+        correctIndex: 0, userAnswerIndex: 1,
+      });
+      inserted.mistakes.add(preExistingMistakeId);
+
+      // Payload simulating an import that contains one NEW row (ok) + one
+      // row with the SAME id as preExistingVocab (should merge, keep local).
+      const importedPayload = {
+        app: 'YomiKiku-an',
+        version: 3,
+        createdAt: new Date().toISOString(),
+        data: {
+          documents: sampleDocs,
+          activeId: 'backup_test_doc_B',
+          settings: { yomikikuan_theme: 'sakura' },
+          srs: {
+            vocab: [
+              // Same id as preExisting — must NOT clobber local row.
+              {
+                id: 'backup_test_existing_v',
+                word: 'REMOTE_OVERWRITE_ATTEMPT',
+                reading: 'remote', gloss: 'remote gloss',
+                createdAt: Date.now() - 86400000,
+                lastReviewedAt: 0, nextDueAt: Date.now(),
+                interval: 99, repetitions: 99, easiness: 2.5,
+              },
+              // Brand-new row — should be inserted.
+              {
+                id: 'backup_test_new_v',
+                word: 'newword', reading: 'new', gloss: 'new gloss',
+                createdAt: Date.now(), lastReviewedAt: 0, nextDueAt: Date.now(),
+                interval: 0, repetitions: 0, easiness: 2.5,
+              },
+            ],
+            mistakes: [
+              {
+                id: 'backup_test_new_m',
+                stem: 'new stem', options: ['w','x','y','z'],
+                correctIndex: 2, userAnswerIndex: 3,
+                createdAt: Date.now(), lastReviewedAt: 0, nextDueAt: Date.now(),
+                interval: 0, repetitions: 0, easiness: 2.5,
+              },
+            ],
+          },
+        },
+      };
+      inserted.vocab.add('backup_test_new_v');
+      inserted.mistakes.add('backup_test_new_m');
+
+      let onSrsRestoredCalled = false;
+      await applyBackup(importedPayload, {
+        LS: { texts: 'yomikikuan_texts', activeId: 'yomikikuan_activeId' },
+        onSrsRestored: (res) => { onSrsRestoredCalled = true; },
+      });
+
+      check('localStorage yomikikuan_texts restored',
+            localStorage.getItem('yomikikuan_texts') === JSON.stringify(sampleDocs));
+      check('localStorage yomikikuan_activeId restored',
+            localStorage.getItem('yomikikuan_activeId') === 'backup_test_doc_B');
+      check('settings entry restored (yomikikuan_theme)',
+            localStorage.getItem('yomikikuan_theme') === 'sakura');
+      check('onSrsRestored callback fired', onSrsRestoredCalled);
+
+      // SRS merge-by-id: local row should still be 'existing', not 'REMOTE_OVERWRITE_ATTEMPT'
+      const vocabList = await srs.listVocab();
+      const localRow = vocabList.find((v) => v.id === 'backup_test_existing_v');
+      check('merge-by-id kept local vocab row',
+            localRow && localRow.word === 'existing',
+            localRow);
+
+      // New row should be inserted.
+      const newRow = vocabList.find((v) => v.id === 'backup_test_new_v');
+      check('new vocab row inserted', newRow && newRow.word === 'newword', newRow);
+
+      const mistakeList = await srs.listMistakes();
+      const newM = mistakeList.find((m) => m.id === 'backup_test_new_m');
+      check('new mistake row inserted', newM && newM.stem === 'new stem', newM);
+
+      // -------- applyBackup: v2 compat (no data.srs) --------
+      log('--- applyBackup v2 compat (no data.srs) ---');
+
+      const v2Payload = {
+        app: 'YomiKiku-an',
+        version: 2,
+        createdAt: new Date().toISOString(),
+        data: {
+          documents: sampleDocs,
+          activeId: 'backup_test_doc_A',
+          settings: { yomikikuan_theme: 'dark' },
+          // NO srs key
+        },
+      };
+
+      let v2Threw = false;
+      try {
+        await applyBackup(v2Payload, { LS: { texts: 'yomikikuan_texts', activeId: 'yomikikuan_activeId' } });
+      } catch (e) {
+        v2Threw = true;
+        log('  applyBackup threw: ' + e.message);
+      }
+      check('v2 payload imports without throwing', !v2Threw);
+
+      // Settings from v2 must still apply.
+      check('v2: settings entry applied (theme=dark)',
+            localStorage.getItem('yomikikuan_theme') === 'dark');
+
+      // v2 import must NOT wipe local SRS.
+      const vocabAfterV2 = await srs.listVocab();
+      const localAfterV2 = vocabAfterV2.find((v) => v.id === 'backup_test_existing_v');
+      check('v2 import did not wipe local SRS rows',
+            localAfterV2 && localAfterV2.word === 'existing',
+            localAfterV2);
+
+      // -------- applyBackup: invalid payloads --------
+      log('--- applyBackup invalid payloads ---');
+
+      let threwOnNull = false;
+      try { await applyBackup(null, {}); } catch (_) { threwOnNull = true; }
+      check('applyBackup(null) throws', threwOnNull);
+
+      let threwOnNoData = false;
+      try { await applyBackup({ version: 3 }, {}); } catch (_) { threwOnNoData = true; }
+      check('applyBackup({}) without .data throws', threwOnNoData);
+    } catch (e) {
+      append(`<span class="fail">FAIL (threw)</span> ${e.message}`);
+      console.error(e);
+      failed++;
+    } finally {
+      // -------- cleanup --------
+      log('--- cleanup ---');
+      try {
+        for (const id of inserted.vocab) await srs.removeVocab(id);
+        for (const id of inserted.mistakes) await srs.removeMistake(id);
+      } catch (e) { log('  cleanup SRS rows: ' + e.message); }
+
+      // Restore localStorage snapshot.
+      LS_KEYS_TOUCHED.forEach((k) => {
+        const v = lsSnapshot[k];
+        if (v == null) localStorage.removeItem(k);
+        else localStorage.setItem(k, v);
+      });
+      log(`cleaned ${inserted.vocab.size} vocab + ${inserted.mistakes.size} mistakes; restored ${LS_KEYS_TOUCHED.length} ls keys`);
+
+      append(`\n<strong>${passed} PASS / ${failed} FAIL</strong>`);
+    }
+  </script>
+</body>
+</html>

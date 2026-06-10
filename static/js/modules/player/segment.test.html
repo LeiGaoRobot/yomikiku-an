@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>player/segment.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>player/segment.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { splitTextByPunctuation } from './segment.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    check('empty string → []',
+      JSON.stringify(splitTextByPunctuation('')) === '[]');
+    check('null → []', JSON.stringify(splitTextByPunctuation(null)) === '[]');
+    check('whitespace-only → []',
+      JSON.stringify(splitTextByPunctuation('   \n  ')) === '[]');
+    check('punctuation-only → [] (no L/N codepoints)',
+      JSON.stringify(splitTextByPunctuation('、。！？')) === '[]');
+
+    {
+      const s = splitTextByPunctuation('日本語を勉強します。');
+      check('single sentence ending in 。 → 1 segment, heavy pause',
+        s.length === 1 && s[0].text === '日本語を勉強します。' && s[0].pause === 800,
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('一、二、三');
+      check('comma list → 3 segments, last pause=0, others=400',
+        s.length === 3 &&
+        s[0].pause === 400 && s[1].pause === 400 && s[2].pause === 0,
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('Question?Answer!');
+      check('half-width ?! split into segments with heavy pause',
+        s.length === 2 && s[0].pause === 800 && s[1].pause === 800,
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('A:B：C');
+      check('colon : / ： split with light pause',
+        s.length === 3 && s[0].pause === 200 && s[1].pause === 200,
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('待って…考える');
+      check('Chinese ellipsis … → ellipsis pause 1000',
+        s.length === 2 && s[0].pause === 1000,
+        JSON.stringify(s));
+    }
+    {
+      const s = splitTextByPunctuation('待って……考える');
+      check('multiple … chars consumed as one ellipsis',
+        s.length === 2 && s[0].text === '待って……',
+        JSON.stringify(s));
+    }
+    {
+      const s = splitTextByPunctuation('Wait...go');
+      check('English ... ellipsis → ellipsis pause 1000',
+        s.length === 2 && s[0].text === 'Wait...' && s[0].pause === 1000,
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('一行目\n二行目');
+      check('newline forces heavy pause + segment break',
+        s.length === 2 && s[0].pause === 800 && s[0].text === '一行目',
+        JSON.stringify(s));
+    }
+    {
+      const s = splitTextByPunctuation('crlf\r\nbreak');
+      check('CRLF normalized to LF',
+        s.length === 2 && s[0].text === 'crlf',
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('hello、、、world');
+      check('punctuation chunks between text → middle empties dropped',
+        s[0].text === 'hello、' && s[s.length - 1].text === 'world',
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('hello world');
+      check('text without punctuation → single buffer-flush segment',
+        s.length === 1 && s[0].text === 'hello world' && s[0].pause === 0,
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation('a'.repeat(100));
+      check('long text without punctuation → single buffer-flush segment',
+        s.length === 1 && s[0].text.length === 100,
+        JSON.stringify(s).slice(0, 80));
+    }
+
+    {
+      const s = splitTextByPunctuation('今日は天気がいい、明日も晴れる予定です。');
+      check('mixed 、 then 。 → 2 segments with medium then heavy',
+        s.length === 2 && s[0].pause === 400 && s[1].pause === 800,
+        JSON.stringify(s));
+    }
+
+    {
+      const s = splitTextByPunctuation(';');
+      check('lone semicolon dropped (no speakable chars)',
+        JSON.stringify(s) === '[]');
+    }
+
+    {
+      const s = splitTextByPunctuation('A;B;C');
+      check('semicolon list → medium pause segments',
+        s.length === 3 && s[0].pause === 400 && s[1].pause === 400);
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

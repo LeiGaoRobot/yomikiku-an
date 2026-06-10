@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>youtube/tabs/listening.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>youtube/tabs/listening.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { render } from './listening.js';
+    const results = [];
+    const check = (n, c, d) => results.push({ name: n, pass: !!c, detail: d || '' });
+
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    render(root, { parsed: { videoId: 'abc12345678' }, meta: { title: 'T' }, maxDurationSec: 600 });
+
+    check('mode select rendered',  !!root.querySelector('#ytLisMode'));
+    check('level select rendered', !!root.querySelector('#ytLisLevel'));
+    check('count input rendered',  !!root.querySelector('#ytLisCount'));
+    check('generate button',       !!root.querySelector('#ytLisGo'));
+    check('status slot present',   !!root.querySelector('#ytLisStatus'));
+    check('out slot present',      !!root.querySelector('#ytLisOut'));
+    check('default level is N3',
+      root.querySelector('#ytLisLevel').value === 'N3');
+    check('default count is 3',
+      root.querySelector('#ytLisCount').value === '3');
+    check('mode select has options',
+      root.querySelectorAll('#ytLisMode option').length > 0);
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    document.getElementById('summary').innerHTML =
+      `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+        ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+      </h3>`;
+    const resultsRoot = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      resultsRoot.appendChild(row);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>reading/kana.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>reading/kana.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      toHiragana,
+      toKatakana,
+      normalizeKanaByScript,
+      escapeHtmlForRuby,
+      getRomaji,
+    } from './kana.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ---------- toHiragana ----------
+    check('toHiragana empty → empty', toHiragana('') === '');
+    check('toHiragana null → empty', toHiragana(null) === '');
+    check('toHiragana basic katakana', toHiragana('カタカナ') === 'かたかな');
+    check('toHiragana mixed kana+kanji preserves kanji',
+      toHiragana('日本ノガクシュウ') === '日本のがくしゅう');
+    check('toHiragana preserves ASCII', toHiragana('ABC') === 'ABC');
+    check('toHiragana preserves long-vowel mark ー',
+      toHiragana('ラーメン') === 'らーめん');
+    check('toHiragana already-hiragana passthrough',
+      toHiragana('ひらがな') === 'ひらがな');
+
+    // ---------- toKatakana ----------
+    check('toKatakana empty → empty', toKatakana('') === '');
+    check('toKatakana basic hiragana', toKatakana('ひらがな') === 'ヒラガナ');
+    check('toKatakana already-katakana passthrough',
+      toKatakana('カタカナ') === 'カタカナ');
+    check('toKatakana mixed preserves kanji',
+      toKatakana('日本のがくしゅう') === '日本ノガクシュウ');
+
+    // ---------- round-trip property ----------
+    const samples = ['こんにちは', 'やまだ', 'おかえりなさい', 'にほんご', 'ありがとう'];
+    samples.forEach(h => {
+      check(`round-trip ${h}: hira→kata→hira preserved`,
+        toHiragana(toKatakana(h)) === h);
+    });
+
+    // ---------- normalizeKanaByScript ----------
+    check("normalize('ひらがな','katakana') → ヒラガナ",
+      normalizeKanaByScript('ひらがな', 'katakana') === 'ヒラガナ');
+    check("normalize('カタカナ','hiragana') → かたかな",
+      normalizeKanaByScript('カタカナ', 'hiragana') === 'かたかな');
+    check("normalize empty returns ''",
+      normalizeKanaByScript('', 'hiragana') === '');
+    check("normalize default (no script) → katakana branch",
+      normalizeKanaByScript('ひらがな', undefined) === 'ヒラガナ');
+
+    // ---------- escapeHtmlForRuby ----------
+    check('escapeHtmlForRuby <', escapeHtmlForRuby('<') === '&lt;');
+    check('escapeHtmlForRuby >', escapeHtmlForRuby('>') === '&gt;');
+    check('escapeHtmlForRuby &', escapeHtmlForRuby('&') === '&amp;');
+    check('escapeHtmlForRuby "', escapeHtmlForRuby('"') === '&quot;');
+    check("escapeHtmlForRuby '", escapeHtmlForRuby("'") === '&#39;');
+    check('escapeHtmlForRuby null → ""', escapeHtmlForRuby(null) === '');
+    check('escapeHtmlForRuby preserves japanese',
+      escapeHtmlForRuby('日本語') === '日本語');
+    {
+      const open = '<' + 'div>';
+      const close = '<' + '/div>';
+      check('escapeHtmlForRuby escapes mixed string',
+        escapeHtmlForRuby(open + 'x' + close) === '&lt;div&gt;x&lt;/div&gt;');
+    }
+
+    // ---------- getRomaji ----------
+    check('getRomaji empty → empty', getRomaji('') === '');
+    check('getRomaji null → empty', getRomaji(null) === '');
+    check('getRomaji basic vowels あいうえお → aiueo',
+      getRomaji('あいうえお') === 'aiueo');
+    check('getRomaji k-row → kakikukeko',
+      getRomaji('かきくけこ') === 'kakikukeko');
+    check('getRomaji shi/chi/tsu/fu Hepburn',
+      getRomaji('しちつふ') === 'shichitsufu');
+    check('getRomaji youon きゃ → kya', getRomaji('きゃ') === 'kya');
+    check('getRomaji youon しゅ → shu', getRomaji('しゅ') === 'shu');
+    check('getRomaji youon ちょ → cho', getRomaji('ちょ') === 'cho');
+    check('getRomaji sokuon っ doubles next consonant: きっと → kitto',
+      getRomaji('きっと') === 'kitto');
+    check('getRomaji sokuon + youon: しっちゃ → shiccha',
+      getRomaji('しっちゃ') === 'shiccha');
+    check('getRomaji ん before [bmp] becomes m: しんぱい → shimpai',
+      getRomaji('しんぱい') === 'shimpai');
+    check('getRomaji ん before vowel uses apostrophe: しんあい → shin\'ai',
+      getRomaji('しんあい') === "shin'ai");
+    check('getRomaji ん before consonant stays n: しんかい → shinkai',
+      getRomaji('しんかい') === 'shinkai');
+    check('getRomaji long-vowel ー uses macron: ラーメン → rāmen',
+      getRomaji('ラーメン') === 'rāmen');
+    check('getRomaji katakana input converted (traditional Hepburn ん→m before b): コンビニ → kombini',
+      getRomaji('コンビニ') === 'kombini');
+    check('getRomaji handles particle wo: を → wo',
+      getRomaji('を') === 'wo');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

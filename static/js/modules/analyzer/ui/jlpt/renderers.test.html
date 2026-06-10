@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>jlpt/renderers.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+    #scratch { display: none; }
+  </style>
+</head>
+<body>
+  <h1>jlpt/renderers.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+  <div id="scratch"></div>
+
+  <script type="module">
+    import {
+      escapeHtml,
+      diffHighlight,
+      formatDuration,
+      renderForMode,
+      renderScorecard,
+    } from './renderers.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ---------- escapeHtml ----------
+    check('escapeHtml escapes <', escapeHtml('<') === '&lt;');
+    check('escapeHtml escapes >', escapeHtml('>') === '&gt;');
+    check('escapeHtml escapes &', escapeHtml('&') === '&amp;');
+    check('escapeHtml escapes "', escapeHtml('"') === '&quot;');
+    check("escapeHtml escapes '", escapeHtml("'") === '&#39;');
+    check('escapeHtml passes through plain text',
+      escapeHtml('hello') === 'hello');
+    check('escapeHtml handles null', escapeHtml(null) === '');
+    check('escapeHtml handles undefined', escapeHtml(undefined) === '');
+    check('escapeHtml handles number', escapeHtml(42) === '42');
+    {
+      const open = '<' + 'script>';
+      const close = '<' + '/script>';
+      check('escapeHtml escapes mixed string',
+        escapeHtml(open + 'alert("x")' + close) ===
+          '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;');
+    }
+    check('escapeHtml preserves japanese',
+      escapeHtml('日本語<test>') === '日本語&lt;test&gt;');
+
+    // ---------- formatDuration ----------
+    check('formatDuration 0 → 0s', formatDuration(0) === '0s');
+    check('formatDuration 1000 → 1s', formatDuration(1000) === '1s');
+    check('formatDuration 30000 → 30s', formatDuration(30000) === '30s');
+    check('formatDuration 59999 rounds to 1m 0s',
+      formatDuration(59999) === '1m 0s',
+      `got: ${formatDuration(59999)}`);
+    check('formatDuration 60000 → 1m 0s', formatDuration(60000) === '1m 0s');
+    check('formatDuration 90000 → 1m 30s', formatDuration(90000) === '1m 30s');
+    check('formatDuration 125000 → 2m 5s', formatDuration(125000) === '2m 5s');
+    check('formatDuration null → 0s', formatDuration(null) === '0s');
+    check('formatDuration undefined → 0s',
+      formatDuration(undefined) === '0s');
+    check('formatDuration "abc" → 0s (NaN-safe)',
+      formatDuration('abc') === '0s');
+
+    // ---------- diffHighlight ----------
+    check('diffHighlight perfect match returns escaped truth',
+      diffHighlight('hello', 'hello') === 'hello');
+    check('diffHighlight empty user underscores each missing char',
+      (diffHighlight('', 'hello').match(/＿/g) || []).length === 5);
+    check('diffHighlight empty user + empty truth → (未输入) placeholder',
+      diffHighlight('', '').includes('未输入'));
+    check('diffHighlight different chars wrapped in <u>',
+      diffHighlight('hellp', 'hello').includes('<u') &&
+      diffHighlight('hellp', 'hello').includes('color:#ff3b30'));
+    check('diffHighlight escapes user content (XSS-safe)',
+      diffHighlight('<scr', 'hello').includes('&lt;'));
+    check('diffHighlight underscores missing chars (truth longer)',
+      diffHighlight('hi', 'hello').includes('＿'));
+    check('diffHighlight japanese match works',
+      diffHighlight('日本', '日本') === '日本');
+
+    // ---------- renderForMode ----------
+    const scratch = document.getElementById('scratch');
+
+    {
+      const el = document.createElement('div');
+      scratch.appendChild(el);
+      renderForMode(el, { mode: 'totally-bogus' }, {});
+      const status = el.querySelector('.jlpt-status');
+      check('renderForMode unknown mode renders .jlpt-status',
+        !!status && status.textContent.includes('未知模式'));
+    }
+
+    {
+      const el = document.createElement('div');
+      scratch.appendChild(el);
+      renderForMode(el, {
+        mode: 'dictation',
+        level: 'N3',
+        items: [{ sentence: 'こんにちは。', hint: '问候' }],
+      }, {});
+      check('renderForMode dictation appends children',
+        el.children.length > 0);
+    }
+
+    {
+      const el = document.createElement('div');
+      scratch.appendChild(el);
+      let threw = false;
+      try { renderForMode(el, { mode: 'kadai', items: [] }, {}); } catch (_) { threw = true; }
+      check('renderForMode empty kadai handled without throw', !threw);
+    }
+
+    // ---------- renderScorecard ----------
+    {
+      const el = document.createElement('div');
+      scratch.appendChild(el);
+      renderScorecard(el, {
+        total: 10,
+        correct: 7,
+        durationMs: 125000,
+        level: 'N3',
+        byMode: [
+          { mode: 'kadai', correct: 4, total: 5 },
+          { mode: 'gist',  correct: 3, total: 5 },
+        ],
+      }, {});
+      const root = el.querySelector('.jlpt-scorecard');
+      const total = el.querySelector('.sc-total');
+      const breakdown = el.querySelectorAll('.sc-row');
+      check('renderScorecard injects .jlpt-scorecard root', !!root);
+      check('renderScorecard shows percentage',
+        total && total.textContent === '70%');
+      check('renderScorecard shows duration in subtitle',
+        el.querySelector('.sc-subtitle')?.textContent.includes('2m 5s'));
+      check('renderScorecard renders one row per byMode entry',
+        breakdown.length === 2);
+    }
+
+    {
+      const el = document.createElement('div');
+      scratch.appendChild(el);
+      renderScorecard(el, { total: 0, correct: 0, durationMs: 0, level: 'N1', byMode: [] }, {});
+      check('renderScorecard 0/0 → 0% (no NaN)',
+        el.querySelector('.sc-total')?.textContent === '0%');
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

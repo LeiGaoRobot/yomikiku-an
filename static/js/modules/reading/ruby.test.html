@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>reading/ruby.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>reading/ruby.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { buildRubyMarkup, fallbackRuby } from './ruby.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    check('empty surface → empty', buildRubyMarkup('', 'よみ', 'katakana') === '');
+    check('null surface → empty', buildRubyMarkup(null, 'よみ', 'katakana') === '');
+    check('kana-only surface returns escaped surface (no ruby)',
+      buildRubyMarkup('ひらがな', 'ひらがな', 'hiragana') === 'ひらがな');
+    check('kanji surface but empty reading returns escaped surface',
+      buildRubyMarkup('日本', '', 'hiragana') === '日本');
+
+    {
+      const out = buildRubyMarkup('日本', 'にほん', 'hiragana');
+      check('pure-kanji + reading → single ruby tag (hiragana)',
+        out === '<ruby>日本<rt>にほん</rt></ruby>',
+        out);
+    }
+    {
+      const out = buildRubyMarkup('日本', 'にほん', 'katakana');
+      check('pure-kanji + reading converted to katakana',
+        out === '<ruby>日本<rt>ニホン</rt></ruby>',
+        out);
+    }
+    {
+      const out = buildRubyMarkup('書き出す', 'かきだす', 'hiragana');
+      check('書き出す per-segment splits into 2 rubies',
+        out === '<ruby>書<rt>か</rt></ruby>き<ruby>出<rt>だ</rt></ruby>す',
+        out);
+    }
+    {
+      const out = buildRubyMarkup('お父さん', 'おとうさん', 'hiragana');
+      check('お父さん with kana before+after kanji',
+        out === 'お<ruby>父<rt>とう</rt></ruby>さん',
+        out);
+    }
+    {
+      const out = buildRubyMarkup('食べる', 'たべる', 'hiragana');
+      check('食べる aligns 食=た, べる left as kana',
+        out === '<ruby>食<rt>た</rt></ruby>べる',
+        out);
+    }
+
+    {
+      const out = buildRubyMarkup('書き出す', 'かxx', 'hiragana');
+      check('mismatched reading triggers fallback path (no JS error)',
+        typeof out === 'string',
+        out.slice(0, 80));
+    }
+
+    {
+      const out = fallbackRuby('本', 'ほん', 'hiragana');
+      check('fallbackRuby pure-kanji wraps base in ruby',
+        out === '<ruby>本<rt>ほん</rt></ruby>',
+        out);
+    }
+    {
+      const out = fallbackRuby('ひらがな', 'ひらがな', 'hiragana');
+      check('fallbackRuby kana-only surface → no base → escape only',
+        out === 'ひらがな', out);
+    }
+    {
+      const out = fallbackRuby('お父さん', 'おとうさん', 'hiragana');
+      check('fallbackRuby strips leading お + trailing さん',
+        out === 'お<ruby>父<rt>とう</rt></ruby>さん',
+        out);
+    }
+    {
+      const out = fallbackRuby('お本ん', 'おん', 'hiragana');
+      check('fallbackRuby empty reading-after-strip → escape only',
+        out === 'お本ん', out);
+    }
+    {
+      const out = fallbackRuby('日本', 'にほん', 'katakana');
+      check('fallbackRuby script=katakana converts ruby text',
+        out === '<ruby>日本<rt>ニホン</rt></ruby>',
+        out);
+    }
+
+    {
+      const surface = '<' + 'b>日</b>';
+      const out = buildRubyMarkup(surface, 'ひ', 'hiragana');
+      check('buildRubyMarkup escapes < in surface (XSS-safe)',
+        out.includes('&lt;') && !out.includes('<b>'),
+        out.slice(0, 80));
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

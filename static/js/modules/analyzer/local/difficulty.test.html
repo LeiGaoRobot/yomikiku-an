@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>analyzer / difficulty test</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif; padding: 16px; }
+    pre { background: #f4f4f5; padding: 12px; border-radius: 6px; white-space: pre-wrap; }
+    .pass { color: #0a7f3f; font-weight: 600; }
+    .fail { color: #c62828; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>analyzeDifficulty() fixture</h1>
+  <p>Loads kuromoji + dictionary, runs three cases, prints PASS/FAIL.</p>
+  <pre id="out">booting…</pre>
+
+  <!-- Match classic-script load order from index.html -->
+  <script src="/static/libs/kuromoji.js"></script>
+  <script src="/static/libs/dict/dictionary-service.js"></script>
+  <script src="/static/js/dictionary.js"></script>
+
+  <script type="module">
+    import { analyzeDifficulty } from './difficulty.js';
+
+    const out = document.getElementById('out');
+    out.textContent = 'running…\n';
+    const log = (line) => { out.textContent += line + '\n'; };
+    const append = (html) => { out.insertAdjacentHTML('beforeend', html + '\n'); };
+
+    const cases = [
+      { text: 'これは本です。',                            expect: (r) => r.level === 'n5' },
+      { text: '経済政策の根幹を揺るがす事態となった。',        expect: (r) => ['n2', 'n1'].includes(r.level) },
+      { text: 'Hello world',                              expect: (r) => r.level === 'n/a' },
+    ];
+
+    const expectDesc = [
+      "level === 'n5'",
+      "level ∈ {'n2','n1'}",
+      "level === 'n/a'",
+    ];
+
+    let allPass = true;
+    for (let i = 0; i < cases.length; i++) {
+      const { text, expect } = cases[i];
+      log('--- case ' + (i + 1) + ' ---');
+      log('input: ' + JSON.stringify(text));
+      log('expect: ' + expectDesc[i]);
+      try {
+        const t0 = performance.now();
+        const result = await analyzeDifficulty(text);
+        const dt = (performance.now() - t0).toFixed(1);
+        log('result (' + dt + 'ms):');
+        log(JSON.stringify(result, null, 2));
+        const ok = expect(result);
+        if (ok) {
+          append('<span class="pass">PASS</span>');
+        } else {
+          append('<span class="fail">FAIL</span>');
+          allPass = false;
+        }
+      } catch (err) {
+        append('<span class="fail">FAIL (threw): ' + (err && err.message) + '</span>');
+        allPass = false;
+      }
+    }
+    log('');
+    append(allPass
+      ? '<span class="pass">ALL PASS</span>'
+      : '<span class="fail">SOME FAILED</span>');
+  </script>
+</body>
+</html>

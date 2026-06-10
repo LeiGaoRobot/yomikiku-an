@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>youtube/tabs/import.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>youtube/tabs/import.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { render } from './import.js';
+
+    const results = [];
+    const check = (n, c, d) => results.push({ name: n, pass: !!c, detail: d || '' });
+
+    const origFetch = window.fetch;
+    const origDm    = window.documentManager;
+    const origKey   = localStorage.getItem('yomikikuan_gemini_api_key');
+
+    try {
+      let createdContent = null;
+      window.documentManager = {
+        createDocument: (c) => { createdContent = c; return { id: 'new1', content: c }; },
+        setActiveId: () => {},
+        render: () => {},
+        loadActiveDocument: () => {},
+        getAllDocuments: () => [],
+        getActiveId: () => '',
+      };
+
+      // Randomise videoId to bypass any IDB cache hit from prior runs.
+      const VIDEO_ID = 'test' + Math.random().toString(36).slice(2, 9);
+      localStorage.setItem('yomikikuan_gemini_api_key', 'K');
+      window.fetch = async () => ({
+        ok: true, status: 200, json: async () => ({
+          candidates: [{ content: { parts: [{ text: 'これはテスト。\n二行目。' }] } }]
+        })
+      });
+
+      const root = document.createElement('div');
+      document.body.appendChild(root);
+      render(root, {
+        parsed: { videoId: VIDEO_ID },
+        meta: { title: 'T', author: 'A' },
+        maxDurationSec: 600,
+      });
+      check('CTA button rendered', !!root.querySelector('#ytImportBtn'));
+      check('status slot present', !!root.querySelector('#ytImportStatus'));
+
+      root.querySelector('#ytImportBtn').click();
+      const deadline = Date.now() + 3000;
+      while (createdContent == null && Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 50));
+      }
+      check('createDocument called',
+        typeof createdContent === 'string',
+        `createdContent=${createdContent && createdContent.slice(0, 30)}…`);
+      check('transcript text passed through (incl title)',
+        typeof createdContent === 'string'
+        && createdContent.includes('これはテスト。')
+        && createdContent.includes('# T'));
+    } finally {
+      window.fetch = origFetch;
+      if (origDm == null) delete window.documentManager;
+      else window.documentManager = origDm;
+      if (origKey == null) localStorage.removeItem('yomikikuan_gemini_api_key');
+      else localStorage.setItem('yomikikuan_gemini_api_key', origKey);
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    document.getElementById('summary').innerHTML =
+      `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+        ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+      </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

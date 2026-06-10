@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>reading/script-display.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>reading/script-display.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { updateReadingScriptDisplay } from './script-display.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // Build a detached test root so we don't pollute the test page.
+    function makeRoot(pills) {
+      const root = document.createElement('div');
+      pills.forEach(({ token, kanaText, withKanaChild = true, raw }) => {
+        const pill = document.createElement('span');
+        pill.className = 'token-pill';
+        pill.setAttribute(
+          'data-token',
+          raw !== undefined ? raw : JSON.stringify(token).replace(/'/g, '&apos;')
+        );
+        if (withKanaChild) {
+          const kana = document.createElement('span');
+          kana.className = 'token-kana';
+          kana.textContent = kanaText || '';
+          pill.appendChild(kana);
+        }
+        root.appendChild(pill);
+      });
+      return root;
+    }
+
+    const idFmt = (token, script) => `${token.surface || ''}:${script}`;
+
+    // 1. No-op contracts
+    check('returns 0/0 when root has no pills',
+      JSON.stringify(updateReadingScriptDisplay({
+        root: makeRoot([]), script: 'hiragana', formatReading: idFmt
+      })) === '{"updated":0,"skipped":0}');
+
+    check('returns 0/0 when formatReading missing',
+      JSON.stringify(updateReadingScriptDisplay({
+        root: makeRoot([{ token: { surface: 'X' } }]), script: 'hiragana'
+      })) === '{"updated":0,"skipped":0}');
+
+    check('returns 0/0 when root is null',
+      JSON.stringify(updateReadingScriptDisplay({
+        root: null, script: 'hiragana', formatReading: idFmt
+      })) === '{"updated":0,"skipped":0}');
+
+    check('returns 0/0 when root has no querySelectorAll',
+      JSON.stringify(updateReadingScriptDisplay({
+        root: { not: 'a-node' }, script: 'hiragana', formatReading: idFmt
+      })) === '{"updated":0,"skipped":0}');
+
+    // 2. Happy path
+    {
+      const root = makeRoot([
+        { token: { surface: '日本', reading: 'ニホン' }, kanaText: 'old' },
+        { token: { surface: '東京', reading: 'トウキョウ' }, kanaText: 'old' },
+      ]);
+      const r = updateReadingScriptDisplay({
+        root, script: 'katakana', formatReading: idFmt,
+      });
+      const kanas = [...root.querySelectorAll('.token-kana')].map(n => n.textContent);
+      check('updates 2 pills', r.updated === 2 && r.skipped === 0);
+      check('first pill rewritten', kanas[0] === '日本:katakana');
+      check('second pill rewritten', kanas[1] === '東京:katakana');
+    }
+
+    // 3. Script param flows through to formatter
+    {
+      const root = makeRoot([{ token: { surface: 'X' }, kanaText: '' }]);
+      updateReadingScriptDisplay({ root, script: 'hiragana', formatReading: idFmt });
+      check('script="hiragana" forwarded',
+        root.querySelector('.token-kana').textContent === 'X:hiragana');
+      updateReadingScriptDisplay({ root, script: 'katakana', formatReading: idFmt });
+      check('script="katakana" forwarded',
+        root.querySelector('.token-kana').textContent === 'X:katakana');
+    }
+
+    // 4. Bad JSON → skipped, not thrown
+    {
+      const root = makeRoot([
+        { token: { surface: 'good' }, kanaText: 'old', raw: '{not json' },
+        { token: { surface: 'ok' }, kanaText: 'old' },
+      ]);
+      const r = updateReadingScriptDisplay({
+        root, script: 'hiragana', formatReading: idFmt,
+      });
+      check('bad JSON pill counted as skipped', r.skipped === 1);
+      check('valid pill still updated alongside bad one', r.updated === 1);
+      const kanas = [...root.querySelectorAll('.token-kana')].map(n => n.textContent);
+      check('bad-JSON pill kana untouched', kanas[0] === 'old');
+      check('good pill kana rewritten', kanas[1] === 'ok:hiragana');
+    }
+
+    // 5. Missing data-token → defaults to '{}' → updated
+    {
+      const root = document.createElement('div');
+      const pill = document.createElement('span');
+      pill.className = 'token-pill';
+      const kana = document.createElement('span');
+      kana.className = 'token-kana';
+      kana.textContent = 'old';
+      pill.appendChild(kana);
+      root.appendChild(pill);
+      const r = updateReadingScriptDisplay({
+        root, script: 'hiragana',
+        formatReading: (token) => (token && token.surface) || 'EMPTY',
+      });
+      check('missing data-token → empty object → updated', r.updated === 1);
+      check('missing data-token kana = "EMPTY"',
+        root.querySelector('.token-kana').textContent === 'EMPTY');
+    }
+
+    // 6. Pill missing .token-kana child → skipped
+    {
+      const root = makeRoot([
+        { token: { surface: 'X' }, withKanaChild: false },
+      ]);
+      const r = updateReadingScriptDisplay({
+        root, script: 'hiragana', formatReading: idFmt,
+      });
+      check('pill without .token-kana → skipped',
+        r.skipped === 1 && r.updated === 0);
+    }
+
+    // 7. &apos; decoded back to single quote before JSON.parse
+    {
+      const root = document.createElement('div');
+      const pill = document.createElement('span');
+      pill.className = 'token-pill';
+      pill.setAttribute('data-token', '{"surface":"it&apos;s"}');
+      const kana = document.createElement('span');
+      kana.className = 'token-kana';
+      pill.appendChild(kana);
+      root.appendChild(pill);
+
+      let captured = null;
+      const r = updateReadingScriptDisplay({
+        root, script: 'hiragana',
+        formatReading: (token) => { captured = token; return 'ok'; },
+      });
+      check('&apos; decoded before JSON.parse',
+        captured && captured.surface === "it's" && r.updated === 1);
+    }
+
+    // 8. Custom selectors override defaults
+    {
+      const root = document.createElement('div');
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pill-x';
+      wrapper.setAttribute('data-tk', '{"surface":"S"}');
+      const inner = document.createElement('em');
+      inner.className = 'kana-x';
+      inner.textContent = 'before';
+      wrapper.appendChild(inner);
+      root.appendChild(wrapper);
+
+      const r = updateReadingScriptDisplay({
+        root, script: 'katakana', formatReading: idFmt,
+        pillSelector: '.pill-x', kanaSelector: '.kana-x', dataAttr: 'data-tk',
+      });
+      check('custom selectors honored', r.updated === 1);
+      check('custom kana node rewritten', inner.textContent === 'S:katakana');
+    }
+
+    // 9. DOM-order preservation
+    {
+      const root = makeRoot([
+        { token: { surface: 'A' }, kanaText: '' },
+        { token: { surface: 'B' }, kanaText: '' },
+        { token: { surface: 'C' }, kanaText: '' },
+      ]);
+      const calls = [];
+      updateReadingScriptDisplay({
+        root, script: 'hiragana',
+        formatReading: (t) => { calls.push(t.surface); return t.surface; },
+      });
+      check('formatter called once per pill in DOM order',
+        calls.join(',') === 'A,B,C');
+    }
+
+    // 10. Window export check
+    check('exposes window.YomikikuanReadingScriptDisplay',
+      typeof window.YomikikuanReadingScriptDisplay === 'object'
+      && typeof window.YomikikuanReadingScriptDisplay.updateReadingScriptDisplay === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

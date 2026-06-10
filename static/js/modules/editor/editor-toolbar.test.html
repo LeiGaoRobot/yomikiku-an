@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>editor/editor-toolbar.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+    .scratch { display: none; }
+  </style>
+</head>
+<body>
+  <h1>editor/editor-toolbar.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <!-- Sandbox where ephemeral DOM is parked between scenarios -->
+  <div id="scratch" class="scratch"></div>
+
+  <!-- Toast slots used by the sample-doc copy-on-write info toast -->
+  <div id="syncProgressToast" class="scratch"></div>
+  <div id="syncProgressText" class="scratch"></div>
+
+  <script type="module">
+    // Stub documentManager BEFORE module imports so its self-bootstrap can run cleanly.
+    window.documentManager = {
+      getAllDocuments: () => [],
+      getActiveId: () => null,
+      formatCreationTime: () => '',
+      saveAllDocuments: () => {},
+      setActiveId: () => {},
+      generateId: () => 'stub-id',
+      render: () => {},
+    };
+
+    const scratch = document.getElementById('scratch');
+    function ensureEditorDom() {
+      ['editorDocDate', 'editorCharCount', 'editorStarToggle', 'textInput'].forEach(id => {
+        const old = document.getElementById(id);
+        if (old) old.remove();
+      });
+      const date = document.createElement('div');
+      date.id = 'editorDocDate';
+      const count = document.createElement('div');
+      count.id = 'editorCharCount';
+      const star = document.createElement('button');
+      star.id = 'editorStarToggle';
+      const input = document.createElement('textarea');
+      input.id = 'textInput';
+      scratch.append(date, count, star, input);
+      return { date, count, star, input };
+    }
+    ensureEditorDom();
+
+    delete window.__ESM_EDITOR_TOOLBAR_INITED;
+    delete window.__ESM_EDITOR_TOOLBAR;
+
+    const mod = await import('./editor-toolbar.js');
+    const { updateEditorToolbar, initEditorToolbar } = mod;
+
+    const results = [];
+    const check = (name, cond, detail) => results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // Helper: clear INITED flag so init() rebinds to whatever DOM exists now
+    function reInit() {
+      delete window.__ESM_EDITOR_TOOLBAR_INITED;
+      initEditorToolbar();
+    }
+
+    // ============== updateEditorToolbar ==============
+
+    // 1. updateEditorToolbar without documentManager → silent no-op
+    {
+      const stash = window.documentManager;
+      delete window.documentManager;
+      const dom = ensureEditorDom();
+      let crashed = false;
+      try { updateEditorToolbar(); } catch (_) { crashed = true; }
+      check('no documentManager → no crash', !crashed);
+      check('no documentManager → date stays empty', dom.date.textContent === '');
+      window.documentManager = stash;
+    }
+
+    // 2. Active doc not found
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [],
+        getActiveId: () => 'missing',
+        formatCreationTime: () => 'never',
+      };
+      dom.input.value = 'hello';
+      updateEditorToolbar();
+      check('no active doc → date empty', dom.date.textContent === '');
+      check('no active doc → char count still counted from input', dom.count.textContent === '共 5 字');
+      check('no active doc → star ☆', dom.star.textContent === '☆');
+      check('no active doc → aria-pressed=false', dom.star.getAttribute('aria-pressed') === 'false');
+      check('no active doc → no is-active class', !dom.star.classList.contains('is-active'));
+    }
+
+    // 3. Active doc with updatedAt → uses updatedAt
+    {
+      const dom = ensureEditorDom();
+      const calls = [];
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', updatedAt: 1000, createdAt: 500, favorite: false }],
+        getActiveId: () => 'a',
+        formatCreationTime: (ts) => { calls.push(ts); return `t=${ts}`; },
+      };
+      updateEditorToolbar();
+      check('formatCreationTime called with updatedAt', calls[0] === 1000);
+      check('date textContent set from formatCreationTime', dom.date.textContent === 't=1000');
+    }
+
+    // 4. updatedAt missing → falls back to createdAt
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', createdAt: 500, favorite: false }],
+        getActiveId: () => 'a',
+        formatCreationTime: (ts) => `t=${ts}`,
+      };
+      updateEditorToolbar();
+      check('updatedAt missing → uses createdAt', dom.date.textContent === 't=500');
+    }
+
+    // 5. No timestamps → date empty
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', favorite: false }],
+        getActiveId: () => 'a',
+        formatCreationTime: (ts) => `t=${ts}`,
+      };
+      updateEditorToolbar();
+      check('no timestamps → date empty', dom.date.textContent === '');
+    }
+
+    // 6. Char count from textInput value
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', updatedAt: 1, favorite: false }],
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+      };
+      dom.input.value = 'こんにちは';
+      updateEditorToolbar();
+      check('char count = textInput length', dom.count.textContent === '共 5 字');
+    }
+
+    // 7. Empty textInput → 共 0 字
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', favorite: false }],
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+      };
+      dom.input.value = '';
+      updateEditorToolbar();
+      check('empty textInput → char count 0', dom.count.textContent === '共 0 字');
+    }
+
+    // 8. Star with favorite=true
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', favorite: true }],
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+      };
+      updateEditorToolbar();
+      check('favorite=true → star ★', dom.star.textContent === '★');
+      check('favorite=true → has is-active class', dom.star.classList.contains('is-active'));
+      check('favorite=true → aria-pressed=true', dom.star.getAttribute('aria-pressed') === 'true');
+    }
+
+    // 9. Star with favorite=false (re-runs to remove a stale is-active)
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', favorite: false }],
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+      };
+      dom.star.classList.add('is-active');
+      updateEditorToolbar();
+      check('favorite=false → star ☆', dom.star.textContent === '☆');
+      check('favorite=false → no is-active class', !dom.star.classList.contains('is-active'));
+      check('favorite=false → aria-pressed=false', dom.star.getAttribute('aria-pressed') === 'false');
+    }
+
+    // 10. No editor DOM at all → silent no-op
+    {
+      ['editorDocDate', 'editorCharCount', 'editorStarToggle', 'textInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', updatedAt: 1, favorite: true }],
+        getActiveId: () => 'a',
+        formatCreationTime: () => 'd',
+      };
+      let crashed = false;
+      try { updateEditorToolbar(); } catch (_) { crashed = true; }
+      check('no editor DOM → no crash', !crashed);
+    }
+
+    // ============== initEditorToolbar ==============
+
+    // 11. Idempotent: second call early-returns via INITED flag (no double-wire)
+    {
+      const dom = ensureEditorDom();
+      const docs = [{ id: 'a', favorite: false, folder: null }];
+      let saveCalled = 0;
+      window.documentManager = {
+        getAllDocuments: () => docs,
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+        saveAllDocuments: () => { saveCalled++; },
+        render: () => {},
+      };
+      reInit();
+      initEditorToolbar(); // flag set → no-op, MUST NOT double-wire
+      dom.star.click();
+      check('idempotent: click only fires one listener (no double-wire)', saveCalled === 1);
+    }
+
+    // 12. Click star (non-sample, favorite=false → true)
+    {
+      const dom = ensureEditorDom();
+      const docs = [{ id: 'a', favorite: false, folder: null }];
+      let saveCalled = 0;
+      let renderCalled = 0;
+      window.documentManager = {
+        getAllDocuments: () => docs,
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+        saveAllDocuments: () => { saveCalled++; },
+        render: () => { renderCalled++; },
+      };
+      reInit();
+      dom.star.click();
+      check('click: favorite toggled to true', docs[0].favorite === true);
+      check('click: saveAllDocuments called', saveCalled === 1);
+      check('click: render called', renderCalled === 1);
+    }
+
+    // 13. Click star (non-sample, favorite=true → false)
+    {
+      const dom = ensureEditorDom();
+      const docs = [{ id: 'a', favorite: true, folder: null }];
+      window.documentManager = {
+        getAllDocuments: () => docs,
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+        saveAllDocuments: () => {},
+        render: () => {},
+      };
+      reInit();
+      dom.star.click();
+      check('click: favorite toggled to false', docs[0].favorite === false);
+    }
+
+    // 14. Sample doc click → copy-on-write
+    {
+      const dom = ensureEditorDom();
+      const docs = [{ id: 'sample-1', favorite: false, folder: 'samples' }];
+      let activeId = 'sample-1';
+      let renderCalled = 0;
+      let savedSnapshot = null;
+      window.documentManager = {
+        getAllDocuments: () => docs,
+        getActiveId: () => activeId,
+        formatCreationTime: () => '',
+        saveAllDocuments: (d) => { savedSnapshot = d.map(x => ({ ...x })); },
+        setActiveId: (id) => { activeId = id; },
+        render: () => { renderCalled++; },
+        generateId: () => 'new-copy-id',
+      };
+      dom.input.value = 'sample content';
+      reInit();
+      dom.star.click();
+      check('sample click: original favorite unchanged', docs[0].favorite === false);
+      check('sample click: copy added with new id', savedSnapshot && savedSnapshot.length === 2 && savedSnapshot[1].id === 'new-copy-id');
+      check('sample click: copy favorite=true', savedSnapshot && savedSnapshot[1].favorite === true);
+      check('sample click: copy folder=null', savedSnapshot && savedSnapshot[1].folder === null);
+      check('sample click: copy content from textInput', savedSnapshot && savedSnapshot[1].content === 'sample content');
+      check('sample click: setActiveId to new id', activeId === 'new-copy-id');
+      check('sample click: render called', renderCalled === 1);
+    }
+
+    // 15. Click star but active doc not found → no-op
+    {
+      const dom = ensureEditorDom();
+      const docs = [{ id: 'a', favorite: false, folder: null }];
+      let saveCalled = 0;
+      window.documentManager = {
+        getAllDocuments: () => docs,
+        getActiveId: () => 'missing-id',
+        formatCreationTime: () => '',
+        saveAllDocuments: () => { saveCalled++; },
+        render: () => {},
+      };
+      reInit();
+      dom.star.click();
+      check('docIndex=-1: no save', saveCalled === 0);
+      check('docIndex=-1: doc unchanged', docs[0].favorite === false);
+    }
+
+    // 16. Click star but documentManager is gone (lazy resolution) → no crash
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', favorite: false, folder: null }],
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+        saveAllDocuments: () => {},
+        render: () => {},
+      };
+      reInit();
+      delete window.documentManager;
+      let crashed = false;
+      try { dom.star.click(); } catch (_) { crashed = true; }
+      check('click without documentManager → no crash', !crashed);
+    }
+
+    // 17. Input event on textInput updates char count
+    {
+      const dom = ensureEditorDom();
+      window.documentManager = {
+        getAllDocuments: () => [{ id: 'a', favorite: false }],
+        getActiveId: () => 'a',
+        formatCreationTime: () => '',
+        saveAllDocuments: () => {},
+        render: () => {},
+      };
+      reInit();
+      dom.input.value = 'abc';
+      dom.input.dispatchEvent(new Event('input'));
+      check('textInput input → char count updates', dom.count.textContent === '共 3 字');
+    }
+
+    // 18. initEditorToolbar with no DOM → no crash
+    {
+      ['editorDocDate', 'editorCharCount', 'editorStarToggle', 'textInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+      });
+      delete window.__ESM_EDITOR_TOOLBAR_INITED;
+      let crashed = false;
+      try { initEditorToolbar(); } catch (_) { crashed = true; }
+      check('init with no DOM → no crash', !crashed);
+    }
+
+    // 19. Sample click without textInput → copy.content = ''
+    {
+      const dom = ensureEditorDom();
+      dom.input.remove();
+      const docs = [{ id: 'sample-1', favorite: false, folder: 'samples' }];
+      let savedSnapshot = null;
+      window.documentManager = {
+        getAllDocuments: () => docs,
+        getActiveId: () => 'sample-1',
+        formatCreationTime: () => '',
+        saveAllDocuments: (d) => { savedSnapshot = d.map(x => ({ ...x })); },
+        setActiveId: () => {},
+        render: () => {},
+        generateId: () => 'new-id',
+      };
+      reInit();
+      dom.star.click();
+      check('sample click without textInput → copy.content = ""', savedSnapshot && savedSnapshot[1].content === '');
+    }
+
+    // ============== Self-bootstrap surface ==============
+
+    check('window.updateEditorToolbar exposed', typeof window.updateEditorToolbar === 'function');
+    check('window.initEditorToolbar exposed', typeof window.initEditorToolbar === 'function');
+    check('__ESM_EDITOR_TOOLBAR feature flag set', window.__ESM_EDITOR_TOOLBAR === true);
+
+    // ============== Render results ==============
+    const passed = results.filter(r => r.pass).length;
+    const fail = results.length - passed;
+    document.getElementById('summary').innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${passed}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

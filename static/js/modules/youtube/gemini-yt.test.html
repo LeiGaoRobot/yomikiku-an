@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>youtube/gemini-yt.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>youtube/gemini-yt.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { callGeminiYoutube } from './gemini-yt.js';
+
+    const results = [];
+    const check = (n, c, d) => results.push({ name: n, pass: !!c, detail: d || '' });
+
+    const origFetch = window.fetch;
+    const origKey   = localStorage.getItem('yomikikuan_gemini_api_key');
+
+    try {
+      // ---- Happy path ----
+      localStorage.setItem('yomikikuan_gemini_api_key', 'TEST_KEY_123');
+      let lastBody = null, lastUrl = null;
+      window.fetch = async (url, opts) => {
+        lastUrl = url;
+        lastBody = JSON.parse(opts.body);
+        return { ok: true, status: 200, json: async () => ({
+          candidates: [{ content: { parts: [{ text: 'TRANSCRIPT_OUT' }] } }]
+        })};
+      };
+      const out = await callGeminiYoutube(
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'PROMPT_X');
+      check('returns model text', out === 'TRANSCRIPT_OUT');
+      check('endpoint is gemini-2.5-flash', /gemini-2\.5-flash:generateContent/.test(lastUrl));
+      check('passes API key as query param', /key=TEST_KEY_123/.test(lastUrl));
+      check('body has fileData with YouTube URL',
+        lastBody.contents[0].parts[0].fileData?.fileUri ===
+          'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+      check('body has prompt text part',
+        !!lastBody.contents[0].parts.find(p => p.text === 'PROMPT_X'));
+
+      // ---- With time window ----
+      await callGeminiYoutube(
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'P',
+        { startSec: 30, endSec: 90 });
+      check('startOffset/endOffset emitted',
+        lastBody.contents[0].parts[0].videoMetadata?.startOffset === '30s' &&
+        lastBody.contents[0].parts[0].videoMetadata?.endOffset   === '90s');
+
+      // ---- No key ----
+      localStorage.removeItem('yomikikuan_gemini_api_key');
+      let err;
+      try { await callGeminiYoutube('https://youtu.be/dQw4w9WgXcQ', 'P'); }
+      catch (e) { err = e; }
+      check('throws NO_API_KEY', err && err.message === 'NO_API_KEY');
+
+      // ---- 429 retried then RATE_LIMITED ----
+      localStorage.setItem('yomikikuan_gemini_api_key', 'K');
+      let calls = 0;
+      window.fetch = async () => {
+        calls++;
+        return { ok: false, status: 429, text: async () => '' };
+      };
+      err = null;
+      try { await callGeminiYoutube('https://youtu.be/dQw4w9WgXcQ', 'P'); }
+      catch (e) { err = e; }
+      check('429 retried then throws RATE_LIMITED',
+        err && err.message === 'RATE_LIMITED' && calls === 2,
+        `calls=${calls}`);
+
+      // ---- Empty candidates → EMPTY_RESPONSE ----
+      window.fetch = async () => ({
+        ok: true, status: 200, json: async () => ({ candidates: [] })
+      });
+      err = null;
+      try { await callGeminiYoutube('https://youtu.be/dQw4w9WgXcQ', 'P'); }
+      catch (e) { err = e; }
+      check('empty candidates → EMPTY_RESPONSE',
+        err && err.message === 'EMPTY_RESPONSE');
+    } finally {
+      window.fetch = origFetch;
+      if (origKey == null) localStorage.removeItem('yomikikuan_gemini_api_key');
+      else localStorage.setItem('yomikikuan_gemini_api_key', origKey);
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    document.getElementById('summary').innerHTML =
+      `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+        ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+      </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

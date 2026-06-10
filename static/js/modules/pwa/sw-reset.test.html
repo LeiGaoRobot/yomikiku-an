@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>pwa/sw-reset.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>pwa/sw-reset.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { createSwResetCoordinator } from './sw-reset.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+    const checkAsync = async (name, fn) => {
+      try {
+        const ok = await fn();
+        results.push({ name, pass: !!ok, detail: '' });
+      } catch (e) {
+        results.push({ name, pass: false, detail: String(e && e.message || e) });
+      }
+    };
+
+    const mockController = () => {
+      const calls = [];
+      return {
+        calls,
+        postMessage: (msg) => calls.push(msg),
+      };
+    };
+
+    const mockTimers = () => {
+      const queue = new Map();
+      let nextId = 1;
+      let now = 0;
+      return {
+        setTimer: (fn, ms) => {
+          const id = nextId++;
+          queue.set(id, { fn, fireAt: now + ms });
+          return id;
+        },
+        clearTimer: (id) => { queue.delete(id); },
+        advance: (ms) => {
+          now += ms;
+          for (const [id, { fn, fireAt }] of [...queue.entries()]) {
+            if (fireAt <= now) {
+              queue.delete(id);
+              fn();
+            }
+          }
+        },
+        pending: () => queue.size,
+      };
+    };
+
+    // 1. request() rejects when controller missing
+    await checkAsync('rejects with no-controller when controller absent', async () => {
+      const c = createSwResetCoordinator({});
+      try { await c.request(null); return false; }
+      catch (e) { return e.message === 'no-controller'; }
+    });
+
+    // 2. request() rejects when controller has no postMessage
+    await checkAsync('rejects with no-controller when postMessage missing', async () => {
+      const c = createSwResetCoordinator({});
+      try { await c.request({}); return false; }
+      catch (e) { return e.message === 'no-controller'; }
+    });
+
+    // 3. request() posts the expected payload
+    {
+      const ctrl = mockController();
+      const c = createSwResetCoordinator({
+        cachePrefix: 'test-prefix',
+        makeRequestId: () => 'fixed-1',
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      c.request(ctrl);
+      check('postMessage called with PWA_RESET payload',
+        ctrl.calls.length === 1
+          && ctrl.calls[0].type === 'PWA_RESET'
+          && ctrl.calls[0].requestId === 'fixed-1'
+          && ctrl.calls[0].cachePrefix === 'test-prefix',
+        JSON.stringify(ctrl.calls[0]));
+    }
+
+    // 4. resolves on PWA_RESET_DONE matching requestId
+    await checkAsync('resolves on PWA_RESET_DONE with matching requestId', async () => {
+      const ctrl = mockController();
+      const c = createSwResetCoordinator({
+        makeRequestId: () => 'rid-2',
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      const p = c.request(ctrl);
+      c.handleMessage({ data: { type: 'PWA_RESET_DONE', requestId: 'rid-2' } });
+      await p;
+      return c.pendingCount() === 0;
+    });
+
+    // 5. rejects on PWA_RESET_FAILED matching requestId
+    await checkAsync('rejects on PWA_RESET_FAILED with matching requestId', async () => {
+      const ctrl = mockController();
+      const c = createSwResetCoordinator({
+        makeRequestId: () => 'rid-3',
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      const p = c.request(ctrl);
+      c.handleMessage({ data: { type: 'PWA_RESET_FAILED', requestId: 'rid-3', message: 'cache write failed' } });
+      try { await p; return false; }
+      catch (e) { return e.message === 'cache write failed' && c.pendingCount() === 0; }
+    });
+
+    // 6. PWA_RESET_FAILED without message → 'reset failed'
+    await checkAsync('rejects with "reset failed" when message omitted', async () => {
+      const ctrl = mockController();
+      const c = createSwResetCoordinator({
+        makeRequestId: () => 'rid-3b',
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      const p = c.request(ctrl);
+      c.handleMessage({ data: { type: 'PWA_RESET_FAILED', requestId: 'rid-3b' } });
+      try { await p; return false; }
+      catch (e) { return e.message === 'reset failed'; }
+    });
+
+    // 7. timeout
+    await checkAsync('rejects with reset-timeout after timeoutMs', async () => {
+      const ctrl = mockController();
+      const t = mockTimers();
+      const c = createSwResetCoordinator({
+        timeoutMs: 100,
+        makeRequestId: () => 'rid-4',
+        setTimer: t.setTimer, clearTimer: t.clearTimer,
+      });
+      const p = c.request(ctrl);
+      t.advance(100);
+      try { await p; return false; }
+      catch (e) { return e.message === 'reset-timeout' && c.pendingCount() === 0; }
+    });
+
+    // 8. timer cleared after success
+    await checkAsync('timer cleared after success → no late timeout', async () => {
+      const ctrl = mockController();
+      const t = mockTimers();
+      const c = createSwResetCoordinator({
+        timeoutMs: 100,
+        makeRequestId: () => 'rid-5',
+        setTimer: t.setTimer, clearTimer: t.clearTimer,
+      });
+      const p = c.request(ctrl);
+      c.handleMessage({ data: { type: 'PWA_RESET_DONE', requestId: 'rid-5' } });
+      await p;
+      t.advance(1000);
+      return t.pending() === 0;
+    });
+
+    // 9. unrelated messages return false
+    {
+      const c = createSwResetCoordinator({});
+      check('handleMessage returns false for unknown type',
+        c.handleMessage({ data: { type: 'CACHE_PROGRESS', requestId: 'x' } }) === false);
+      check('handleMessage returns false for empty event',
+        c.handleMessage({}) === false);
+      check('handleMessage returns false for null',
+        c.handleMessage(null) === false);
+    }
+
+    // 10. late FAILED w/o resolver → consumed + warns
+    await checkAsync('handleMessage true + warns for late FAILED w/o resolver', async () => {
+      const c = createSwResetCoordinator({});
+      const origWarn = console.warn;
+      let warned = false;
+      console.warn = () => { warned = true; };
+      try {
+        const consumed = c.handleMessage({ data: { type: 'PWA_RESET_FAILED', requestId: 'unknown', message: 'oops' } });
+        return consumed === true && warned === true;
+      } finally {
+        console.warn = origWarn;
+      }
+    });
+
+    // 11. stale DONE → consumed (true) but no-op
+    {
+      const c = createSwResetCoordinator({});
+      const consumed = c.handleMessage({ data: { type: 'PWA_RESET_DONE', requestId: 'unknown' } });
+      check('handleMessage returns true for stale DONE', consumed === true);
+    }
+
+    // 12. concurrent requests
+    await checkAsync('two concurrent requests resolve independently', async () => {
+      const ctrl = mockController();
+      let n = 0;
+      const c = createSwResetCoordinator({
+        makeRequestId: () => `rid-multi-${++n}`,
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      const p1 = c.request(ctrl);
+      const p2 = c.request(ctrl);
+      c.handleMessage({ data: { type: 'PWA_RESET_DONE', requestId: 'rid-multi-2' } });
+      c.handleMessage({ data: { type: 'PWA_RESET_DONE', requestId: 'rid-multi-1' } });
+      await Promise.all([p1, p2]);
+      return c.pendingCount() === 0 && ctrl.calls.length === 2;
+    });
+
+    // 13. mismatched FAILED leaves pending request alive
+    await checkAsync('mismatched FAILED leaves pending request alive', async () => {
+      const ctrl = mockController();
+      const t = mockTimers();
+      const c = createSwResetCoordinator({
+        timeoutMs: 1000,
+        makeRequestId: () => 'rid-real',
+        setTimer: t.setTimer, clearTimer: t.clearTimer,
+      });
+      const p = c.request(ctrl);
+      c.handleMessage({ data: { type: 'PWA_RESET_FAILED', requestId: 'rid-other' } });
+      const stillPending = c.pendingCount() === 1;
+      c.handleMessage({ data: { type: 'PWA_RESET_DONE', requestId: 'rid-real' } });
+      await p;
+      return stillPending;
+    });
+
+    // 14. default cachePrefix
+    {
+      const ctrl = mockController();
+      const c = createSwResetCoordinator({
+        makeRequestId: () => 'rid-default',
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      c.request(ctrl);
+      check('default cachePrefix = yomikikuan-cache',
+        ctrl.calls[0].cachePrefix === 'yomikikuan-cache',
+        JSON.stringify(ctrl.calls[0]));
+    }
+
+    // 15. default timeoutMs = 15000
+    {
+      const ctrl = mockController();
+      const t = mockTimers();
+      const c = createSwResetCoordinator({
+        makeRequestId: () => 'rid-timeout',
+        setTimer: t.setTimer, clearTimer: t.clearTimer,
+      });
+      c.request(ctrl);
+      t.advance(14999);
+      check('default timeoutMs is 15000ms (no fire at 14999)', c.pendingCount() === 1);
+      t.advance(1);
+      check('timer fires at 15000ms', c.pendingCount() === 0);
+    }
+
+    // 16. unique requestIds across calls (default impl)
+    {
+      const ctrl = mockController();
+      const c = createSwResetCoordinator({
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      c.request(ctrl);
+      c.request(ctrl);
+      const ids = ctrl.calls.map(m => m.requestId);
+      check('default requestId generator produces unique ids',
+        ids[0] !== ids[1] && ids[0].startsWith('pwa-reset-') && ids[1].startsWith('pwa-reset-'),
+        ids.join(' / '));
+    }
+
+    // 17. registers window.YomikikuanSwReset
+    check('window.YomikikuanSwReset.createSwResetCoordinator registered',
+      typeof window.YomikikuanSwReset?.createSwResetCoordinator === 'function');
+
+    // 18. error normalization for non-string message
+    await checkAsync('FAILED with object message coerces to Error', async () => {
+      const ctrl = mockController();
+      const c = createSwResetCoordinator({
+        makeRequestId: () => 'rid-norm',
+        setTimer: () => 1, clearTimer: () => {},
+      });
+      const p = c.request(ctrl);
+      c.handleMessage({ data: { type: 'PWA_RESET_FAILED', requestId: 'rid-norm', message: { foo: 'bar' } } });
+      try { await p; return false; }
+      catch (e) { return e instanceof Error; }
+    });
+
+    // Render results.
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

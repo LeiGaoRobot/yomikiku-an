@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>gemini/client.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>gemini/client.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      callGemini, textBody, getApiKey,
+      MODEL_TEXT, ENDPOINT, TRANSIENT_STATUSES, RETRY_DELAY_MS,
+    } from './client.js';
+
+    const results = [];
+    const check = (name, cond, detail) => results.push({ name, pass: !!cond, detail: detail || '' });
+
+    function makeResponse({ status = 200, body = {}, text = null } = {}) {
+      return {
+        status,
+        ok: status >= 200 && status < 300,
+        json: async () => body,
+        text: async () => (text !== null ? text : JSON.stringify(body)),
+      };
+    }
+
+    function geminiBody(text) {
+      return { candidates: [{ content: { parts: [{ text }] } }] };
+    }
+
+    function mockFetch(responses) {
+      let i = 0;
+      const calls = [];
+      const fn = async (url, init) => {
+        calls.push({ url, init });
+        const r = responses[Math.min(i, responses.length - 1)];
+        i++;
+        if (r instanceof Error) throw r;
+        return r;
+      };
+      fn.calls = calls;
+      return fn;
+    }
+
+    // --- module constants ---
+
+    check('MODEL_TEXT === gemini-2.5-flash', MODEL_TEXT === 'gemini-2.5-flash');
+    check('ENDPOINT contains MODEL_TEXT', ENDPOINT.includes(MODEL_TEXT));
+    check('ENDPOINT is :generateContent URL',
+      ENDPOINT === `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_TEXT}:generateContent`);
+    check('TRANSIENT_STATUSES has 429', TRANSIENT_STATUSES.has(429));
+    check('TRANSIENT_STATUSES has 502', TRANSIENT_STATUSES.has(502));
+    check('TRANSIENT_STATUSES has 503', TRANSIENT_STATUSES.has(503));
+    check('TRANSIENT_STATUSES has 504', TRANSIENT_STATUSES.has(504));
+    check('TRANSIENT_STATUSES lacks 400', !TRANSIENT_STATUSES.has(400));
+    check('TRANSIENT_STATUSES lacks 500', !TRANSIENT_STATUSES.has(500));
+    check('RETRY_DELAY_MS === 1200', RETRY_DELAY_MS === 1200);
+
+    // --- getApiKey ---
+
+    {
+      const stash = localStorage.getItem('yomikikuan_gemini_api_key');
+      localStorage.setItem('yomikikuan_gemini_api_key', 'AIza-TEST-KEY');
+      check('getApiKey returns trimmed value', getApiKey() === 'AIza-TEST-KEY');
+      localStorage.setItem('yomikikuan_gemini_api_key', '   spaced   ');
+      check('getApiKey trims surrounding whitespace', getApiKey() === 'spaced');
+      localStorage.removeItem('yomikikuan_gemini_api_key');
+      check('getApiKey returns "" when key is absent', getApiKey() === '');
+      if (stash !== null) localStorage.setItem('yomikikuan_gemini_api_key', stash);
+    }
+
+    // --- textBody ---
+
+    {
+      const b = textBody('hello');
+      check('textBody default has contents[0].parts[0].text',
+        b.contents?.[0]?.parts?.[0]?.text === 'hello');
+      check('textBody default temperature is 0.4',
+        b.generationConfig.temperature === 0.4);
+      check('textBody default sets responseMimeType=JSON',
+        b.generationConfig.responseMimeType === 'application/json');
+    }
+    {
+      const b = textBody('hi', { temperature: 0.2, json: false });
+      check('textBody override temperature',
+        b.generationConfig.temperature === 0.2);
+      check('textBody json:false omits responseMimeType',
+        !('responseMimeType' in b.generationConfig));
+    }
+
+    // --- callGemini: NO_API_KEY ---
+
+    {
+      let err = null;
+      try {
+        await callGemini(textBody('x'), { key: '' });
+      } catch (e) { err = e; }
+      check('callGemini throws NO_API_KEY when key empty',
+        err && err.message === 'NO_API_KEY');
+    }
+
+    // --- callGemini: happy path ---
+
+    {
+      const fetchImpl = mockFetch([makeResponse({ body: geminiBody('OK_TEXT') })]);
+      const text = await callGemini(textBody('x'), { key: 'k', fetchImpl });
+      check('callGemini happy path returns extracted text', text === 'OK_TEXT');
+      check('callGemini happy path made 1 request', fetchImpl.calls.length === 1);
+      check('callGemini happy path URL has ?key=', fetchImpl.calls[0].url.includes('?key=k'));
+      check('callGemini happy path URL targets default endpoint',
+        fetchImpl.calls[0].url.startsWith(ENDPOINT));
+      check('callGemini happy path POST + JSON body',
+        fetchImpl.calls[0].init.method === 'POST' &&
+        fetchImpl.calls[0].init.headers['Content-Type'] === 'application/json');
+    }
+
+    // --- callGemini: EMPTY_RESPONSE / allowEmpty ---
+
+    {
+      const fetchImpl = mockFetch([makeResponse({ body: { candidates: [] } })]);
+      let err = null;
+      try { await callGemini(textBody('x'), { key: 'k', fetchImpl }); } catch (e) { err = e; }
+      check('callGemini throws EMPTY_RESPONSE when no candidate text',
+        err && err.message === 'EMPTY_RESPONSE');
+    }
+    {
+      const fetchImpl = mockFetch([makeResponse({ body: { candidates: [] } })]);
+      const r = await callGemini(textBody('x'), { key: 'k', fetchImpl, allowEmpty: true });
+      check('callGemini returns "" when allowEmpty + empty body', r === '');
+    }
+
+    // --- callGemini: HTTP_<status> error ---
+
+    {
+      const fetchImpl = mockFetch([makeResponse({ status: 400, text: 'Bad request body' })]);
+      let err = null;
+      try { await callGemini(textBody('x'), { key: 'k', fetchImpl }); } catch (e) { err = e; }
+      check('callGemini throws HTTP_400 with body slice',
+        err && err.message === 'HTTP_400: Bad request body');
+    }
+    {
+      const longBody = 'X'.repeat(500);
+      const fetchImpl = mockFetch([makeResponse({ status: 500, text: longBody })]);
+      let err = null;
+      try { await callGemini(textBody('x'), { key: 'k', fetchImpl }); } catch (e) { err = e; }
+      check('callGemini truncates HTTP error body to 200 chars by default',
+        err && err.message.length === 'HTTP_500: '.length + 200);
+    }
+    {
+      const fetchImpl = mockFetch([makeResponse({ status: 400, text: 'body-text' })]);
+      let err = null;
+      try { await callGemini(textBody('x'), { key: 'k', fetchImpl, errorBodySlice: 0 }); } catch (e) { err = e; }
+      check('callGemini errorBodySlice:0 omits body (bare HTTP_<status>)',
+        err && err.message === 'HTTP_400');
+    }
+
+    // --- callGemini: retry on transient (run in parallel so total wall ≈ 1.2s) ---
+
+    {
+      const f503 = mockFetch([
+        makeResponse({ status: 503, text: 'unavailable' }),
+        makeResponse({ body: geminiBody('OK_AFTER_RETRY') }),
+      ]);
+      const f502 = mockFetch([
+        makeResponse({ status: 502, text: '' }),
+        makeResponse({ body: geminiBody('OK_502_RECOVERED') }),
+      ]);
+      const f504 = mockFetch([
+        makeResponse({ status: 504, text: '' }),
+        makeResponse({ body: geminiBody('OK_504_RECOVERED') }),
+      ]);
+      const f429 = mockFetch([
+        makeResponse({ status: 429, text: 'rate limited' }),
+        makeResponse({ status: 429, text: 'rate limited' }),
+      ]);
+
+      const start = performance.now();
+      const [r503, r502, r504, r429] = await Promise.all([
+        callGemini(textBody('x'), { key: 'k', fetchImpl: f503 }),
+        callGemini(textBody('x'), { key: 'k', fetchImpl: f502 }),
+        callGemini(textBody('x'), { key: 'k', fetchImpl: f504 }),
+        callGemini(textBody('x'), { key: 'k', fetchImpl: f429 }).catch(e => e),
+      ]);
+      const elapsed = performance.now() - start;
+
+      check('callGemini retries on 503 and returns success', r503 === 'OK_AFTER_RETRY');
+      check('callGemini 503 made exactly 2 requests after one retry',
+        f503.calls.length === 2);
+      check('callGemini waits >= 1000ms before retrying',
+        elapsed >= 1000, `elapsed=${elapsed.toFixed(0)}ms`);
+      check('callGemini retries on 502', r502 === 'OK_502_RECOVERED');
+      check('callGemini retries on 504', r504 === 'OK_504_RECOVERED');
+      check('callGemini throws RATE_LIMITED after retry still 429',
+        r429 instanceof Error && r429.message === 'RATE_LIMITED');
+      check('callGemini made 2 requests before mapping 429 → RATE_LIMITED',
+        f429.calls.length === 2);
+    }
+
+    // --- callGemini: no retry on non-transient ---
+
+    {
+      const fetchImpl = mockFetch([
+        makeResponse({ status: 400, text: 'bad request' }),
+        makeResponse({ body: geminiBody('SHOULD_NOT_REACH') }),
+      ]);
+      let err = null;
+      try { await callGemini(textBody('x'), { key: 'k', fetchImpl }); } catch (e) { err = e; }
+      check('callGemini does NOT retry on 400', err && err.message.startsWith('HTTP_400'));
+      check('callGemini made only 1 request on 400', fetchImpl.calls.length === 1);
+    }
+
+    // --- callGemini: signal abort before retry ---
+
+    {
+      const controller = new AbortController();
+      const fetchImpl = mockFetch([
+        makeResponse({ status: 503, text: '' }),
+        makeResponse({ body: geminiBody('NEVER') }),
+      ]);
+      setTimeout(() => controller.abort(), 50);
+      let err = null;
+      try {
+        await callGemini(textBody('x'), { key: 'k', fetchImpl, signal: controller.signal });
+      } catch (e) { err = e; }
+      check('callGemini rejects with ABORTED when signal fires mid-retry',
+        err && err.message === 'ABORTED');
+      check('callGemini does not make 2nd request after abort',
+        fetchImpl.calls.length === 1);
+    }
+
+    // --- callGemini: custom endpoint ---
+
+    {
+      const fetchImpl = mockFetch([makeResponse({ body: geminiBody('CUSTOM') })]);
+      const customEp = 'https://example.test/v1/models/test:generateContent';
+      const text = await callGemini(textBody('x'), { key: 'k', fetchImpl, endpoint: customEp });
+      check('callGemini honors endpoint override', text === 'CUSTOM');
+      check('callGemini custom endpoint URL prefix',
+        fetchImpl.calls[0].url.startsWith(customEp));
+    }
+
+    // --- callGemini: key encoding ---
+
+    {
+      const fetchImpl = mockFetch([makeResponse({ body: geminiBody('OK') })]);
+      await callGemini(textBody('x'), { key: 'a&b=c', fetchImpl });
+      check('callGemini URL-encodes the key',
+        fetchImpl.calls[0].url.includes('?key=a%26b%3Dc'));
+    }
+
+    // --- callGemini: body forwarded as JSON ---
+
+    {
+      const fetchImpl = mockFetch([makeResponse({ body: geminiBody('OK') })]);
+      const customBody = {
+        contents: [{ parts: [{ fileData: { fileUri: 'http://x', mimeType: 'video/*' } }, { text: 'p' }] }],
+        generationConfig: { temperature: 0.4 },
+      };
+      await callGemini(customBody, { key: 'k', fetchImpl });
+      const sent = JSON.parse(fetchImpl.calls[0].init.body);
+      check('callGemini sends body verbatim (multimodal example)',
+        JSON.stringify(sent) === JSON.stringify(customBody));
+    }
+
+    // --- callGemini: signal passed to fetch ---
+
+    {
+      const controller = new AbortController();
+      const fetchImpl = mockFetch([makeResponse({ body: geminiBody('OK') })]);
+      await callGemini(textBody('x'), { key: 'k', fetchImpl, signal: controller.signal });
+      check('callGemini forwards signal to fetch',
+        fetchImpl.calls[0].init.signal === controller.signal);
+    }
+
+    // --- render ---
+
+    const root = document.getElementById('results');
+    const summary = document.getElementById('summary');
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

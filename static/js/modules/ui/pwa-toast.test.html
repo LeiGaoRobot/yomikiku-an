@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ui/pwa-toast.js — formatFailedAssetsSummary tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>ui/pwa-toast.js — formatFailedAssetsSummary tests</h1>
+  <p style="opacity:.6;font-size:12px;">
+    Pure helper only. The DOM mutators (setPwaIcon / updatePwaToast /
+    hidePwaToast) are exercised via in-app smoke testing, not unit tests —
+    they're 30-line wrappers around document.getElementById calls.
+  </p>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { formatFailedAssetsSummary } from './pwa-toast.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // Suppress the parity console.group output so test logs stay clean.
+    const origGroup = console.group;
+    const origGroupEnd = console.groupEnd;
+    const swallow = () => {};
+    console.group = swallow;
+    console.groupEnd = swallow;
+
+    check('empty list → ""',
+      formatFailedAssetsSummary([]) === '');
+    check('null → ""',
+      formatFailedAssetsSummary(null) === '');
+    check('non-array → ""',
+      formatFailedAssetsSummary('not-array') === '');
+    check('undefined → ""',
+      formatFailedAssetsSummary() === '');
+
+    {
+      const out = formatFailedAssetsSummary(
+        ['https://example.com/a.js', 'https://example.com/b.js'],
+        3,
+        'https://example.com/index.html'
+      );
+      check('same-origin → uses .pathname',
+        out === '失败文件: /a.js, /b.js',
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(
+        ['https://other.com/x.js', 'https://example.com/y.js'],
+        3,
+        'https://example.com/index.html'
+      );
+      check('cross-origin URL kept verbatim, same-origin shortened',
+        out === '失败文件: https://other.com/x.js, /y.js',
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(
+        ['/a.js', '/b.js', '/c.js', '/d.js', '/e.js'],
+        3,
+        'https://example.com/index.html'
+      );
+      check('truncates to max=3 with "(+N more)" suffix',
+        out === '失败文件: /a.js, /b.js, /c.js (+2 more)',
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(
+        ['/a.js', '/b.js', '/c.js'],
+        3,
+        'https://example.com/'
+      );
+      check('exactly max=3 → no "more" suffix',
+        out === '失败文件: /a.js, /b.js, /c.js',
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(
+        ['not-a-valid-url', '/ok.js'],
+        3,
+        'https://example.com/'
+      );
+      check('invalid URL falls through verbatim',
+        out.includes('not-a-valid-url'),
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(
+        ['/single.js'],
+        3,
+        'https://example.com/'
+      );
+      check('single entry → no comma, no more-suffix',
+        out === '失败文件: /single.js',
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(['/a.js', '/b.js'], 1, 'https://example.com/');
+      check('max=1 truncates correctly',
+        out === '失败文件: /a.js (+1 more)',
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(['/a.js'], 0, 'https://example.com/');
+      check('max=0 returns 失败文件: prefix only + (+1 more)',
+        out === '失败文件:  (+1 more)',
+        out);
+    }
+
+    {
+      const out = formatFailedAssetsSummary(['/a.js'], 3, '');
+      check('no baseHref keeps relative URL verbatim',
+        out.includes('/a.js'),
+        out);
+    }
+
+    console.group = origGroup;
+    console.groupEnd = origGroupEnd;
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

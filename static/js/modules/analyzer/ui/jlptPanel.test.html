@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analyzer/ui/jlptPanel.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>analyzer/ui/jlptPanel.js tests</h1>
+  <p style="opacity:.6;font-size:12px;">
+    Smoke tests for the orchestrator's mount/unmount + UI scaffolding. The
+    full generate→render→answer flow requires Gemini network mocking + i18n /
+    cache / srs context that's out of scope for a per-module unit page; that
+    flow is covered by the underlying jlpt/{prompts,session,renderers} test
+    pages.
+  </p>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import { mountPanel, unmountPanel } from './jlptPanel.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    // Need a fake API key in localStorage so apiKey() returns truthy when the
+    // panel later reads it. Save+restore so we don't pollute the user's real
+    // key (in case this page is opened against a populated environment).
+    const KEY = 'yomikikuan_gemini_api_key';
+    const prevKey = localStorage.getItem(KEY);
+    localStorage.setItem(KEY, 'TEST-FAKE-KEY');
+
+    try {
+      // mountPanel calls alert() on empty content; capture & suppress.
+      const origAlert = window.alert;
+      let alertMsg = '';
+      window.alert = (m) => { alertMsg = m; };
+      const emptyResult = mountPanel({ id: 'empty', content: '' });
+      window.alert = origAlert;
+      check('mountPanel returns null for empty doc', emptyResult === null);
+      check('mountPanel surfaces empty-doc alert',
+        alertMsg.includes('空') || alertMsg.includes('empty'));
+      check('no overlay added for empty doc',
+        !document.querySelector('.jlpt-overlay'));
+
+      const doc = {
+        id: 'test-1',
+        content: '今日は天気がとてもいいです。明日も晴れる予定です。',
+        title: 'テスト記事',
+      };
+      mountPanel(doc);
+      await sleep(80);
+      const overlay = document.querySelector('.jlpt-overlay');
+      check('mountPanel creates .jlpt-overlay', !!overlay);
+      check('overlay contains .jlpt-panel role=dialog',
+        !!overlay?.querySelector('.jlpt-panel[role="dialog"]'));
+
+      const tabs = overlay?.querySelectorAll('.jlpt-tab') || [];
+      check('renders 3 tabs (practice/exam/history)',
+        tabs.length === 3, `got ${tabs.length}`);
+      const tabKinds = Array.from(tabs).map(t => t.getAttribute('data-tab'));
+      check('tab data-tab values are practice|exam|history',
+        ['practice', 'exam', 'history'].every(k => tabKinds.includes(k)));
+      check('first tab is .is-active', tabs[0]?.classList.contains('is-active'));
+
+      const levelSelect = overlay?.querySelector('select[data-role="level"]');
+      const countSelect = overlay?.querySelector('select[data-role="count"]');
+      const goBtn = overlay?.querySelector('button[data-role="go"]');
+      const regenBtn = overlay?.querySelector('button[data-role="regen"]');
+      check('controls: level select present', !!levelSelect);
+      check('controls: count select present', !!countSelect);
+      check('controls: 生成 button present', !!goBtn);
+      check('controls: 忽略缓存 button present', !!regenBtn);
+      check('level options are N5..N1',
+        levelSelect &&
+        Array.from(levelSelect.options).map(o => o.value).join(',') ===
+          'N5,N4,N3,N2,N1');
+      check('default selected level is N3', levelSelect?.value === 'N3');
+
+      const modeGridMount = overlay?.querySelector('[data-role="mode-grid-mount"]');
+      check('mode grid mount point present', !!modeGridMount);
+      check('mode grid is populated', (modeGridMount?.children?.length || 0) > 0);
+
+      overlay.querySelector('.jlpt-close').click();
+      await sleep(120);
+      check('close button removes overlay',
+        !document.querySelector('.jlpt-overlay'));
+
+      mountPanel(doc);
+      await sleep(60);
+      const overlay2 = document.querySelector('.jlpt-overlay');
+      check('re-mount creates new overlay', !!overlay2);
+      document.dispatchEvent(new KeyboardEvent('keydown',
+        { key: 'Escape', bubbles: true }));
+      await sleep(120);
+      check('Esc closes overlay',
+        !document.querySelector('.jlpt-overlay'));
+
+      mountPanel(doc);
+      await sleep(60);
+      unmountPanel();
+      await sleep(60);
+      check('unmountPanel removes overlay',
+        !document.querySelector('.jlpt-overlay'));
+      let threw = false;
+      try { unmountPanel(); } catch (_) { threw = true; }
+      check('unmountPanel safe to call twice', !threw);
+
+      mountPanel(doc);
+      const overlay3 = document.querySelector('.jlpt-overlay');
+      check('mount-after-unmount creates a fresh overlay', !!overlay3);
+      unmountPanel();
+
+    } finally {
+      if (prevKey === null) localStorage.removeItem(KEY);
+      else localStorage.setItem(KEY, prevKey);
+    }
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

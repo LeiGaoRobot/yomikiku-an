@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>docs/search.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>docs/search.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      escapeRegexSpecials,
+      highlightText,
+      pickSnippet,
+      searchDocuments,
+      buildEmptyStateMarkup,
+      buildResultsMarkup,
+    } from './search.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ──── escapeRegexSpecials ────
+
+    check('escape: empty string', escapeRegexSpecials('') === '');
+    check('escape: null → empty', escapeRegexSpecials(null) === '');
+    check('escape: undefined → empty', escapeRegexSpecials(undefined) === '');
+    check('escape: plain text unchanged',
+      escapeRegexSpecials('hello world') === 'hello world');
+    check('escape: dot escaped', escapeRegexSpecials('a.b') === 'a\\.b');
+    check('escape: star escaped', escapeRegexSpecials('a*b') === 'a\\*b');
+    check('escape: parens escaped', escapeRegexSpecials('(test)') === '\\(test\\)');
+    check('escape: brackets escaped', escapeRegexSpecials('[a-z]') === '\\[a-z\\]');
+    check('escape: backslash escaped', escapeRegexSpecials('a\\b') === 'a\\\\b');
+    check('escape: pipe escaped', escapeRegexSpecials('a|b') === 'a\\|b');
+    check('escape: dollar/caret/braces',
+      escapeRegexSpecials('^$+?{}') === '\\^\\$\\+\\?\\{\\}');
+
+    // ──── highlightText ────
+
+    check('highlight: empty query returns text untouched',
+      highlightText('hello', '') === 'hello');
+    check('highlight: null query returns text untouched',
+      highlightText('hello', null) === 'hello');
+    check('highlight: simple match wrapped in span',
+      highlightText('hello world', 'world')
+        === 'hello <span class="search-highlight">world</span>');
+    check('highlight: case-insensitive match preserves original case',
+      highlightText('Hello WORLD', 'world')
+        === 'Hello <span class="search-highlight">WORLD</span>');
+    check('highlight: multiple matches all wrapped',
+      highlightText('foo foo foo', 'foo')
+        === '<span class="search-highlight">foo</span> <span class="search-highlight">foo</span> <span class="search-highlight">foo</span>');
+    check('highlight: regex specials in query are escaped',
+      highlightText('axb a.b', 'a.b')
+        === 'axb <span class="search-highlight">a.b</span>');
+    check('highlight: null text → empty string output',
+      highlightText(null, 'q') === '');
+
+    // ──── pickSnippet ────
+
+    check('snippet: empty text → empty', pickSnippet('', 'q') === '');
+    check('snippet: null text → empty', pickSnippet(null, 'q') === '');
+    check('snippet: no query → first 120 chars',
+      pickSnippet('abcdef', '') === 'abcdef');
+    check('snippet: query matches first line',
+      pickSnippet('alpha hello\nbeta\ngamma', 'beta') === 'beta');
+    check('snippet: query matches case-insensitively',
+      pickSnippet('first\nSecond Line\nthird', 'second') === 'Second Line');
+    check('snippet: query miss falls back to first 120 chars',
+      pickSnippet('one\ntwo\nthree', 'zzz') === 'one\ntwo\nthree');
+    check('snippet: matching line truncated to 120 chars',
+      pickSnippet('short\n' + 'x'.repeat(200) + 'needle' + 'y'.repeat(50), 'needle').length === 120);
+    check('snippet: first-line fallback also truncated to 120',
+      pickSnippet('z'.repeat(300), '').length === 120);
+
+    // ──── searchDocuments ────
+
+    const titleOfFirstLine = (content) => {
+      if (Array.isArray(content)) return (content[0] || '').slice(0, 50);
+      return String(content || '').split('\n')[0].slice(0, 50);
+    };
+
+    {
+      const docs = [
+        { id: 'd1', content: 'hello world\nbody text', createdAt: 1000 },
+        { id: 'd2', content: 'goodbye', createdAt: 2000 },
+        { id: 'd3', content: 'sample document', folder: 'samples', createdAt: 3000 },
+        { id: 'd4', content: 'locked document', locked: true, createdAt: 4000 },
+        { id: 'd5', content: ['alpha', 'beta hello'], createdAt: 5000 },
+      ];
+
+      check('search: non-array input returns []',
+        Array.isArray(searchDocuments(null, 'q', titleOfFirstLine))
+        && searchDocuments(null, 'q', titleOfFirstLine).length === 0);
+      check('search: empty query returns []',
+        searchDocuments(docs, '', titleOfFirstLine).length === 0);
+      check('search: whitespace-only query returns []',
+        searchDocuments(docs, '   ', titleOfFirstLine).length === 0);
+      check('search: null query returns []',
+        searchDocuments(docs, null, titleOfFirstLine).length === 0);
+
+      const r1 = searchDocuments(docs, 'hello', titleOfFirstLine);
+      check('search: match by content (d1, d5)', r1.length === 2);
+      check('search: filters out samples folder',
+        !r1.find((r) => r.id === 'd3'));
+      check('search: filters out locked docs',
+        !r1.find((r) => r.id === 'd4'));
+
+      const r2 = searchDocuments(docs, 'GOODBYE', titleOfFirstLine);
+      check('search: case-insensitive content match', r2.length === 1 && r2[0].id === 'd2');
+
+      const r3 = searchDocuments([{ id: 'x', content: 'hello there', createdAt: 999 }], 'hello', titleOfFirstLine);
+      check('search: result has id/title/snippet/createdAt',
+        r3[0].id === 'x'
+        && typeof r3[0].title === 'string'
+        && typeof r3[0].snippet === 'string'
+        && r3[0].createdAt === 999);
+
+      const r4 = searchDocuments([{ id: 'y', content: 'something' }], 'something', () => '');
+      check('search: empty title falls back to 无标题', r4[0].title === '无标题');
+
+      const r5 = searchDocuments([{ id: 'z', content: ['line a', 'line b match'] }], 'match', titleOfFirstLine);
+      check('search: array content joined for matching', r5.length === 1);
+      check('search: snippet picks the matching line from array content',
+        r5[0].snippet === 'line b match');
+
+      const r6 = searchDocuments([{ id: 'q', content: 'has match' }], 'match', null);
+      check('search: missing getTitle does not throw',
+        r6.length === 1 && r6[0].title === '无标题');
+    }
+
+    // ──── buildEmptyStateMarkup ────
+
+    {
+      const html = buildEmptyStateMarkup('Hello!');
+      check('empty: contains the message', html.includes('<p>Hello!</p>'));
+      check('empty: contains search-empty-state class',
+        html.includes('class="search-empty-state"'));
+      check('empty: contains svg icon', html.includes('<svg'));
+      check('empty: null message → empty string body',
+        buildEmptyStateMarkup(null).includes('<p></p>'));
+    }
+
+    // ──── buildResultsMarkup ────
+
+    {
+      const empty = buildResultsMarkup([], -1, 'q', highlightText);
+      check('markup: empty results → empty string', empty === '');
+      check('markup: non-array → empty string',
+        buildResultsMarkup(null, -1, 'q', highlightText) === '');
+    }
+
+    {
+      const list = [
+        { id: 'a', title: 'Alpha', snippet: 'alpha snippet', createdAt: Date.UTC(2020, 0, 1) },
+        { id: 'b', title: 'Beta', snippet: '', createdAt: 0 },
+      ];
+      const html = buildResultsMarkup(list, 0, 'al', highlightText);
+      check('markup: includes both result-item entries',
+        (html.match(/class="search-result-item /g) || []).length === 2);
+      check('markup: row 0 has selected class', html.includes('search-result-item selected'));
+      check('markup: row 1 NOT selected',
+        html.includes('search-result-item " data-index="1"'));
+      check('markup: doc-id wired on data-doc-id',
+        html.includes('data-doc-id="a"') && html.includes('data-doc-id="b"'));
+      check('markup: highlight applied to title via highlightText',
+        html.includes('<span class="search-highlight">Al</span>pha'));
+      check('markup: empty snippet omits the snippet div',
+        (html.match(/search-result-snippet/g) || []).length === 1);
+      check('markup: missing createdAt (0) omits meta div',
+        (html.match(/search-result-meta/g) || []).length === 1);
+    }
+
+    {
+      const list = [{ id: 'x', title: 'X', snippet: '', createdAt: null }];
+      const html = buildResultsMarkup(list, 5, '', highlightText);
+      check('markup: out-of-range selectedIndex → no row selected',
+        !html.includes(' selected'));
+    }
+
+    {
+      const list = [{ id: 'k', title: 'kale', snippet: 'green kale', createdAt: 0 }];
+      const html = buildResultsMarkup(list, -1, 'kale', null);
+      check('markup: missing highlight fn → internal highlightText used',
+        html.includes('<span class="search-highlight">kale</span>'));
+    }
+
+    // ──── window export ────
+
+    check('exposes window.YomikikuanDocsSearch',
+      typeof window.YomikikuanDocsSearch === 'object'
+      && typeof window.YomikikuanDocsSearch.escapeRegexSpecials === 'function'
+      && typeof window.YomikikuanDocsSearch.highlightText === 'function'
+      && typeof window.YomikikuanDocsSearch.pickSnippet === 'function'
+      && typeof window.YomikikuanDocsSearch.searchDocuments === 'function'
+      && typeof window.YomikikuanDocsSearch.buildEmptyStateMarkup === 'function'
+      && typeof window.YomikikuanDocsSearch.buildResultsMarkup === 'function');
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail===0?'#1d7d3f':'#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
