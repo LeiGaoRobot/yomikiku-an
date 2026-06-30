@@ -1,11 +1,20 @@
 // Pure helpers for `displayResults` (analyzer rendering).
 //
 // Phase-1 extraction: HTML-template builders + token/line classification
-// predicates. No DOM access, no side effects, no globals. Phase-2 dedup
-// (replacing the inline copies in `main-js.js → displayResults`) lands
-// later.
+// predicates. No DOM access, no side effects, no globals (the orchestration
+// functions below read window.YomikikuanDict — see note there — but build
+// only strings, never touch the DOM).
 //
 // Boundary note: this module is *not* on the playback path. Safe to extract.
+// The onclick="playToken(...)" / "playLine(...)" attributes embedded in the
+// markup below are inert string literals resolved at click-time by globals
+// defined elsewhere (main-js.js) — building this markup never calls into
+// the playback state machine.
+
+import { mergeTokensForDisplay, splitKatakanaCompounds, splitLeadingParticleVerbTeDe, reflowLeadingPunctuation } from './display-tokens.js';
+import { formatReading } from '../../reading/reading.js';
+import { buildRubyMarkup } from '../../reading/ruby.js';
+import { escapeHtmlForRuby, getRomaji } from '../../reading/kana.js';
 
 // Regex shared with main-js.js. Centralised here so test parity is exact.
 export const JAPANESE_COMMON_PUNCT_RE = /^[。、！？「」『』（）【】〜・※…ー〇]$/;
@@ -138,6 +147,94 @@ export function buildLineContainerMarkup(opts) {
       `;
 }
 
+// Build one token's markup (pill or ruby-mode span, or a bare punctuation
+// passthrough). `ctx` carries the per-render settings that aren't derivable
+// from the token itself: { haAsWa, readingScript, rubyMode, i18nDict, playLabel }.
+//
+// window.YomikikuanDict (static/js/dictionary.js) is a classic-script global
+// loaded well before this module ever runs — displayResults (the only
+// caller, via buildResultsHtml) is handler-only, reached from the
+// async-analyze try/catch, never on the initial-render boot path. The
+// defensive `&&` checks mirror the style of the main-js.js code this
+// replaces rather than indicating a real boot-race risk.
+export function buildTokenMarkup(token, ctx) {
+  const c = ctx || {};
+  const dict = (typeof window !== 'undefined') ? window.YomikikuanDict : null;
+
+  const override = (dict && dict.getTechOverride) ? dict.getTechOverride(token) : null;
+  const tokenForUi = (override && override.reading) ? { ...token, reading: override.reading } : token;
+  const surface = tokenForUi.surface || '';
+  const reading = tokenForUi.reading || '';
+  const pos = Array.isArray(tokenForUi.pos) ? tokenForUi.pos : [tokenForUi.pos || ''];
+
+  const posInfo = (dict && dict.parsePartOfSpeech) ? dict.parsePartOfSpeech(pos) : { main: '未知', details: [], original: pos };
+  const posDisplay = posInfo.main || '未知';
+  const detailInfo = (dict && dict.formatDetailInfo) ? dict.formatDetailInfo(tokenForUi, posInfo, c.i18nDict || {}) : '';
+
+  const cls = classifyTokenForDisplay(surface, pos);
+  if (cls === 'empty') return '';
+  if (cls === 'mixedPunct' || cls === 'plainPos') return surface;
+  if (cls === 'japaneseCommonPunct') return `<span class="punct">${surface}</span>`;
+
+  const playText = resolvePlayText(tokenForUi, c.haAsWa);
+  const romaji = shouldRenderRomaji(playText) ? getRomaji(playText) : '';
+  const sanitizedPlayText = sanitizePlayText(playText);
+  const readingText = formatReading(tokenForUi, c.readingScript, {
+    haAsWa: c.haAsWa,
+    getTechOverride: dict && dict.getTechOverride,
+  });
+
+  if (c.rubyMode) {
+    return buildRubyTokenMarkup({
+      rubyInner: buildRubyMarkup(surface, reading, c.readingScript),
+      posDisplay,
+      sanitizedPlayText,
+      escapedSurface: escapeHtmlForRuby(surface),
+    });
+  }
+
+  return buildTokenPillMarkup({
+    tokenForUi,
+    surface,
+    readingText,
+    romaji,
+    posDisplay,
+    detailInfo,
+    sanitizedPlayText,
+    playLabel: c.playLabel,
+  });
+}
+
+// Build one line's full markup (token spans + the line-container wrapper),
+// or '' if the line renders to nothing. `ctx` is forwarded to buildTokenMarkup
+// and also supplies { analyzeLineLabel, playLineLabel } for the wrapper.
+export function buildLineHtml(line, lineIndex, ctx) {
+  const c = ctx || {};
+  const preSplit = splitLeadingParticleVerbTeDe(line);
+  const mergedTokens = mergeTokensForDisplay(preSplit);
+  const tokensForDisplay = splitKatakanaCompounds(mergedTokens);
+  const lineHtml = tokensForDisplay.map((token) => buildTokenMarkup(token, c)).join('');
+  if (!lineHtml.trim()) return '';
+  return buildLineContainerMarkup({
+    lineHtml,
+    lineIndex,
+    rubyMode: c.rubyMode,
+    analyzeLineLabel: c.analyzeLineLabel,
+    playLineLabel: c.playLineLabel,
+  });
+}
+
+// Full `result.lines` → HTML string. The single entry point displayResults
+// delegates to. See buildTokenMarkup / buildLineHtml for the ctx shape.
+export function buildResultsHtml(lines, ctx) {
+  const nonEmptyLines = filterPunctuationOnlyLines(lines);
+  const linesWithoutLeadingPunct = reflowLeadingPunctuation(nonEmptyLines);
+  return linesWithoutLeadingPunct
+    .map((line, lineIndex) => buildLineHtml(line, lineIndex, ctx))
+    .filter((html) => html)
+    .join('');
+}
+
 if (typeof window !== 'undefined') {
   window.YomikikuanResultsDisplay = {
     JAPANESE_COMMON_PUNCT_RE,
@@ -154,5 +251,8 @@ if (typeof window !== 'undefined') {
     buildTokenPillMarkup,
     buildRubyTokenMarkup,
     buildLineContainerMarkup,
+    buildTokenMarkup,
+    buildLineHtml,
+    buildResultsHtml,
   };
 }

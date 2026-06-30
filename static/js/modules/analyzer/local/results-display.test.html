@@ -34,6 +34,9 @@
       buildTokenPillMarkup,
       buildRubyTokenMarkup,
       buildLineContainerMarkup,
+      buildTokenMarkup,
+      buildLineHtml,
+      buildResultsHtml,
     } from './results-display.js';
 
     const results = [];
@@ -304,6 +307,82 @@
         html.includes('class="line-container ruby-line"'));
     }
 
+    // ──── buildTokenMarkup ────
+
+    const baseCtx = { haAsWa: true, readingScript: 'katakana', rubyMode: false, i18nDict: {}, playLabel: 'Play' };
+
+    check('token: japaneseCommonPunct → bare punct span',
+      buildTokenMarkup({ surface: '。', pos: ['記号'] }, baseCtx) === '<span class="punct">。</span>');
+
+    check('token: plainPos (記号 with no special surface) → bare surface',
+      buildTokenMarkup({ surface: '★', pos: ['記号'] }, baseCtx) === '★');
+
+    check('token: decorative/markdown surface → empty string',
+      buildTokenMarkup({ surface: '##', pos: ['記号'] }, baseCtx) === '');
+
+    {
+      const html = buildTokenMarkup({ surface: '日本', reading: 'にほん', pos: ['名詞'] }, baseCtx);
+      check('token: normal word, rubyMode off → token-pill markup', html.includes('class="token-pill"'));
+      check('token: normal word → contains surface 日本', html.includes('>日本<'));
+      check('token: no window.YomikikuanDict → posDisplay falls back to 未知', html.includes('data-pos="未知"'));
+    }
+
+    {
+      const rubyCtx = { ...baseCtx, rubyMode: true };
+      const html = buildTokenMarkup({ surface: '日本', reading: 'にほん', pos: ['名詞'] }, rubyCtx);
+      check('token: rubyMode on → ruby-token markup', html.includes('class="ruby-token"'));
+      check('token: rubyMode on → contains <ruby> tag', html.includes('<ruby>'));
+    }
+
+    {
+      // は→わ particle rule threaded through to both playToken text and reading.
+      const html = buildTokenMarkup({ surface: 'は', reading: 'は', pos: ['助詞'] }, { ...baseCtx, readingScript: 'hiragana' });
+      check('token: は particle + haAsWa on → onclick uses わ', html.includes("playToken('わ'"));
+    }
+
+    {
+      // window.YomikikuanDict mocked — verifies the orchestration wires
+      // getTechOverride / parsePartOfSpeech / formatDetailInfo through correctly.
+      const prevDict = window.YomikikuanDict;
+      window.YomikikuanDict = {
+        getTechOverride: (tok) => (tok.surface === 'API' ? { reading: 'エーピーアイ' } : null),
+        parsePartOfSpeech: (pos) => ({ main: (Array.isArray(pos) ? pos[0] : pos) || '未知', details: [], original: pos }),
+        formatDetailInfo: (tok, posInfo) => `<i>${posInfo.main}</i>`,
+      };
+      const html = buildTokenMarkup({ surface: 'API', reading: 'えーぴーあい', pos: ['名詞'] }, baseCtx);
+      check('token: getTechOverride swaps reading', html.includes('エーピーアイ'));
+      check('token: parsePartOfSpeech drives data-pos', html.includes('data-pos="名詞"'));
+      check('token: formatDetailInfo markup included', html.includes('<i>名詞</i>'));
+      window.YomikikuanDict = prevDict;
+    }
+
+    // ──── buildLineHtml ────
+
+    {
+      const line = [{ surface: '日本', reading: 'にほん', pos: ['名詞'] }, { surface: '。', pos: ['記号'] }];
+      const html = buildLineHtml(line, 2, baseCtx);
+      check('line: non-empty line → line-container wrapper', html.includes('class="line-container"'));
+      check('line: data-line-index reflects lineIndex', html.includes('data-line-index="2"'));
+    }
+
+    check('line: all-decorative line → empty string',
+      buildLineHtml([{ surface: '##', pos: ['記号'] }], 0, baseCtx) === '');
+
+    // ──── buildResultsHtml ────
+
+    {
+      const lines = [
+        [{ surface: '名詞', reading: 'めいし', pos: ['名詞'] }],
+        [{ surface: '。', pos: ['記号'] }, { surface: '、', pos: ['補助記号'] }], // punctuation-only — filtered
+        [{ surface: '名詞', reading: 'めいし', pos: ['名詞'] }],
+      ];
+      const html = buildResultsHtml(lines, baseCtx);
+      const containerCount = (html.match(/class="line-container"/g) || []).length;
+      check('results: punctuation-only line dropped, 2 lines rendered', containerCount === 2);
+    }
+
+    check('results: empty lines array → empty string', buildResultsHtml([], baseCtx) === '');
+
     // ──── window export ────
 
     check('exposes window.YomikikuanResultsDisplay',
@@ -316,7 +395,10 @@
       && typeof window.YomikikuanResultsDisplay.sanitizePlayText === 'function'
       && typeof window.YomikikuanResultsDisplay.encodeTokenDataAttr === 'function'
       && typeof window.YomikikuanResultsDisplay.shouldRenderRomaji === 'function'
-      && typeof window.YomikikuanResultsDisplay.resolvePlayText === 'function');
+      && typeof window.YomikikuanResultsDisplay.resolvePlayText === 'function'
+      && typeof window.YomikikuanResultsDisplay.buildTokenMarkup === 'function'
+      && typeof window.YomikikuanResultsDisplay.buildLineHtml === 'function'
+      && typeof window.YomikikuanResultsDisplay.buildResultsHtml === 'function');
 
     const pass = results.filter(r => r.pass).length;
     const fail = results.length - pass;

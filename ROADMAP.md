@@ -6,8 +6,8 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 7019, was 8835 at the start
-  of the cumulative effort; **−1816 net**). *(A full header-refactor
+- **`main-js.js` < 5000 lines** (currently 6960, was 8835 at the start
+  of the cumulative effort; **−1875 net**). *(A full header-refactor
   dead-code sweep is now complete — header-scroll −156, quick-search −56,
   mobile lang-dropdown −57, nav lang-flags −12, sidebar i18n labels −70,
   dead lang/theme `<select>` −110, dead sidebar controls −215, last
@@ -25,8 +25,9 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 - **Test coverage growing in lockstep** with each extraction (currently 46
   `*.test.html` files on disk; **42 run headlessly** via the `TESTS` array
   in `scripts/test.sh` — the other 4 are visual/console.assert pages
-  excluded by design; **1115 cases, all green** per the latest
-  `npm test` run).
+  excluded by design; **1132 cases, all green** per the latest
+  `npm test` run; plus a 4-scenario Playwright E2E smoke suite via
+  `npm run e2e`).
 
 > **Sync note (2026-06-30)**: this document was re-audited against the
 > working tree. Headline numbers, the Done inventory, and the next-wave
@@ -48,13 +49,19 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 >
 > **Big remaining wins** (handler-only, fallback-free Phase-2 provably
 > safe — but require deep DI work hours-scale):
-> - `displayResults` — **partially** delegated only. The display-token
->   transforms now route to `analyzer/local/display-tokens.js`
->   (identity-fallback, handler-only — see `main-js.js:4039`), but the
->   function body still owns ~290 lines of DOM assembly. NOT the
->   90-LOC delegator an earlier revision claimed. Further extraction
->   (results-display template builders already exist in
->   `analyzer/local/results-display.js`) is still open.
+> - ~~`displayResults`~~ ✅ shipped 2026-07-01 (-59 LOC net in
+>   main-js.js; the orchestration that used to live inline — per-token
+>   classify/format/build, per-line reflow/merge/split — now lives in
+>   `analyzer/local/results-display.js` as `buildTokenMarkup` /
+>   `buildLineHtml` / `buildResultsHtml`, no inline fallback). See
+>   "Next-wave candidates #4" below for the full writeup — the
+>   ~290-LOC estimate this note carried was stale; the function had
+>   already shrunk to ~90 lines via earlier display-tokens /
+>   results-display Phase-1 work, and the remaining orchestration
+>   turned out to need far less DI than expected once it became clear
+>   `formatReading` / `buildRubyMarkup` / `escapeHtmlForRuby` /
+>   `getRomaji` are plain pure ESM exports importable directly (no
+>   window-global lookup needed inside the new module).
 > - ~~`startPwaDownload`~~ ✅ shipped (-119 LOC, no fallback)
 
 ## Method (the "Phase-1/Phase-2" pattern)
@@ -93,7 +100,7 @@ else is fair game.
 | `modules/pwa/start-download.js`  | startPwaDownload (handler-only, no fallback)         | 45 |
 | `modules/analyzer/local/display-tokens.js` | display token helpers                      | 58 |
 | `modules/analyzer/translation-modal.js` | per-line translation modal                    | 55 |
-| `modules/analyzer/local/results-display.js` | displayResults pure helpers (filter / classify / template builders) | 89 |
+| `modules/analyzer/local/results-display.js` | displayResults pure helpers + full orchestration (filter / classify / template builders / buildTokenMarkup / buildLineHtml / buildResultsHtml), Phase-2 dedup'd, no fallback | 106 |
 | `modules/analyzer/local/text-preprocess.js` | filterParentheses / computeStructureSignature           | 36 |
 | `modules/ui/toolbar-content.js`  | createToolbarContentHTML (DI: t)                     | 31 |
 | `modules/docs/search.js`         | escapeRegexSpecials / highlightText / pickSnippet / searchDocuments / buildEmptyStateMarkup / buildResultsMarkup | 55 |
@@ -137,7 +144,10 @@ user-initiated only, so the fallback can be a bare
 setupPwaInstaller, syncReadingLineAttributes, startPwaDownload
 (**−119 LOC**, no fallback — install-button click handler),
 display-tokens helpers (**−172 LOC**), translation-modal
-(**−299 LOC**, biggest single-extraction win to date).
+(**−299 LOC**, biggest single-extraction win to date), displayResults
+(**−59 LOC**, no fallback — handler-only; the orchestration that used
+to be inline in main-js.js now lives in results-display.js as
+buildTokenMarkup/buildLineHtml/buildResultsHtml).
 
 ## Next-wave candidates (re-audited 2026-06-30, not yet started)
 
@@ -268,25 +278,49 @@ modules land — re-grep before starting any item (tree is now 7609 lines).
    `t` + `activeTokenDetails`, no inline fallback since it's handler-only).
    Nothing left to extract.
 
-4. **`displayResults` deeper extraction (~290 LOC, re-grep line)** — the
-   template-builder half already lives in
-   `analyzer/local/results-display.js`; the in-file body still assembles
-   DOM inline. Highest LOC ceiling but most DI work — **deferred for the
-   same reason as the `init*` functions**: the remaining body threads many
-   IIFE-locals (reading-line highlight state, token-detail closures,
-   per-line play wiring) and sits one call away from the playback path.
-   The clean next step is smaller pure helpers peeled off into
-   `results-display.js` one at a time (each unit-tested), not a single big
-   delegator. Left for a focused session. NOT already a 90-LOC delegator.
+4. ~~**`displayResults` deeper extraction**~~ ✅ shipped 2026-07-01
+   (**−59 LOC**, no fallback). The "~290 LOC, hours-scale DI" framing
+   here was stale — by the time this was picked up, the function had
+   already shrunk to ~90 lines (display-tokens.js + results-display.js
+   template builders had already absorbed most of the work). The
+   "reading-line highlight state, token-detail closures, per-line play
+   wiring" concern turned out to be a non-issue on closer reading: the
+   `clearReadingLineHighlight()` call and `syncReadingLineAttributes()`
+   call bracket the function and were left untouched in main-js.js;
+   nothing *inside* the per-token/per-line builder actually touches
+   reading-line-highlight state. The per-line/per-token play buttons
+   only ever embed `onclick="playToken(...)"` / `onclick="playLine(...)"`
+   as inert string literals — resolved at click-time by globals defined
+   elsewhere — so building this markup never calls into the playback
+   state machine (confirmed via `results-display.js`'s own boundary-note
+   comment, predating this extraction).
+   New: `buildTokenMarkup(token, ctx)`, `buildLineHtml(line, lineIndex, ctx)`,
+   `buildResultsHtml(lines, ctx)` in `analyzer/local/results-display.js`,
+   importing `formatReading` (reading/reading.js), `buildRubyMarkup`
+   (reading/ruby.js), `escapeHtmlForRuby`/`getRomaji` (reading/kana.js)
+   directly as pure ESM functions — no `window.Yomikikuan*` global
+   lookup needed for those three, eliminating a category of boot-race
+   risk that the old inline code defended against with `&&` guards.
+   `window.YomikikuanDict` (classic-script global) is still read
+   defensively, matching the original style. 17 new test cases (106
+   total in `results-display.test.html`). Verified via `npm test`
+   (1132/1132), `npm run e2e` (4/4), and a direct in-browser call to
+   `buildResultsHtml` with real `window.YomikikuanDict` + real sample
+   text — screenshotted both pill mode (token-pill kana/romaji/kanji/POS)
+   and ruby mode (correctly aligned furigana きょう/よ/てんき over
+   今日/良い/天気) to confirm pixel-correct rendering, zero console errors.
+   `displayResults` itself is now a ~20-line delegator.
 
-> **Session note (2026-06-30):** the "implement everything" pass resolved
-> the actionable candidates — toast dedup shipped, four header-refactor
-> dead clusters removed (−281), `showDetailedTranslation` confirmed
-> already-done. What remains (sidebar dead-code sweep, `init*` /
-> `displayResults` extraction) is deliberately deferred above: each is
-> either interwoven with live code / the playback boundary, or
-> hours-scale DI work whose risk outweighs the LOC. These are documented,
-> not forgotten — pick them up as dedicated, individually-verified tasks.
+> **Session note (2026-06-30 → 2026-07-01):** the "implement everything"
+> pass resolved the actionable candidates across two sessions — toast
+> dedup shipped, four header-refactor dead clusters removed (−281),
+> `showDetailedTranslation` confirmed already-done, the sidebar/button
+> dead-lookup sweep finished (−176, see "Partially-done dead code"
+> above), and `displayResults` extraction shipped (−59). What remains
+> (the `init*` functions) is deliberately deferred: `initUserProfile`
+> / `initAppDrawer` are hours-scale DI work with real risk to
+> auth/drawer for marginal LOC — not worth it without a dedicated
+> session.
 
 ### Closed / not viable
 

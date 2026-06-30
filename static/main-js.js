@@ -3744,82 +3744,23 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
     clearReadingLineHighlight();
 
-    // 展示层词块变换委托至 modules/analyzer/local/display-tokens.js (Phase-2 dedup).
-    // displayResults runs only inside the async-analyze try/catch (handler-only),
-    // so by here the dynamic-import has long resolved. Identity-fallback when
-    // the module is missing keeps the function safe (tokens unchanged).
-    const _DT = (typeof window !== 'undefined') ? window.YomikikuanDisplayTokens : null;
-    const mergeTokensForDisplay = _DT ? _DT.mergeTokensForDisplay : (t) => t;
-    const reflowLeadingPunctuation = _DT ? _DT.reflowLeadingPunctuation : (l) => l;
-    const splitKatakanaCompounds = _DT ? _DT.splitKatakanaCompounds : (t) => t;
-    const splitLeadingParticleVerbTeDe = _DT ? _DT.splitLeadingParticleVerbTeDe : (t) => t;
-
-    // results-display module owns the pure helpers (filter / classify /
-    // sanitize / template builders). displayResults is handler-only —
-    // single call site in async-analyze try/catch — so the dynamic ESM
-    // import has long resolved by here. No inline fallback.
+    // results-display module owns the full per-token/per-line orchestration
+    // (filter / reflow / classify / sanitize / template builders) — Phase-2
+    // dedup, 2026-07-01. displayResults is handler-only — single call site
+    // in the async-analyze try/catch — so the dynamic ESM import has long
+    // resolved by here. No inline fallback (same convention as the
+    // showDetailedTranslation / startPwaDownload handler-only dedups).
     const RD = window.YomikikuanResultsDisplay;
 
-    const nonEmptyLines = RD.filterPunctuationOnlyLines(result.lines);
-    const linesWithoutLeadingPunct = reflowLeadingPunctuation(nonEmptyLines);
-
-    const html = linesWithoutLeadingPunct.map((line, lineIndex) => {
-      const preSplit = splitLeadingParticleVerbTeDe(line);
-      const mergedTokens = mergeTokensForDisplay(preSplit);
-      const tokensForDisplay = splitKatakanaCompounds(mergedTokens);
-      const lineHtml = tokensForDisplay.map((token) => {
-        const override = (window.YomikikuanDict && window.YomikikuanDict.getTechOverride) ? window.YomikikuanDict.getTechOverride(token) : null;
-        const tokenForUi = (override && override.reading) ? { ...token, reading: override.reading } : token;
-        const surface = tokenForUi.surface || '';
-        const reading = tokenForUi.reading || '';
-        const pos = Array.isArray(tokenForUi.pos) ? tokenForUi.pos : [tokenForUi.pos || ''];
-
-        const posInfo = (window.YomikikuanDict && window.YomikikuanDict.parsePartOfSpeech) ? window.YomikikuanDict.parsePartOfSpeech(pos) : { main: '未知', details: [], original: pos };
-        const posDisplay = posInfo.main || '未知';
-        const detailInfo = (window.YomikikuanDict && window.YomikikuanDict.formatDetailInfo) ? window.YomikikuanDict.formatDetailInfo(tokenForUi, posInfo, I18N[currentLang] || {}) : '';
-
-        const cls = RD.classifyTokenForDisplay(surface, pos);
-        if (cls === 'empty') return '';
-        if (cls === 'mixedPunct' || cls === 'plainPos') return surface;
-        if (cls === 'japaneseCommonPunct') return `<span class="punct">${surface}</span>`;
-
-        const haAsWa = isHaParticleReadingEnabled();
-        const playText = RD.resolvePlayText(tokenForUi, haAsWa);
-        const romaji = RD.shouldRenderRomaji(playText) ? getRomaji(playText) : '';
-        const sanitizedPlayText = RD.sanitizePlayText(playText);
-        const readingText = formatReading(tokenForUi, getReadingScript());
-
-        if (getRubyMode()) {
-          return RD.buildRubyTokenMarkup({
-            rubyInner: buildRubyMarkup(surface, reading, getReadingScript()),
-            posDisplay,
-            sanitizedPlayText,
-            escapedSurface: escapeHtmlForRuby(surface),
-          });
-        }
-
-        return RD.buildTokenPillMarkup({
-          tokenForUi,
-          surface,
-          readingText,
-          romaji,
-          posDisplay,
-          detailInfo,
-          sanitizedPlayText,
-          playLabel: t('play'),
-        });
-      }).join('');
-
-      if (!lineHtml.trim()) return '';
-
-      return RD.buildLineContainerMarkup({
-        lineHtml,
-        lineIndex,
-        rubyMode: getRubyMode(),
-        analyzeLineLabel: t('analyzer.analyzeLine') || '解析本句',
-        playLineLabel: t('playThisLine'),
-      });
-    }).filter(html => html).join('');
+    const html = RD.buildResultsHtml(result.lines, {
+      haAsWa: isHaParticleReadingEnabled(),
+      readingScript: getReadingScript(),
+      rubyMode: getRubyMode(),
+      i18nDict: I18N[currentLang] || {},
+      analyzeLineLabel: t('analyzer.analyzeLine') || '解析本句',
+      playLineLabel: t('playThisLine'),
+      playLabel: t('play'),
+    });
 
     // Tear down any live analyzer cards so in-flight requests abort cleanly.
     teardownLiveAnalyzerCards();
