@@ -6,10 +6,11 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 7609, was 8835 at the start
-  of the cumulative effort; **−1226 net**). *(Recent: toast Phase-2 dedup
-  +13; then a header-refactor dead-code sweep — header-scroll −156,
-  quick-search −56, mobile lang-dropdown −57, nav lang-flags −12.)*
+- **`main-js.js` < 5000 lines** (currently 7539, was 8835 at the start
+  of the cumulative effort; **−1296 net**). *(Recent: toast Phase-2 dedup
+  +13; header-refactor dead-code sweep — header-scroll −156, quick-search
+  −56, mobile lang-dropdown −57, nav lang-flags −12, dead sidebar i18n
+  label blocks −70.)*
 - **Test coverage growing in lockstep** with each extraction (currently 46
   `*.test.html` files on disk; **42 run headlessly** via the `TESTS` array
   in `scripts/test.sh` — the other 4 are visual/console.assert pages
@@ -170,7 +171,27 @@ modules land — re-grep before starting any item (tree is now 7609 lines).
    Language switching survives via the settings-modal selector
    (`modalLangSelect`) — the live UI.
 
-   **Deferred dead code — `sidebar*` / old-toolbar lookups (≈33 vars).**
+   **Partially-done dead code — `sidebar*` / old-toolbar lookups.** The
+   old right-settings-sidebar is the `'sidebar'` context of
+   `createToolbarContentHTML`, and it is **never rendered** (no
+   `[data-context]` container in `index.html`; only the `'modal'` context
+   — the settings modal, unprefixed ids — is live). So every
+   `sidebar*`-prefixed lookup is null. **Removed (−70):** the two inert
+   sidebar i18n label blocks (`applyI18n` + the secondary `setText` pass).
+   **Left in place (boundary / timing-subtle):** the rest is genuinely
+   unsafe to excise mechanically —
+   - voice mirroring + the sidebar voice `<select>` population live
+     **inside `refreshVoices`** (playback-boundary do-not-touch zone);
+   - the speed-slider wiring mutates the playback `rate`;
+   - the `themeSelect` / `langSelect` / `sidebar*Select` blocks in
+     `applyI18n` hinge on **init-vs-mount capture timing**: the top-level
+     `const langSelect = $('langSelect')` is captured at IIFE init (before
+     the modal mounts) so it is *also* null, while the live control is
+     re-captured as `modalLangSelect` in `mountSettingsModalContent`.
+     Deciding what is truly dead there needs runtime tracing, not static
+     analysis — exactly the kind of subtlety that should not be rushed.
+
+   **(historical) Deferred dead code — `sidebar*` / old-toolbar lookups.**
    An id-reachability audit (`$('id')` / `getElementById` ids absent from
    `index.html` AND not built in any ESM template AND not referenced by
    modules) flags ~33 more dead lookups: the old right-settings-sidebar
