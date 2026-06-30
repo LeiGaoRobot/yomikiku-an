@@ -2373,10 +2373,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         
         // 显示语音不可用选项
         const voiceSelectEl = document.getElementById('voiceSelect');
-        const sidebarVoiceSelectEl = document.getElementById('sidebarVoiceSelect');
         const headerVoiceSelectEl = document.getElementById('headerVoiceSelect');
         if (voiceSelectEl) voiceSelectEl.innerHTML = '';
-        if (sidebarVoiceSelectEl) sidebarVoiceSelectEl.innerHTML = '';
         if (headerVoiceSelectEl) headerVoiceSelectEl.innerHTML = '';
         
         const opt = document.createElement('option');
@@ -2389,11 +2387,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           headerVoiceSelectEl.appendChild(headerOpt);
         }
         
-        if (sidebarVoiceSelectEl) {
-          const sidebarOpt = opt.cloneNode(true);
-          sidebarVoiceSelectEl.appendChild(sidebarOpt);
-        }
-        
         currentVoice = null;
         return;
       }
@@ -2403,10 +2396,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     
     const populateVoiceSelects = () => {
       const voiceSelectEl = document.getElementById('voiceSelect');
-      const sidebarVoiceSelectEl = document.getElementById('sidebarVoiceSelect');
       const headerVoiceSelectEl = document.getElementById('headerVoiceSelect');
       if (voiceSelectEl) voiceSelectEl.innerHTML = '';
-      if (sidebarVoiceSelectEl) sidebarVoiceSelectEl.innerHTML = '';
       if (headerVoiceSelectEl) headerVoiceSelectEl.innerHTML = '';
       
       voices.forEach((v, i) => {
@@ -2418,11 +2409,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           const headerOpt = opt.cloneNode(true);
           headerVoiceSelectEl.appendChild(headerOpt);
         }
-        
-        if (sidebarVoiceSelectEl) {
-          const sidebarOpt = opt.cloneNode(true);
-          sidebarVoiceSelectEl.appendChild(sidebarOpt);
-        }
       });
 
       const pref = localStorage.getItem(LS.voiceURI);
@@ -2432,7 +2418,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       if (chosen) {
         currentVoice = chosen;
         if (voiceSelectEl) voiceSelectEl.value = chosen.voiceURI || chosen.name;
-        if (sidebarVoiceSelectEl) sidebarVoiceSelectEl.value = chosen.voiceURI || chosen.name;
         if (headerVoiceSelectEl) headerVoiceSelectEl.value = chosen.voiceURI || chosen.name;
       }
     };
@@ -2449,13 +2434,13 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   document.addEventListener('change', (e) => {
     const target = e.target;
     if (!(target instanceof HTMLSelectElement)) return;
-    if (target.id !== 'voiceSelect' && target.id !== 'sidebarVoiceSelect' && target.id !== 'headerVoiceSelect') return;
+    if (target.id !== 'voiceSelect' && target.id !== 'headerVoiceSelect') return;
     const uri = target.value;
     const v = voices.find(v => (v.voiceURI || v.name) === uri);
     if (v) {
       currentVoice = v;
       try { localStorage.setItem(LS.voiceURI, v.voiceURI || v.name); } catch (_) {}
-      const mirrorIds = ['voiceSelect','sidebarVoiceSelect','headerVoiceSelect'].filter(id => id !== target.id);
+      const mirrorIds = ['voiceSelect','headerVoiceSelect'].filter(id => id !== target.id);
       mirrorIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = uri;
