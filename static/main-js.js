@@ -112,12 +112,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const editorDeleteBtn = document.getElementById('editorDeleteBtn');
   const themeToggleBtn = document.getElementById('theme-toggle');
   
-  // 右侧边栏元素
-  const sidebarVoiceSelect = $('sidebarVoiceSelect');
-  const sidebarSpeedSlider = $('sidebarSpeedRange');
-  const sidebarSpeedValue = $('sidebarSpeedValue');
-  const sidebarPlayAllBtn = $('sidebarPlayAllBtn');
-  
   // 显示控制元素
   const showKanaCheckbox = $('showKana');
   const showRomajiCheckbox = $('showRomaji');
@@ -137,13 +131,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const pwaToastBar = $('pwaInstallProgressBar');
   const pwaToastClose = $('pwaToastClose');
   
-  // 侧边栏显示控制元素
-  const sidebarShowKanaCheckbox = $('sidebarShowKana');
-  const sidebarShowRomajiCheckbox = $('sidebarShowRomaji');
-  const sidebarShowPosCheckbox = $('sidebarShowPos');
-  const sidebarAutoReadCheckbox = $('sidebarAutoRead');
-  let sidebarRepeatPlayCheckbox = $('sidebarRepeatPlay');
-
   // 本地存储键
   const LS = { 
     text: 'text', 
@@ -1049,7 +1036,7 @@ const headerSpeedValue = $('headerSpeedValue');
         } else if (window.speechSynthesis && window.speechSynthesis.paused) {
           try { window.speechSynthesis.resume(); } catch (_) {}
         } else {
-          const btn = document.getElementById('playAllBtn') || document.getElementById('sidebarPlayAllBtn');
+          const btn = document.getElementById('playAllBtn');
           if (btn) btn.click();
         }
         return;
@@ -1077,10 +1064,10 @@ const headerSpeedValue = $('headerSpeedValue');
           if (typeof window !== 'undefined') window.rate = rate;
           localStorage.setItem(LS.rate, String(rate));
           const fmt = rate.toFixed(2).replace(/\.?0+$/, '') + 'x';
-          ['speedRange', 'sidebarSpeedRange', 'headerSpeedRange'].forEach((id) => {
+          ['speedRange', 'headerSpeedRange'].forEach((id) => {
             const el = document.getElementById(id); if (el) el.value = String(rate);
           });
-          ['speedValue', 'sidebarSpeedValue', 'headerSpeedValue'].forEach((id) => {
+          ['speedValue', 'headerSpeedValue'].forEach((id) => {
             const el = document.getElementById(id); if (el) el.textContent = fmt;
           });
           if (typeof window.__applyLiveRate === 'function') window.__applyLiveRate(rate);
@@ -2350,21 +2337,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       rate = Math.min(4, Math.max(0.25, parseFloat(speedSlider.value) || 1));
       if (speedValue) speedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (headerSpeedValue) headerSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-      if (sidebarSpeedSlider) sidebarSpeedSlider.value = rate;
-      if (sidebarSpeedValue) sidebarSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-      if (headerSpeedSlider) headerSpeedSlider.value = rate;
-      localStorage.setItem(LS.rate, String(rate));
-      applyRateLive(rate);
-    });
-  }
-
-  if (sidebarSpeedSlider) {
-    sidebarSpeedSlider.addEventListener('input', () => {
-      rate = Math.min(4, Math.max(0.25, parseFloat(sidebarSpeedSlider.value) || 1));
-      if (speedValue) speedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-      if (headerSpeedValue) headerSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-      if (sidebarSpeedValue) sidebarSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-      if (speedSlider) speedSlider.value = rate;
       if (headerSpeedSlider) headerSpeedSlider.value = rate;
       localStorage.setItem(LS.rate, String(rate));
       applyRateLive(rate);
@@ -2376,9 +2348,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       rate = Math.min(4, Math.max(0.25, parseFloat(headerSpeedSlider.value) || 1));
       if (headerSpeedValue) headerSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (speedValue) speedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-      if (sidebarSpeedValue) sidebarSpeedValue.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
       if (speedSlider) speedSlider.value = rate;
-      if (sidebarSpeedSlider) sidebarSpeedSlider.value = rate;
       localStorage.setItem(LS.rate, String(rate));
       applyRateLive(rate);
     });
@@ -3994,9 +3964,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     try {
       const isAutoReadEnabled = (() => {
         const main = document.getElementById('autoRead');
-        const sidebar = document.getElementById('sidebarAutoRead');
         if (main && typeof main.checked !== 'undefined') return main.checked;
-        if (sidebar && typeof sidebar.checked !== 'undefined') return sidebar.checked;
         const v = localStorage.getItem(LS.autoRead);
         return v === 'true';
       })();
@@ -4431,10 +4399,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     });
   }
 
-  if (sidebarPlayAllBtn) {
-    sidebarPlayAllBtn.addEventListener('click', playAllText);
-  }
-
   // 分析按钮事件（按钮可能不存在）
   if (analyzeBtn) analyzeBtn.addEventListener('click', analyzeText);
 
@@ -4511,19 +4475,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     const autoReadCheckbox = document.getElementById('autoRead');
     // 使用全局变量，避免遮蔽
     repeatPlayCheckbox = document.getElementById('repeatPlay');
-    const sidebarShowKanaCheckbox = document.getElementById('sidebarShowKana');
-    const sidebarShowRomajiCheckbox = document.getElementById('sidebarShowRomaji');
-    const sidebarShowPosCheckbox = document.getElementById('sidebarShowPos');
-    const sidebarTokenAlignLeftCheckbox = document.getElementById('sidebarTokenAlignLeft');
-    const sidebarShowDetailsCheckbox = document.getElementById('sidebarShowDetails');
-    const sidebarShowUnderlineCheckbox = document.getElementById('sidebarShowUnderline');
-    const sidebarAutoReadCheckbox = document.getElementById('sidebarAutoRead');
-    // 使用全局变量，避免遮蔽
-    sidebarRepeatPlayCheckbox = document.getElementById('sidebarRepeatPlay');
     // 读音脚本下拉
     const readingScriptSelect = document.getElementById('readingScriptSelect');
-    const sidebarReadingScriptSelect = document.getElementById('sidebarReadingScriptSelect');
-    
+
     // 从本地存储读取初始状态
     const getBool = (key, defaultVal = true) => {
       const v = localStorage.getItem(key);
@@ -4544,59 +4498,39 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
     // 新增：助词“は→わ”开关
     const haAsWaCheckbox = document.getElementById('haAsWa');
-    const sidebarHaAsWaCheckbox = document.getElementById('sidebarHaAsWa');
     if (haAsWaCheckbox) haAsWaCheckbox.checked = getBool(LS.haAsWa, true);
-    if (sidebarHaAsWaCheckbox) sidebarHaAsWaCheckbox.checked = getBool(LS.haAsWa, true);
-    
+
     // 设置下拉初始值 - 主弹窗
     const getScript = () => {
       const v = localStorage.getItem(LS.readingScript);
       return (v === 'hiragana' || v === 'katakana') ? v : 'katakana';
     };
     if (readingScriptSelect) readingScriptSelect.value = getScript();
-    // 设置复选框状态 - 侧边栏
-    if (sidebarShowKanaCheckbox) sidebarShowKanaCheckbox.checked = getBool(LS.showKana, true);
-    if (sidebarShowRomajiCheckbox) sidebarShowRomajiCheckbox.checked = getBool(LS.showRomaji, true);
-    if (sidebarShowPosCheckbox) sidebarShowPosCheckbox.checked = getBool(LS.showPos, true);
-    if (sidebarTokenAlignLeftCheckbox) sidebarTokenAlignLeftCheckbox.checked = getBool(LS.tokenAlignLeft, false);
-    if (sidebarShowDetailsCheckbox) sidebarShowDetailsCheckbox.checked = getBool(LS.showDetails, true);
-    if (sidebarShowUnderlineCheckbox) sidebarShowUnderlineCheckbox.checked = getBool(LS.showUnderline, true);
-    if (sidebarAutoReadCheckbox) sidebarAutoReadCheckbox.checked = getBool(LS.autoRead, false);
-    if (sidebarRepeatPlayCheckbox) sidebarRepeatPlayCheckbox.checked = getBool(LS.repeatPlay, false);
-    if (sidebarHaAsWaCheckbox) sidebarHaAsWaCheckbox.checked = getBool(LS.haAsWa, true);
-    // 设置下拉初始值 - 侧边栏
-    if (sidebarReadingScriptSelect) sidebarReadingScriptSelect.value = getScript();
-    
+
     // 应用显示设置
     updateDisplaySettings();
-    
+
     // 应用当前读音脚本显示
     updateReadingScriptDisplay();
-    
+
     // 添加事件监听器 - 主弹窗
     if (showKanaCheckbox) {
       showKanaCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.showKana, showKanaCheckbox.checked);
-        // 同步侧边栏状态
-        if (sidebarShowKanaCheckbox) sidebarShowKanaCheckbox.checked = showKanaCheckbox.checked;
         updateDisplaySettings();
       });
     }
-    
+
     if (showRomajiCheckbox) {
       showRomajiCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.showRomaji, showRomajiCheckbox.checked);
-        // 同步侧边栏状态
-        if (sidebarShowRomajiCheckbox) sidebarShowRomajiCheckbox.checked = showRomajiCheckbox.checked;
         updateDisplaySettings();
       });
     }
-    
+
     if (showPosCheckbox) {
       showPosCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.showPos, showPosCheckbox.checked);
-        // 同步侧边栏状态
-        if (sidebarShowPosCheckbox) sidebarShowPosCheckbox.checked = showPosCheckbox.checked;
         updateDisplaySettings();
       });
     }
@@ -4608,19 +4542,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       });
     }
 
-    if (sidebarTokenAlignLeftCheckbox) {
-      sidebarTokenAlignLeftCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.tokenAlignLeft, sidebarTokenAlignLeftCheckbox.checked);
-        if (tokenAlignLeftCheckbox) tokenAlignLeftCheckbox.checked = sidebarTokenAlignLeftCheckbox.checked;
-        updateDisplaySettings();
-      });
-    }
-    
     if (showUnderlineCheckbox) {
       showUnderlineCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.showUnderline, showUnderlineCheckbox.checked);
-        // 同步侧边栏状态
-        if (sidebarShowUnderlineCheckbox) sidebarShowUnderlineCheckbox.checked = showUnderlineCheckbox.checked;
         updateDisplaySettings();
       });
     }
@@ -4629,16 +4553,13 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     if (showDetailsCheckbox) {
       showDetailsCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.showDetails, showDetailsCheckbox.checked);
-        if (sidebarShowDetailsCheckbox) sidebarShowDetailsCheckbox.checked = showDetailsCheckbox.checked;
         updateDisplaySettings();
       });
     }
-    
+
     if (autoReadCheckbox) {
       autoReadCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.autoRead, autoReadCheckbox.checked);
-        // 同步侧边栏状态
-        if (sidebarAutoReadCheckbox) sidebarAutoReadCheckbox.checked = autoReadCheckbox.checked;
       });
     }
 
@@ -4646,15 +4567,12 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     if (haAsWaCheckbox) {
       haAsWaCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.haAsWa, haAsWaCheckbox.checked);
-        if (sidebarHaAsWaCheckbox) sidebarHaAsWaCheckbox.checked = haAsWaCheckbox.checked;
       });
     }
-    
+
     if (repeatPlayCheckbox) {
       repeatPlayCheckbox.addEventListener('change', () => {
         localStorage.setItem(LS.repeatPlay, repeatPlayCheckbox.checked);
-        // 同步侧边栏状态
-        if (sidebarRepeatPlayCheckbox) sidebarRepeatPlayCheckbox.checked = repeatPlayCheckbox.checked;
       });
     }
     // 主弹窗：读音脚本
@@ -4662,85 +4580,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       readingScriptSelect.addEventListener('change', () => {
         const val = readingScriptSelect.value === 'hiragana' ? 'hiragana' : 'katakana';
         localStorage.setItem(LS.readingScript, val);
-        if (sidebarReadingScriptSelect) sidebarReadingScriptSelect.value = val;
-        updateReadingScriptDisplay();
-      });
-    }
-    
-    // 添加事件监听器 - 侧边栏
-    if (sidebarShowKanaCheckbox) {
-      sidebarShowKanaCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.showKana, sidebarShowKanaCheckbox.checked);
-        // 同步主弹窗状态
-        if (showKanaCheckbox) showKanaCheckbox.checked = sidebarShowKanaCheckbox.checked;
-        updateDisplaySettings();
-      });
-    }
-    
-    if (sidebarShowRomajiCheckbox) {
-      sidebarShowRomajiCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.showRomaji, sidebarShowRomajiCheckbox.checked);
-        // 同步主弹窗状态
-        if (showRomajiCheckbox) showRomajiCheckbox.checked = sidebarShowRomajiCheckbox.checked;
-        updateDisplaySettings();
-      });
-    }
-    
-    if (sidebarShowPosCheckbox) {
-      sidebarShowPosCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.showPos, sidebarShowPosCheckbox.checked);
-        // 同步主弹窗状态
-        if (showPosCheckbox) showPosCheckbox.checked = sidebarShowPosCheckbox.checked;
-        updateDisplaySettings();
-      });
-    }
-    
-    if (sidebarShowUnderlineCheckbox) {
-      sidebarShowUnderlineCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.showUnderline, sidebarShowUnderlineCheckbox.checked);
-        // 同步主弹窗状态
-        if (showUnderlineCheckbox) showUnderlineCheckbox.checked = sidebarShowUnderlineCheckbox.checked;
-        updateDisplaySettings();
-      });
-    }
-
-    // 侧边栏：显示词汇详情
-    if (sidebarShowDetailsCheckbox) {
-      sidebarShowDetailsCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.showDetails, sidebarShowDetailsCheckbox.checked);
-        if (showDetailsCheckbox) showDetailsCheckbox.checked = sidebarShowDetailsCheckbox.checked;
-        updateDisplaySettings();
-      });
-    }
-    
-    if (sidebarAutoReadCheckbox) {
-      sidebarAutoReadCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.autoRead, sidebarAutoReadCheckbox.checked);
-        // 同步主弹窗状态
-        if (autoReadCheckbox) autoReadCheckbox.checked = sidebarAutoReadCheckbox.checked;
-      });
-    }
-    
-    if (sidebarRepeatPlayCheckbox) {
-      sidebarRepeatPlayCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.repeatPlay, sidebarRepeatPlayCheckbox.checked);
-        // 同步主弹窗状态
-        if (repeatPlayCheckbox) repeatPlayCheckbox.checked = sidebarRepeatPlayCheckbox.checked;
-      });
-    }
-    // 助词“は→わ”开关（侧边栏）
-    if (sidebarHaAsWaCheckbox) {
-      sidebarHaAsWaCheckbox.addEventListener('change', () => {
-        localStorage.setItem(LS.haAsWa, sidebarHaAsWaCheckbox.checked);
-        if (haAsWaCheckbox) haAsWaCheckbox.checked = sidebarHaAsWaCheckbox.checked;
-      });
-    }
-    // 侧边栏：读音脚本
-    if (sidebarReadingScriptSelect) {
-      sidebarReadingScriptSelect.addEventListener('change', () => {
-        const val = sidebarReadingScriptSelect.value === 'hiragana' ? 'hiragana' : 'katakana';
-        localStorage.setItem(LS.readingScript, val);
-        if (readingScriptSelect) readingScriptSelect.value = val;
         updateReadingScriptDisplay();
       });
     }
@@ -4758,25 +4597,13 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     const showDetailsCheckbox = document.getElementById('showDetails');
     const showUnderlineCheckbox = document.getElementById('showUnderline');
     const tokenAlignLeftCheckbox = document.getElementById('tokenAlignLeft');
-    const sidebarShowKanaCheckbox = document.getElementById('sidebarShowKana');
-    const sidebarShowRomajiCheckbox = document.getElementById('sidebarShowRomaji');
-    const sidebarShowPosCheckbox = document.getElementById('sidebarShowPos');
-    const sidebarShowDetailsCheckbox = document.getElementById('sidebarShowDetails');
-    const sidebarShowUnderlineCheckbox = document.getElementById('sidebarShowUnderline');
-    const sidebarTokenAlignLeftCheckbox = document.getElementById('sidebarTokenAlignLeft');
-    // 获取当前状态，优先从主弹窗获取，如果不存在则从侧边栏获取
-    const showKana = showKanaCheckbox ? showKanaCheckbox.checked : 
-                     (sidebarShowKanaCheckbox ? sidebarShowKanaCheckbox.checked : true);
-    const showRomaji = showRomajiCheckbox ? showRomajiCheckbox.checked : 
-                       (sidebarShowRomajiCheckbox ? sidebarShowRomajiCheckbox.checked : true);
-    const showPos = showPosCheckbox ? showPosCheckbox.checked : 
-                    (sidebarShowPosCheckbox ? sidebarShowPosCheckbox.checked : true);
-    const showDetails = showDetailsCheckbox ? showDetailsCheckbox.checked : 
-                        (sidebarShowDetailsCheckbox ? sidebarShowDetailsCheckbox.checked : true);
-    const showUnderline = showUnderlineCheckbox ? showUnderlineCheckbox.checked : 
-                         (sidebarShowUnderlineCheckbox ? sidebarShowUnderlineCheckbox.checked : true);
-    const tokenAlignLeft = tokenAlignLeftCheckbox ? tokenAlignLeftCheckbox.checked :
-                          (sidebarTokenAlignLeftCheckbox ? sidebarTokenAlignLeftCheckbox.checked : false);
+    // 获取当前状态
+    const showKana = showKanaCheckbox ? showKanaCheckbox.checked : true;
+    const showRomaji = showRomajiCheckbox ? showRomajiCheckbox.checked : true;
+    const showPos = showPosCheckbox ? showPosCheckbox.checked : true;
+    const showDetails = showDetailsCheckbox ? showDetailsCheckbox.checked : true;
+    const showUnderline = showUnderlineCheckbox ? showUnderlineCheckbox.checked : true;
+    const tokenAlignLeft = tokenAlignLeftCheckbox ? tokenAlignLeftCheckbox.checked : false;
     
     // 创建或更新CSS规则
     let styleElement = document.getElementById('display-control-styles');
@@ -5682,22 +5509,16 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // 在模板注入后，重新绑定语音与速度控件事件，避免初次选择为空导致不生效
   function initVoiceAndSpeedControls() {
     const voiceSelectEl = document.getElementById('voiceSelect');
-    const sidebarVoiceSelectEl = document.getElementById('sidebarVoiceSelect');
     const headerVoiceSelectEl = document.getElementById('headerVoiceSelect');
     const speedSliderEl = document.getElementById('speedRange');
     const speedValueEl = document.getElementById('speedValue');
-    const sidebarSpeedSliderEl = document.getElementById('sidebarSpeedRange');
-    const sidebarSpeedValueEl = document.getElementById('sidebarSpeedValue');
     const headerSpeedSliderEl = document.getElementById('headerSpeedRange');
     const headerSpeedValueEl = document.getElementById('headerSpeedValue');
     const playAllBtnEl = document.getElementById('playAllBtn');
-    const sidebarPlayAllBtnEl = document.getElementById('sidebarPlayAllBtn');
 
     // 初始化速度显示
     if (speedSliderEl) speedSliderEl.value = String(rate);
     if (speedValueEl) speedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-    if (sidebarSpeedSliderEl) sidebarSpeedSliderEl.value = String(rate);
-    if (sidebarSpeedValueEl) sidebarSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
     if (headerSpeedSliderEl) headerSpeedSliderEl.value = String(rate);
     if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
 
@@ -5716,22 +5537,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         rate = Math.min(4, Math.max(0.25, parseFloat(speedSliderEl.value) || 1));
         if (typeof window !== 'undefined') window.rate = rate;
         if (speedValueEl) speedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-        if (sidebarSpeedSliderEl) sidebarSpeedSliderEl.value = rate;
-        if (sidebarSpeedValueEl) sidebarSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-        if (headerSpeedSliderEl) headerSpeedSliderEl.value = rate;
-        if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-        localStorage.setItem(LS.rate, String(rate));
-        applyRateLive2(rate);
-      });
-    }
-
-    if (sidebarSpeedSliderEl) {
-      sidebarSpeedSliderEl.addEventListener('input', () => {
-        rate = Math.min(4, Math.max(0.25, parseFloat(sidebarSpeedSliderEl.value) || 1));
-        if (typeof window !== 'undefined') window.rate = rate;
-        if (speedValueEl) speedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-        if (sidebarSpeedValueEl) sidebarSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-        if (speedSliderEl) speedSliderEl.value = rate;
         if (headerSpeedSliderEl) headerSpeedSliderEl.value = rate;
         if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         localStorage.setItem(LS.rate, String(rate));
@@ -5745,9 +5550,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         if (typeof window !== 'undefined') window.rate = rate;
         if (headerSpeedValueEl) headerSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         if (speedValueEl) speedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
-        if (sidebarSpeedValueEl) sidebarSpeedValueEl.textContent = `${rate.toFixed(2).replace(/\.?0+$/, '')}x`;
         if (speedSliderEl) speedSliderEl.value = rate;
-        if (sidebarSpeedSliderEl) sidebarSpeedSliderEl.value = rate;
         localStorage.setItem(LS.rate, String(rate));
         applyRateLive2(rate);
       });
@@ -5761,22 +5564,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         if (v) {
           currentVoice = v;
           localStorage.setItem(LS.voiceURI, v.voiceURI || v.name);
-          if (sidebarVoiceSelectEl) sidebarVoiceSelectEl.value = uri;
-          if (headerVoiceSelectEl) headerVoiceSelectEl.value = uri;
-          // 若正在播放：中断并以新音色重新播放当前段落
-          restartPlaybackWithNewSettings();
-        }
-      });
-    }
-
-    if (sidebarVoiceSelectEl) {
-      sidebarVoiceSelectEl.addEventListener('change', () => {
-        const uri = sidebarVoiceSelectEl.value;
-        const v = voices.find(v => (v.voiceURI || v.name) === uri);
-        if (v) {
-          currentVoice = v;
-          localStorage.setItem(LS.voiceURI, v.voiceURI || v.name);
-          if (voiceSelectEl) voiceSelectEl.value = uri;
           if (headerVoiceSelectEl) headerVoiceSelectEl.value = uri;
           // 若正在播放：中断并以新音色重新播放当前段落
           restartPlaybackWithNewSettings();
@@ -5792,7 +5579,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           currentVoice = v;
           localStorage.setItem(LS.voiceURI, v.voiceURI || v.name);
           if (voiceSelectEl) voiceSelectEl.value = uri;
-          if (sidebarVoiceSelectEl) sidebarVoiceSelectEl.value = uri;
           // 若正在播放：中断并以新音色重新播放当前段落
           restartPlaybackWithNewSettings();
         }
@@ -5801,7 +5587,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
     // 绑定播放全文
     if (playAllBtnEl) playAllBtnEl.addEventListener('click', playAllText);
-    if (sidebarPlayAllBtnEl) sidebarPlayAllBtnEl.addEventListener('click', playAllText);
 
     // 模板注入后再刷新语音列表以填充选择框
     if ('speechSynthesis' in window) {
