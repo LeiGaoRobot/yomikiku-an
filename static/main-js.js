@@ -113,10 +113,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const syncBtn = document.getElementById('syncBtn');
   const editorDeleteBtn = document.getElementById('editorDeleteBtn');
   const themeToggleBtn = document.getElementById('theme-toggle');
-  // 导航语言国旗按钮
-  const langFlagJA = $('langFlagJA');
-  const langFlagEN = $('langFlagEN');
-  const langFlagZH = $('langFlagZH');
   
   // 右侧边栏元素
   const sidebarVoiceSelect = $('sidebarVoiceSelect');
@@ -1913,10 +1909,6 @@ const headerSpeedValue = $('headerSpeedValue');
       sidebarLangSelect.value = currentLang;
       Array.from(sidebarLangSelect.options || []).forEach(opt => opt.selected = (opt.value === currentLang));
     }
-    // 同步导航国旗按钮的选中状态
-    const flagMap = { ja: langFlagJA, en: langFlagEN, zh: langFlagZH };
-    Object.values(flagMap).forEach(btn => { if (btn) btn.classList.remove('active'); });
-    if (flagMap[currentLang]) flagMap[currentLang].classList.add('active');
     // 更新应用程序抽屉
     const appDrawerTitle = document.getElementById('appDrawerTitle');
     if (appDrawerTitle) appDrawerTitle.textContent = t('applications');
@@ -2113,10 +2105,6 @@ const headerSpeedValue = $('headerSpeedValue');
       auto: 'themeAuto'
     });
   }
-
-  if (langFlagJA) langFlagJA.addEventListener('click', () => setLanguage('ja'));
-  if (langFlagEN) langFlagEN.addEventListener('click', () => setLanguage('en'));
-  if (langFlagZH) langFlagZH.addEventListener('click', () => setLanguage('zh'));
 
   // 主题逻辑已迁出至 static/js/modules/settings/theme.js（ESM canonical）。
   // 这里保留 THEME / LIGHT_THEMES / savedThemePreference 与几个本地别名，
