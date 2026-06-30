@@ -6,10 +6,10 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 7734, was 8835 at the start
-  of the cumulative effort; **−1101 net** — first time past the −1000
-  mark). *(Recent: toast Phase-2 dedup +13; dead-code removal of the
-  header-scroll cluster −156.)*
+- **`main-js.js` < 5000 lines** (currently 7609, was 8835 at the start
+  of the cumulative effort; **−1226 net**). *(Recent: toast Phase-2 dedup
+  +13; then a header-refactor dead-code sweep — header-scroll −156,
+  quick-search −56, mobile lang-dropdown −57, nav lang-flags −12.)*
 - **Test coverage growing in lockstep** with each extraction (currently 46
   `*.test.html` files on disk; **42 run headlessly** via the `TESTS` array
   in `scripts/test.sh` — the other 4 are visual/console.assert pages
@@ -130,7 +130,7 @@ display-tokens helpers (**−172 LOC**), translation-modal
 ## Next-wave candidates (re-audited 2026-06-30, not yet started)
 
 Ranked by **value/risk ratio** (top = best ROI). Line numbers drift as
-modules land — re-grep before starting any item (tree is now 7734 lines).
+modules land — re-grep before starting any item (tree is now 7609 lines).
 
 1. ~~**`showErrorToast` Phase-2 dedup**~~ ✅ shipped 2026-06-30. All
    three toast locals (`showErrorToast` / `showSuccessToast` /
@@ -156,26 +156,75 @@ modules land — re-grep before starting any item (tree is now 7734 lines).
    `.header-content` / `.header-left` CSS in `styles.css` left in place —
    separate, lower-value cleanup; verify no element uses them first.)
 
-   Remaining genuinely-live `init*` extraction targets (all boot-called
-   via `initializeApp`, so a Phase-2 delegator would always hit its
-   inline fallback — the **real** win requires moving the call into
-   `app.js` so the function can leave `main-js.js` entirely, à la the
-   fallback-free pattern):
-   - `initAppDrawer` (~96 LOC) · `initQuickSearch` (~75 LOC, pairs with
-     `docs/search.js`) · `initUserProfile` (~82 LOC) ·
-     `toggleLangDropdown` (~96 LOC)
-   Re-grep current line numbers before starting — they shifted after the
-   −156 deletion.
+   **Update (2026-06-30, continued):** the header refactor left far more
+   dead code than the scroll cluster. Verified-and-removed since:
+   - `initQuickSearch` (**−56**) — `#quickSearchInput` exists nowhere; the
+     function early-returned on the null input. (Caught mid-extraction by
+     a headless boot smoke test showing the input absent — deleted, not
+     extracted.)
+   - mobile lang-dropdown (**−57**) — `#langDropdownBtn` / `#langDropdownMenu`
+     / `#langDropdownIcon` gone; `toggleLangDropdown` + wiring + the
+     flag-icon sync block + document close-listeners all inert.
+   - nav lang-flags (**−12**) — `#langFlagJA/EN/ZH` gone; const defs +
+     flag-active sync + three click→`setLanguage` listeners inert.
+   Language switching survives via the settings-modal selector
+   (`modalLangSelect`) — the live UI.
 
-3. **`showDetailedTranslation` (`:4347`, ~64 LOC)** — analyzer-area,
-   pairs with the existing `analyzer/translation-modal.js`. Likely
-   handler-only (invoked from a detail-expand click).
+   **Deferred dead code — `sidebar*` / old-toolbar lookups (≈33 vars).**
+   An id-reachability audit (`$('id')` / `getElementById` ids absent from
+   `index.html` AND not built in any ESM template AND not referenced by
+   modules) flags ~33 more dead lookups: the old right-settings-sidebar
+   (`sidebarVoiceSelect`, `sidebarThemeSelect`, `sidebarShow*`,
+   `sidebar*Label`, `sidebar*Title`, …) plus stragglers (`deleteDocBtn`,
+   `editorNewBtn`, `exportJsonBtn`, `langSelect`, `settingsButton`,
+   `twoPaneToggle`, …). **NOT removed** — unlike the clusters above these
+   are *interwoven with live code*: shared functions (`updateSettingsLabels`,
+   the language sync, voice population) handle both the dead sidebar half
+   and the live editor controls, and crucially the sidebar voice-population
+   block lives **inside `refreshVoices`** — the playback-boundary
+   do-not-touch zone. Safe removal needs per-variable surgery, not a batch
+   pass. Left for a dedicated, individually-verified sweep. (Do NOT mass-
+   delete on the heuristic alone — it has false positives: template-built
+   live controls like `voiceSelect` / `themeSelect` / `showKana` are built
+   by `toolbar-content.js` / `settings/*` and only *look* absent in static
+   HTML.)
 
-4. **`displayResults` deeper extraction (`:4039`, ~290 LOC)** — the
+   **`init*` extraction targets — deferred as too-coupled.** The live
+   `init*` functions are boot-called via `initializeApp` (so a Phase-2
+   delegator just hits its inline fallback — no shrink) and the
+   fallback-free move-to-`app.js` path is blocked by heavy closure deps:
+   `initUserProfile` references **~31** IIFE-locals (Firebase/auth, `t`,
+   `LS`, `documentManager`); `initAppDrawer` wires the drawer's
+   theme/font/lang controls. Extracting either is hours-scale DI work with
+   real risk to auth/drawer for marginal LOC — not worth it now.
+   `toggleLangDropdown` is already gone (dead). Net: candidate #2's real
+   yield was **dead-code removal (−281 total)**, not extraction.
+
+3. ~~**`showDetailedTranslation`**~~ ✅ already done — `main-js.js:4347`
+   is already a thin delegator to
+   `window.YomikikuanTranslationModal.showDetailedTranslation` (DI-bridges
+   `t` + `activeTokenDetails`, no inline fallback since it's handler-only).
+   Nothing left to extract.
+
+4. **`displayResults` deeper extraction (~290 LOC, re-grep line)** — the
    template-builder half already lives in
    `analyzer/local/results-display.js`; the in-file body still assembles
-   DOM inline. Highest LOC ceiling but most DI work. See the reality-check
-   note above — this is NOT already a 90-LOC delegator.
+   DOM inline. Highest LOC ceiling but most DI work — **deferred for the
+   same reason as the `init*` functions**: the remaining body threads many
+   IIFE-locals (reading-line highlight state, token-detail closures,
+   per-line play wiring) and sits one call away from the playback path.
+   The clean next step is smaller pure helpers peeled off into
+   `results-display.js` one at a time (each unit-tested), not a single big
+   delegator. Left for a focused session. NOT already a 90-LOC delegator.
+
+> **Session note (2026-06-30):** the "implement everything" pass resolved
+> the actionable candidates — toast dedup shipped, four header-refactor
+> dead clusters removed (−281), `showDetailedTranslation` confirmed
+> already-done. What remains (sidebar dead-code sweep, `init*` /
+> `displayResults` extraction) is deliberately deferred above: each is
+> either interwoven with live code / the playback boundary, or
+> hours-scale DI work whose risk outweighs the LOC. These are documented,
+> not forgotten — pick them up as dedicated, individually-verified tasks.
 
 ### Closed / not viable
 
