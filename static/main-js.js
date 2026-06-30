@@ -6212,65 +6212,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         });
       }, { passive: true });
     })();
-    initQuickSearch();
     // initSidebarAutoCollapse(); // 已禁用自动收缩功能
   }
 
-  // 防抖已抽离至 static/js/ui-utils.js（window.debounce）
-
-  // 初始化快速搜索
-  function initQuickSearch() {
-    const input = document.getElementById('quickSearchInput');
-    const clearBtn = document.getElementById('quickSearchClear');
-    const info = document.getElementById('quickSearchInfo');
-    const contentArea = document.getElementById('content');
-    if (!input || !contentArea) return;
-
-    const runSearch = (q, opts = {}) => {
-      const query = String(q || '').trim();
-      // 清理旧高亮
-      document.querySelectorAll('.token-pill.search-hit').forEach(el => el.classList.remove('search-hit'));
-      if (!query) {
-        if (info) info.textContent = '';
-        return;
-      }
-      // 搜索 token-pill
-      const pills = contentArea.querySelectorAll('.token-pill');
-      let count = 0;
-      let firstHit = null;
-      pills.forEach(pill => {
-        const text = pill.textContent || '';
-        if (text.toLowerCase().includes(query.toLowerCase())) {
-          pill.classList.add('search-hit');
-          if (!firstHit) firstHit = pill;
-          count++;
-        } else {
-          pill.classList.remove('search-hit');
-        }
-      });
-      if (info) {
-        info.textContent = count > 0 ? `找到 ${count} 个匹配` : '未找到匹配';
-      }
-      if (opts.scroll !== false && firstHit) {
-        try { firstHit.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (_) {}
-      }
-    };
-
-    const debounced = debounce(runSearch, 200);
-    input.addEventListener('input', (e) => debounced(e.target.value));
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        runSearch(input.value, { scroll: true });
-      }
-    });
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        input.value = '';
-        runSearch('');
-        input.focus();
-      });
-    }
-  }
 
   // 如果DOM已经加载完成，立即初始化
   if (document.readyState === 'loading') {
