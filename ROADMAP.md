@@ -6,11 +6,13 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 7539, was 8835 at the start
-  of the cumulative effort; **−1296 net**). *(Recent: toast Phase-2 dedup
+- **`main-js.js` < 5000 lines** (currently 7425, was 8835 at the start
+  of the cumulative effort; **−1410 net**). *(Recent: toast Phase-2 dedup
   +13; header-refactor dead-code sweep — header-scroll −156, quick-search
-  −56, mobile lang-dropdown −57, nav lang-flags −12, dead sidebar i18n
-  label blocks −70.)*
+  −56, mobile lang-dropdown −57, nav lang-flags −12, sidebar i18n labels
+  −70, dead lang/theme `<select>` code −110, unreferenced consts −4.
+  Live lang/theme switching verified to run through the user-menu
+  submenus, not these dead selects.)*
 - **Test coverage growing in lockstep** with each extraction (currently 46
   `*.test.html` files on disk; **42 run headlessly** via the `TESTS` array
   in `scripts/test.sh` — the other 4 are visual/console.assert pages
