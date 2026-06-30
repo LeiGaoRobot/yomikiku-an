@@ -10,7 +10,6 @@
 /* 移动端适配：导航间距与LOGO文字隐藏 */
 .nav-menu { gap: 8px; }
 .logo-text { display: none; }
-.header-content { padding: 0 12px; }
 .logo { gap: 6px; }
 
 /* 隐藏编辑工具栏中的日期、字数和字号显示 */

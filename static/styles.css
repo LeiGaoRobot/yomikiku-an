@@ -197,19 +197,6 @@ body {
   background: var(--bg);
 }
 
-/* 顶部导航栏 - 已移除，按钮移至 folder-management 底部 */
-.header {
-  display: none;
-}
-
-.header-content {
-  display: none;
-}
-
-.header-left {
-  display: none;
-}
-
 .logo {
   font-size: 18px;
   font-weight: 600;
@@ -4100,14 +4087,6 @@ html {
     radial-gradient(1200px 600px at 20% -10%, rgba(255, 215, 128, 0.06), transparent 60%),
     radial-gradient(1000px 500px at 120% 110%, rgba(120, 180, 255, 0.06), transparent 60%),
     #171a20;
-}
-
-[data-theme="dark"] .header {
-  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
-  box-shadow: 0 6px 20px rgba(0,0,0,0.28);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: saturate(140%) blur(10px);
-  -webkit-backdrop-filter: saturate(140%) blur(10px);
 }
 
 [data-theme="dark"] .main-container {
