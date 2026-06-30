@@ -6,10 +6,10 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 7890, was 8835 at the start
-  of the cumulative effort; **−945 net**). *(Toast Phase-2 dedup added
-  +13: delegator branches + retained inline fallbacks — the expected
-  small positive delta when one-source-of-truth is the win, not LOC.)*
+- **`main-js.js` < 5000 lines** (currently 7734, was 8835 at the start
+  of the cumulative effort; **−1101 net** — first time past the −1000
+  mark). *(Recent: toast Phase-2 dedup +13; dead-code removal of the
+  header-scroll cluster −156.)*
 - **Test coverage growing in lockstep** with each extraction (currently 46
   `*.test.html` files on disk; **42 run headlessly** via the `TESTS` array
   in `scripts/test.sh` — the other 4 are visual/console.assert pages
@@ -129,8 +129,8 @@ display-tokens helpers (**−172 LOC**), translation-modal
 
 ## Next-wave candidates (re-audited 2026-06-30, not yet started)
 
-Ranked by **value/risk ratio** (top = best ROI). Line numbers from the
-current 7877-line `main-js.js`.
+Ranked by **value/risk ratio** (top = best ROI). Line numbers drift as
+modules land — re-grep before starting any item (tree is now 7734 lines).
 
 1. ~~**`showErrorToast` Phase-2 dedup**~~ ✅ shipped 2026-06-30. All
    three toast locals (`showErrorToast` / `showSuccessToast` /
@@ -139,17 +139,33 @@ current 7877-line `main-js.js`.
    `npm test` green (1115/1115). CACHE_VERSION bumped v61→v62. +13 LOC
    (delegator + retained fallback). **Next-best ROI now → #2.**
 
-2. **Self-contained `init*` UI functions → `modules/ui/`** — all are
-   handler/boot button-wiring with no playback state. Best targets:
-   - `initAppDrawer` (`:6453`, ~96 LOC)
-   - `initQuickSearch` (`:6378`, ~75 LOC) — pairs with existing
-     `docs/search.js`
-   - `initHeaderScroll` (`:5598`, ~71 LOC)
-   - `initUserProfile` (`:6931`, ~82 LOC)
-   - `initAppDrawer` / `toggleLangDropdown` (`:2138`, ~96 LOC)
-   Each is a candidate for wholesale move (Phase-1 module + test, then a
-   thin boot-time call). Verify boot reachability before dropping any
-   fallback.
+2. **Dead-code sweep** — ✅ first pass shipped 2026-06-30 (**−156 LOC**,
+   no module/test needed, zero behaviour change). While auditing the
+   `init*` candidates below, the header-scroll cluster turned out to be
+   dead:
+   - `initHeaderScroll` — called from `initializeApp`, but
+     `document.querySelector('.header')` is always null (the `.header`
+     element was removed from `index.html`; only orphan `.header` CSS
+     remains), so it early-returned every time.
+   - `initContentTopOffset` / `initListPanelTopOffset` — only ever
+     referenced by commented-out call sites (`// Header 已移除`).
+   All three deleted along with the no-op call. **Lesson: audit
+   reachability before assuming a function needs extracting — deletion
+   beats extraction.** Likely more dead code from the header-removal
+   refactor; a follow-up grep sweep is worthwhile. (Orphan `.header` /
+   `.header-content` / `.header-left` CSS in `styles.css` left in place —
+   separate, lower-value cleanup; verify no element uses them first.)
+
+   Remaining genuinely-live `init*` extraction targets (all boot-called
+   via `initializeApp`, so a Phase-2 delegator would always hit its
+   inline fallback — the **real** win requires moving the call into
+   `app.js` so the function can leave `main-js.js` entirely, à la the
+   fallback-free pattern):
+   - `initAppDrawer` (~96 LOC) · `initQuickSearch` (~75 LOC, pairs with
+     `docs/search.js`) · `initUserProfile` (~82 LOC) ·
+     `toggleLangDropdown` (~96 LOC)
+   Re-grep current line numbers before starting — they shifted after the
+   −156 deletion.
 
 3. **`showDetailedTranslation` (`:4347`, ~64 LOC)** — analyzer-area,
    pairs with the existing `analyzer/translation-modal.js`. Likely
