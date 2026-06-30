@@ -6,17 +6,22 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 7210, was 8835 at the start
-  of the cumulative effort; **−1625 net**). *(Recent: toast Phase-2 dedup
-  +13; a full header-refactor dead-code sweep — header-scroll −156,
-  quick-search −56, mobile lang-dropdown −57, nav lang-flags −12, sidebar
-  i18n labels −70, dead lang/theme `<select>` code −110, dead sidebar
-  controls −215, plus assorted consts. The old right-settings-sidebar
-  ('sidebar' context) is never rendered, so all `sidebar*` lookups were
-  null; every live control runs through the settings modal ('modal'
-  context) + user-menu submenus, verified by headless smoke. The only
-  dead `sidebar*` refs left are inside `refreshVoices` and the voice
-  change-delegate — the playback-boundary do-not-touch zone.)*
+- **`main-js.js` < 5000 lines** (currently 7195, was 8835 at the start
+  of the cumulative effort; **−1640 net**). *(A full header-refactor
+  dead-code sweep is now complete — header-scroll −156, quick-search −56,
+  mobile lang-dropdown −57, nav lang-flags −12, sidebar i18n labels −70,
+  dead lang/theme `<select>` −110, dead sidebar controls −215, last
+  sidebar voice refs in refreshVoices −15, plus assorted consts; toast
+  Phase-2 dedup +13. The old right-settings-sidebar ('sidebar' context)
+  is never rendered, so every `sidebar*` lookup was null; all live
+  controls run through the settings modal ('modal' context) + user-menu
+  submenus.* **All dead `sidebar*` code is now removed, including the
+  refreshVoices internals — verified safe: a stubbed-voice headless run
+  shows refreshVoices still populates voiceSelect + headerVoiceSelect (30
+  options each) and text still segments, zero console errors.** *The only
+  remaining `sidebar*` token is `toggleBtn`/`sidebarToggle` in the live
+  doc-list collapse function — guarded, possibly conditionally-present,
+  left as-is.)*
 - **Test coverage growing in lockstep** with each extraction (currently 46
   `*.test.html` files on disk; **42 run headlessly** via the `TESTS` array
   in `scripts/test.sh` — the other 4 are visual/console.assert pages
