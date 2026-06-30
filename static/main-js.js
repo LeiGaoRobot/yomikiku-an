@@ -99,8 +99,6 @@ const headerSpeedValue = $('headerSpeedValue');
     const twoPaneToggle = $('twoPaneToggle');
   const documentList = $('documentList');
   const folderList = $('folderList');
-  const langSelect = $('langSelect');
-  const themeSelect = document.getElementById('themeSelect');
   const readingModeToggle = $('readingModeToggle');
   const editorReadingToggle = document.getElementById('editorReadingToggle');
   const editorDocDate = document.getElementById('editorDocDate');
@@ -119,8 +117,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const sidebarSpeedSlider = $('sidebarSpeedRange');
   const sidebarSpeedValue = $('sidebarSpeedValue');
   const sidebarPlayAllBtn = $('sidebarPlayAllBtn');
-  const sidebarLangSelect = $('sidebarLangSelect');
-  const sidebarThemeSelect = $('sidebarThemeSelect');
   
   // 显示控制元素
   const showKanaCheckbox = $('showKana');
