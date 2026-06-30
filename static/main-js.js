@@ -117,10 +117,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const langFlagJA = $('langFlagJA');
   const langFlagEN = $('langFlagEN');
   const langFlagZH = $('langFlagZH');
-  // 移动端语言下拉
-  const langDropdownBtn = $('langDropdownBtn');
-  const langDropdownMenu = $('langDropdownMenu');
-  const langDropdownIcon = $('langDropdownIcon');
   
   // 右侧边栏元素
   const sidebarVoiceSelect = $('sidebarVoiceSelect');
@@ -1921,18 +1917,6 @@ const headerSpeedValue = $('headerSpeedValue');
     const flagMap = { ja: langFlagJA, en: langFlagEN, zh: langFlagZH };
     Object.values(flagMap).forEach(btn => { if (btn) btn.classList.remove('active'); });
     if (flagMap[currentLang]) flagMap[currentLang].classList.add('active');
-    // 更新移动端下拉的当前国旗图标
-    if (langDropdownIcon) {
-      const iconCfg = {
-        ja: { src: 'static/flags/ja.svg', alt: '日本語', title: '日本語' },
-        en: { src: 'static/flags/en.svg', alt: 'English', title: 'English' },
-        zh: { src: 'static/flags/zh.svg', alt: '中文', title: '中文' }
-      };
-      const cfg = iconCfg[currentLang] || iconCfg.zh;
-      langDropdownIcon.src = cfg.src;
-      langDropdownIcon.alt = cfg.alt;
-      if (langDropdownBtn) langDropdownBtn.title = cfg.title;
-    }
     // 更新应用程序抽屉
     const appDrawerTitle = document.getElementById('appDrawerTitle');
     if (appDrawerTitle) appDrawerTitle.textContent = t('applications');
@@ -2133,47 +2117,6 @@ const headerSpeedValue = $('headerSpeedValue');
   if (langFlagJA) langFlagJA.addEventListener('click', () => setLanguage('ja'));
   if (langFlagEN) langFlagEN.addEventListener('click', () => setLanguage('en'));
   if (langFlagZH) langFlagZH.addEventListener('click', () => setLanguage('zh'));
-
-  // 语言下拉菜单交互（移动端）
-  function toggleLangDropdown(forceOpen) {
-    if (!langDropdownBtn) return;
-    const container = langDropdownBtn.parentElement;
-    if (!container) return;
-    const open = typeof forceOpen === 'boolean' ? forceOpen : !container.classList.contains('open');
-    container.classList.toggle('open', open);
-    langDropdownBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-
-  if (langDropdownBtn) {
-    langDropdownBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleLangDropdown();
-    });
-  }
-
-  if (langDropdownMenu) {
-    const opts = langDropdownMenu.querySelectorAll('.lang-option');
-    opts.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const lang = btn.getAttribute('data-lang');
-        if (lang) setLanguage(lang);
-        toggleLangDropdown(false);
-        e.stopPropagation();
-      });
-    });
-  }
-
-  // 外部点击与 ESC 关闭下拉
-  document.addEventListener('click', (e) => {
-    if (!langDropdownBtn) return;
-    const container = langDropdownBtn.parentElement;
-    if (!container) return;
-    if (!container.classList.contains('open')) return;
-    if (!container.contains(e.target)) toggleLangDropdown(false);
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') toggleLangDropdown(false);
-  });
 
   // 主题逻辑已迁出至 static/js/modules/settings/theme.js（ESM canonical）。
   // 这里保留 THEME / LIGHT_THEMES / savedThemePreference 与几个本地别名，
