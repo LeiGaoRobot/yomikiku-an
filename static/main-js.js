@@ -1812,43 +1812,8 @@ const headerSpeedValue = $('headerSpeedValue');
     const langLabel = $('langLabel');
     if (langLabel) langLabel.textContent = t('langLabel');
 
-    // 右侧边栏标签更新
-    const sidebarVoiceSettingsTitle = $('sidebarVoiceSettingsTitle');
-    if (sidebarVoiceSettingsTitle) sidebarVoiceSettingsTitle.textContent = t('voiceTitle');
-    const sidebarDisplayTitle = $('sidebarDisplayTitle');
-    if (sidebarDisplayTitle) sidebarDisplayTitle.textContent = t('displayTitle');
     const fontSizeLabel = $('fontSizeLabel');
     if (fontSizeLabel) fontSizeLabel.textContent = t('fontSizeLabel');
-    const sidebarSystemTitle = $('sidebarSystemTitle');
-    if (sidebarSystemTitle) sidebarSystemTitle.textContent = t('systemTitle');
-    const sidebarVoiceSelectLabel = $('sidebarVoiceSelectLabel');
-    if (sidebarVoiceSelectLabel) sidebarVoiceSelectLabel.textContent = t('voiceSelectLabel');
-    const sidebarSpeedLabel = $('sidebarSpeedLabel');
-    if (sidebarSpeedLabel) sidebarSpeedLabel.textContent = t('speedLabel');
-    
-    const sidebarShowKanaLabel = $('sidebarShowKanaLabel');
-    if (sidebarShowKanaLabel) sidebarShowKanaLabel.lastChild && (sidebarShowKanaLabel.lastChild.textContent = ' ' + t('showKana'));
-    const sidebarShowRomajiLabel = $('sidebarShowRomajiLabel');
-    if (sidebarShowRomajiLabel) sidebarShowRomajiLabel.lastChild && (sidebarShowRomajiLabel.lastChild.textContent = ' ' + t('showRomaji'));
-    const sidebarShowPosLabel = $('sidebarShowPosLabel');
-    if (sidebarShowPosLabel) sidebarShowPosLabel.lastChild && (sidebarShowPosLabel.lastChild.textContent = ' ' + t('showPos'));
-    const sidebarShowUnderlineLabel = $('sidebarShowUnderlineLabel');
-    if (sidebarShowUnderlineLabel) sidebarShowUnderlineLabel.lastChild && (sidebarShowUnderlineLabel.lastChild.textContent = ' ' + t('showUnderline'));
-    const sidebarAutoReadLabel = $('sidebarAutoReadLabel');
-    if (sidebarAutoReadLabel) sidebarAutoReadLabel.lastChild && (sidebarAutoReadLabel.lastChild.textContent = ' ' + t('autoRead'));
-    const sidebarRepeatPlayLabel = $('sidebarRepeatPlayLabel');
-    if (sidebarRepeatPlayLabel) sidebarRepeatPlayLabel.lastChild && (sidebarRepeatPlayLabel.lastChild.textContent = ' ' + t('repeatPlay'));
-    const sidebarReadingScriptLabel = $('sidebarReadingScriptLabel');
-    if (sidebarReadingScriptLabel) sidebarReadingScriptLabel.textContent = t('readingScript');
-    const sidebarReadingScriptOptionKatakana = $('sidebarReadingScriptOptionKatakana');
-    if (sidebarReadingScriptOptionKatakana) sidebarReadingScriptOptionKatakana.textContent = t('katakanaLabel');
-    const sidebarReadingScriptOptionHiragana = $('sidebarReadingScriptOptionHiragana');
-    if (sidebarReadingScriptOptionHiragana) sidebarReadingScriptOptionHiragana.textContent = t('hiraganaLabel');
-    
-    const sidebarThemeLabel = $('sidebarThemeLabel');
-    if (sidebarThemeLabel) sidebarThemeLabel.textContent = t('themeLabel');
-    const sidebarLangLabel = $('sidebarLangLabel');
-    if (sidebarLangLabel) sidebarLangLabel.textContent = t('langLabel');
 
     // 更新右侧边栏的播放全文按钮
     if (sidebarPlayAllBtn) {
@@ -2069,41 +2034,6 @@ const headerSpeedValue = $('headerSpeedValue');
       auto: 'themeAuto'
     });
     setText('langLabel', 'langLabel');
-
-    // 侧边栏（如果存在）
-    setText('sidebarVoiceSettingsTitle', 'voiceTitle');
-    setText('sidebarVoiceSelectLabel', 'voiceSelectLabel');
-    const sidebarVoiceSelect = document.getElementById('sidebarVoiceSelect');
-    if (sidebarVoiceSelect) {
-      const placeholder2 = sidebarVoiceSelect.querySelector('option[value=""]');
-      if (placeholder2) placeholder2.textContent = t('selectVoice');
-    }
-    setText('sidebarSpeedLabel', 'speedLabel');
-    setText('sidebarDisplayTitle', 'displayTitle');
-    setText('sidebarShowKanaLabel', 'showKana');
-    setText('sidebarShowRomajiLabel', 'showRomaji');
-    setText('sidebarShowPosLabel', 'showPos');
-    setText('sidebarShowDetailsLabel', 'showDetails');
-    setText('sidebarTokenAlignLeftLabel', 'tokenAlignLeft');
-    setText('sidebarShowUnderlineLabel', 'showUnderline');
-    setText('sidebarAutoReadLabel', 'autoRead');
-    setText('sidebarRepeatPlayLabel', 'repeatPlay');
-    setText('sidebarHaAsWaLabel', 'haAsWaLabel');
-    setText('sidebarReadingScriptLabel', 'readingScript');
-    setText('sidebarReadingScriptOptionKatakana', 'katakanaLabel');
-    setText('sidebarReadingScriptOptionHiragana', 'hiraganaLabel');
-    setText('sidebarSystemTitle', 'systemTitle');
-    setText('sidebarThemeLabel', 'themeLabel');
-    setText('sidebarLangLabel', 'langLabel');
-    setOptionText('sidebarThemeSelect', {
-      paper: 'themePaper',
-      sakura: 'themeSakura',
-      sticky: 'themeSticky',
-      green: 'themeGreen',
-      blue: 'themeBlue',
-      dark: 'themeDark',
-      auto: 'themeAuto'
-    });
   }
 
   // 主题逻辑已迁出至 static/js/modules/settings/theme.js（ESM canonical）。
