@@ -7372,18 +7372,25 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
     
     // 显示错误提示的辅助函数
+    // Phase-2 dedup → canonical impl in modules/ui/toasts.js
+    // (app.js ESM installs window.showErrorToast, overriding the classic-phase
+    // binding set near the bottom of this IIFE). In-file callers used to hit
+    // this local copy and silently ignore edits to the module — delegating here
+    // makes toasts.js the single source of truth.
+    // Inline fallback retained for boot-race safety: while the ESM override is
+    // still pending, window.showErrorToast points back at this local, so the
+    // identity guard routes to the inline copy instead of recursing.
     function showErrorToast(message) {
+      const canonical = window.showErrorToast;
+      if (typeof canonical === 'function' && canonical !== showErrorToast) {
+        return canonical(message);
+      }
       const errorToast = document.getElementById('errorToast');
       const errorText = document.getElementById('errorText');
-      
       if (errorToast && errorText) {
         errorText.textContent = message;
         errorToast.classList.add('show');
-        
-        // 3秒后自动隐藏
-        setTimeout(() => {
-          errorToast.classList.remove('show');
-        }, 3000);
+        setTimeout(() => errorToast.classList.remove('show'), 3000);
       }
     }
 
@@ -7638,29 +7645,35 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       });
     }
 
+    // Phase-2 dedup → canonical impl in modules/ui/toasts.js (see showErrorToast
+    // above for the boot-race rationale and identity-guard pattern).
     function showSuccessToast(message) {
+      const canonical = window.showSuccessToast;
+      if (typeof canonical === 'function' && canonical !== showSuccessToast) {
+        return canonical(message);
+      }
       const syncToast = document.getElementById('syncProgressToast');
       const syncText = document.getElementById('syncProgressText');
       if (syncToast && syncText) {
         syncText.textContent = message;
         syncToast.classList.add('show');
-        setTimeout(() => {
-          syncToast.classList.remove('show');
-        }, 2000);
+        setTimeout(() => syncToast.classList.remove('show'), 2000);
       }
     }
 
-    // 通用信息 Toast（用于替代 alert）
+    // 通用信息 Toast（用于替代 alert）— Phase-2 dedup → modules/ui/toasts.js.
     function showInfoToast(message, duration = 3000) {
+      const canonical = window.showInfoToast;
+      if (typeof canonical === 'function' && canonical !== showInfoToast) {
+        return canonical(message, duration);
+      }
       // 复用 syncProgressToast 作为通用信息提示
       const toast = document.getElementById('syncProgressToast');
       const text = document.getElementById('syncProgressText');
       if (toast && text) {
         text.textContent = message;
         toast.classList.add('show');
-        setTimeout(() => {
-          toast.classList.remove('show');
-        }, duration);
+        setTimeout(() => toast.classList.remove('show'), duration);
       }
     }
 
