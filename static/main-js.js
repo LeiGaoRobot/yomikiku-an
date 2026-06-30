@@ -96,7 +96,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const headerPauseToggle = $('headerPauseToggle');
   const headerDownloadBtn = $('headerDownloadBtn');
   const newDocBtn = $('newDocBtn');
-    const twoPaneToggle = $('twoPaneToggle');
   const documentList = $('documentList');
   const folderList = $('folderList');
   const readingModeToggle = $('readingModeToggle');
@@ -105,9 +104,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const editorCharCount = document.getElementById('editorCharCount');
   const editorStarToggle = document.getElementById('editorStarToggle');
   const docSortToggle = $('docSortToggle');
-  // 左侧列表底部按钮可能被移除，这里做安全获取
-  const deleteDocBtn = document.getElementById('deleteDocBtn');
-  const editorNewBtn = document.getElementById('editorNewBtn');
   const syncBtn = document.getElementById('syncBtn');
   const editorDeleteBtn = document.getElementById('editorDeleteBtn');
   const themeToggleBtn = document.getElementById('theme-toggle');
@@ -1696,12 +1692,6 @@ const headerSpeedValue = $('headerSpeedValue');
       const newDocBtnText = document.getElementById('newDocBtnText');
       if (newDocBtnText) newDocBtnText.textContent = t('newDoc');
     }
-    const deleteDocBtn = $('deleteDocBtn');
-    if (deleteDocBtn) {
-      const deleteDocBtnText = document.getElementById('deleteDocBtnText');
-      if (deleteDocBtnText) deleteDocBtnText.textContent = t('deleteDoc');
-    }
-
     // 同步左侧文件夹区域的标题与列表
     const sidebarFolderTitle = $('sidebarFolderTitle');
     if (sidebarFolderTitle) sidebarFolderTitle.textContent = t('sidebarFolderTitle');
@@ -2264,13 +2254,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   // 词典：技术术语覆盖与词性解析抽离至 static/js/dictionary.js（window.YomikikuanDict）
 
-  // 读取“助词は→わ”开关（主弹窗、侧边栏或本地存储），默认开启
+  // 读取“助词は→わ”开关（主弹窗或本地存储），默认开启
   function isHaParticleReadingEnabled() {
     try {
       const main = document.getElementById('haAsWa');
       if (main && typeof main.checked !== 'undefined') return !!main.checked;
-      const sidebar = document.getElementById('sidebarHaAsWa');
-      if (sidebar && typeof sidebar.checked !== 'undefined') return !!sidebar.checked;
     } catch (_) {}
     const v = localStorage.getItem(LS.haAsWa);
     return v === null ? true : v === 'true';
@@ -2974,17 +2962,16 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
     // 更新删除按钮状态
     updateDeleteButtonState() {
-      // 同步列表删除按钮与工具栏垃圾桶按钮的禁用状态
-      if (!deleteDocBtn && !editorDeleteBtn) return;
-      
+      // 同步工具栏垃圾桶按钮的禁用状态
+      if (!editorDeleteBtn) return;
+
       const docs = this.getAllDocuments();
       const activeId = this.getActiveId();
       const activeDoc = docs.find(d => d.id === activeId);
-      
+
       // 如果没有活动文档或活动文档被锁定，禁用删除按钮（允许删除最后一篇文档）
       const disabled = !activeDoc || activeDoc.locked;
-      if (deleteDocBtn) deleteDocBtn.disabled = disabled;
-      if (editorDeleteBtn) editorDeleteBtn.disabled = disabled;
+      editorDeleteBtn.disabled = disabled;
     }
 
     // 初始化默认文档
@@ -3171,14 +3158,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         });
       }
 
-      // 顶部编辑工具栏"新建"按钮
-      if (editorNewBtn) {
-        editorNewBtn.addEventListener('click', () => {
-          this.createDocument('');
-          if (textInput) textInput.focus();
-        });
-      }
-
       // 顶部“同步”按钮：清空示例缓存并强制从 JSON 重新注入；点击时SVG居中旋转3圈
       if (syncBtn) {
         syncBtn.addEventListener('click', async () => {
@@ -3200,18 +3179,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           } finally {
             syncBtn.classList.remove('is-loading');
             syncBtn.disabled = false;
-          }
-        });
-      }
-
-      // 删除文档按钮
-      if (deleteDocBtn) {
-        deleteDocBtn.addEventListener('click', () => {
-          const activeId = this.getActiveId();
-          if (activeId) {
-            // 找到当前活动的文档项作为目标元素
-            const activeDocItem = document.querySelector(`.doc-item[data-doc-id="${activeId}"]`);
-            this.deleteDocument(activeId, false, activeDocItem);
           }
         });
       }
@@ -3936,12 +3903,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   // 显示/隐藏词汇详细信息
   window.toggleTokenDetails = function(element) {
-    // 读取"显示词汇详情"设置（主设置、侧边栏或本地存储）
+    // 读取"显示词汇详情"设置（主设置或本地存储）
     const showDetailsSetting = (() => {
       const main = document.getElementById('showDetails');
-      const sidebar = document.getElementById('sidebarShowDetails');
       if (main && typeof main.checked !== 'undefined') return main.checked;
-      if (sidebar && typeof sidebar.checked !== 'undefined') return sidebar.checked;
       const v = localStorage.getItem(LS.showDetails);
       return v === null ? true : v === 'true';
     })();
@@ -5312,19 +5277,13 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
   // 设置弹窗：仅负责打开/关闭已有模态（不做内容注入）
   function initSettingsModal() {
-    const btn = document.getElementById('settingsButton');
     const modal = document.getElementById('settingsModal');
     const closeBtn = document.getElementById('settingsModalClose');
     if (!modal) return;
-    
+
     const openModal = () => { modal.classList.add('show'); document.body.style.overflow = 'hidden'; };
     const closeModal = () => { modal.classList.remove('show'); document.body.style.overflow = ''; };
-    
-    // 如果设置按钮存在，绑定其点击事件
-    if (btn) {
-    btn.addEventListener('click', () => modal.classList.contains('show') ? closeModal() : openModal());
-    }
-    
+
     // 绑定关闭按钮
     if (closeBtn) closeBtn.addEventListener('click', closeModal);
     
@@ -5356,139 +5315,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     try { initFontSizeControls(); } catch (_) {}
     try { applyI18n(); } catch (_) {}
     try { if ('speechSynthesis' in window) refreshVoices(); } catch (_) {}
-
-    // 备份/导入按钮事件
-    try {
-      const exportBtn = document.getElementById('exportJsonBtn');
-      const importBtn = document.getElementById('importJsonBtn');
-      const importFile = document.getElementById('importJsonFile');
-
-      // Backup / restore now live in static/js/modules/backup/index.js
-      // (#13 ESM chunk 3). The helper below captures this call-site's
-      // settings-key strategy (enumerate everything in LS except texts and
-      // activeId) and defers to the module for payload assembly + SRS dump.
-      async function collectBackupPayload() {
-        const m = await import('/static/js/modules/backup/index.js');
-        return m.collectBackupPayload({
-          getDocuments: () => {
-            try {
-              const all = documentManager ? documentManager.getAllDocuments() : JSON.parse(localStorage.getItem(LS.texts) || '[]');
-              return (Array.isArray(all) ? all : []).filter(d => d && d.folder !== 'samples' && !d.locked);
-            } catch (_) { return []; }
-          },
-          getActiveId: () => localStorage.getItem(LS.activeId) || '',
-          getSettings: () => {
-            const settings = {};
-            try {
-              Object.values(LS).forEach((k) => {
-                if (k === LS.texts || k === LS.activeId) return;
-                settings[k] = localStorage.getItem(k);
-              });
-            } catch (_) {}
-            return settings;
-          },
-        });
-      }
-
-      // downloadTextFile + formatNowForFile now live in backup/io.js — loaded
-      // lazily inside doExport / import handlers below (await import).
-
-      async function doExport() {
-        // 显示导出进度
-        showInfoToast(t('exporting'), 10000);
-        
-        const startTime = Date.now();
-        
-        try {
-          // 异步执行导出
-          await new Promise(resolve => setTimeout(resolve, 50)); // 让UI更新
-          
-          const io = await import('/static/js/modules/backup/io.js');
-          const payload = await collectBackupPayload();
-          const json = JSON.stringify(payload, null, 2);
-          const fname = `yomikikuan-backup-${io.formatNowForFile()}.json`;
-          io.downloadTextFile(fname, json);
-
-          // 确保至少显示1秒
-          const elapsed = Date.now() - startTime;
-          const remainingTime = Math.max(0, 1000 - elapsed);
-          await new Promise(resolve => setTimeout(resolve, remainingTime));
-
-          try {
-            showSuccessToast(t('exportSuccess'));
-          } catch (_) {}
-        } catch (e) {
-          console.error('Export failed:', e);
-          // 确保至少显示1秒
-          const elapsed = Date.now() - startTime;
-          const remainingTime = Math.max(0, 1000 - elapsed);
-          await new Promise(resolve => setTimeout(resolve, remainingTime));
-          
-          try { 
-            showErrorToast(t('exportError'));
-          } catch (_) {}
-        }
-      }
-
-      async function applyBackup(data) {
-        try {
-          const m = await import('/static/js/modules/backup/index.js');
-          await m.applyBackup(data, {
-            LS,
-            afterApply: ({ activeId, settings }) => {
-              try { if (documentManager) { documentManager.render(); documentManager.setActiveId(activeId); } } catch (_) {}
-              try { if (settings[LS.theme]) setThemePreference(settings[LS.theme]); } catch (_) {}
-              try { if (settings[LS.lang]) setLanguage(settings[LS.lang]); } catch (_) {}
-              try { applyI18n(); } catch (_) {}
-            },
-          });
-          try { showNotification(t('importSuccess'), 'success'); } catch (_) {}
-        } catch (e) {
-          console.error('Import failed:', e);
-          try { showNotification(t('importError'), 'error'); } catch (_) {}
-        }
-      }
-
-      if (exportBtn) exportBtn.addEventListener('click', doExport);
-      if (importBtn && importFile) {
-        importBtn.addEventListener('click', () => importFile.click());
-        importFile.addEventListener('change', () => {
-          const file = importFile.files && importFile.files[0];
-          if (!file) return;
-          const proceed = (cb) => {
-            if (window.showDeleteConfirm) {
-              showDeleteConfirm(t('importConfirmOverwrite'), () => cb && cb(), () => {});
-            } else {
-              // 直接执行导入，不再需要 confirm
-              showInfoToast(t('importConfirmOverwrite'), 1500);
-              setTimeout(() => {
-              cb && cb();
-              }, 500);
-            }
-          };
-          proceed(() => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              try {
-                const text = String(reader.result || '');
-                const obj = JSON.parse(text);
-                applyBackup(obj);
-              } catch (e) {
-                console.error('Invalid backup file:', e);
-                try { showNotification(t('importError'), 'error'); } catch (_) {}
-              } finally {
-                importFile.value = '';
-              }
-            };
-            reader.onerror = () => {
-              try { showNotification(t('importError'), 'error'); } catch (_) {}
-              importFile.value = '';
-            };
-            reader.readAsText(file);
-          });
-        });
-      }
-    } catch (_) {}
   }
 
   // 在模板注入后，重新绑定语音与速度控件事件，避免初次选择为空导致不生效
@@ -6120,12 +5946,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     if (window.__ESM_FONT_SETTINGS) return; // owned by static/js/modules/settings/font.js
     const rangeEls = [
       document.getElementById('fontSizeRange'),
-      document.getElementById('sidebarFontSizeRange'),
       document.getElementById('editorFontSizeRange')
     ].filter(Boolean);
     const valueEls = [
       document.getElementById('fontSizeValue'),
-      document.getElementById('sidebarFontSizeValue'),
       document.getElementById('editorFontSizeValue')
     ].filter(Boolean);
 

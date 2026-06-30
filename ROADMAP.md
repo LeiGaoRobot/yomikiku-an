@@ -6,8 +6,8 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 7195, was 8835 at the start
-  of the cumulative effort; **−1640 net**). *(A full header-refactor
+- **`main-js.js` < 5000 lines** (currently 7019, was 8835 at the start
+  of the cumulative effort; **−1816 net**). *(A full header-refactor
   dead-code sweep is now complete — header-scroll −156, quick-search −56,
   mobile lang-dropdown −57, nav lang-flags −12, sidebar i18n labels −70,
   dead lang/theme `<select>` −110, dead sidebar controls −215, last
@@ -202,24 +202,54 @@ modules land — re-grep before starting any item (tree is now 7609 lines).
      Deciding what is truly dead there needs runtime tracing, not static
      analysis — exactly the kind of subtlety that should not be rushed.
 
-   **(historical) Deferred dead code — `sidebar*` / old-toolbar lookups.**
-   An id-reachability audit (`$('id')` / `getElementById` ids absent from
-   `index.html` AND not built in any ESM template AND not referenced by
-   modules) flags ~33 more dead lookups: the old right-settings-sidebar
-   (`sidebarVoiceSelect`, `sidebarThemeSelect`, `sidebarShow*`,
-   `sidebar*Label`, `sidebar*Title`, …) plus stragglers (`deleteDocBtn`,
-   `editorNewBtn`, `exportJsonBtn`, `langSelect`, `settingsButton`,
-   `twoPaneToggle`, …). **NOT removed** — unlike the clusters above these
-   are *interwoven with live code*: shared functions (`updateSettingsLabels`,
-   the language sync, voice population) handle both the dead sidebar half
-   and the live editor controls, and crucially the sidebar voice-population
-   block lives **inside `refreshVoices`** — the playback-boundary
-   do-not-touch zone. Safe removal needs per-variable surgery, not a batch
-   pass. Left for a dedicated, individually-verified sweep. (Do NOT mass-
-   delete on the heuristic alone — it has false positives: template-built
-   live controls like `voiceSelect` / `themeSelect` / `showKana` are built
-   by `toolbar-content.js` / `settings/*` and only *look* absent in static
-   HTML.)
+   **✅ Stragglers swept 2026-07-01 (−176 LOC, no behaviour change).**
+   The ~33-lookup estimate above was stale — most `sidebarVoiceSelect` /
+   `sidebarThemeSelect` / `sidebarShow*` / `sidebar*Label` / `sidebar*Title`
+   id-reachability hits had already been removed in earlier sessions
+   (re-grepped: zero remaining matches for that whole family). What
+   was actually still dead and got removed, each individually verified
+   via `git show HEAD:static/main-js.js` for the live counterpart before
+   deletion:
+   - `sidebarHaAsWa` fallback in `isHaParticleReadingEnabled` and
+     `sidebarShowDetails` fallback in `toggleTokenDetails` — both
+     always-null reads in a 3-way fallback chain (main control → sidebar
+     → localStorage); sidebar branch deleted, main + localStorage kept.
+   - `sidebarFontSizeRange` / `sidebarFontSizeValue` entries inside
+     `initFontSizeControls`'s `.filter(Boolean)` arrays — always-null,
+     filtered out at runtime either way.
+   - `twoPaneToggle` — declared via `$('twoPaneToggle')`, never read
+     again anywhere in the file.
+   - `deleteDocBtn` / `editorNewBtn` — entirely dead duplicates of the
+     live `editorDeleteBtn` / `newDocBtn` wiring (confirmed: id doesn't
+     exist in `index.html` or any ESM template; `editorNewBtn` only
+     appears as a CSS *class* on `#newDocBtn`, not an id). Removed the
+     dead consts, the dead i18n text-sync block, the dead
+     `disabled`-toggle line, and both dead `addEventListener` blocks;
+     simplified the joint reachability guard in
+     `updateDeleteButtonState` to just `editorDeleteBtn`.
+   - `settingsButton` — dead click-wiring inside `initSettingsModal`
+     (the real open button is `userSettingsBtn` in the user-menu, which
+     calls `window.openSettingsModal()` — that global export and the
+     rest of `initSettingsModal` were left untouched).
+   - **Biggest single find:** an entire ~131-line dead duplicate of the
+     backup/import feature inside `mountSettingsModalContent`
+     (`exportJsonBtn` / `importJsonBtn` / `importJsonFile` — none of
+     these ids exist anywhere). The *live* backup/import UI is a
+     separate, near-identical implementation wired to
+     `userExportBtn` / `userImportBtn` / `userImportFile` in the
+     user-menu (~line 6700s) — that one is untouched and still owns
+     `collectBackupPayload` / `doExport` / `applyBackup`.
+
+   Verified via `npm test` (1115/1115), `npm run e2e` (4/4, including
+   the backup-roundtrip scenario which exercises
+   `modules/backup/index.js` directly), plus manual headless checks of
+   new-doc creation and settings-modal open/close. **Incidentally found
+   an unrelated pre-existing bug** (not introduced by this sweep —
+   confirmed present in the prior commit too): `textInput`'s blur
+   handler calls `docManager.deleteEmptyDocument()` but the IIFE-local
+   is named `documentManager`, so blurring an empty textarea throws
+   instead of cleaning up. Flagged separately, not fixed here (out of
+   scope for a dead-code sweep).
 
    **`init*` extraction targets — deferred as too-coupled.** The live
    `init*` functions are boot-called via `initializeApp` (so a Phase-2
