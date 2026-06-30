@@ -1815,65 +1815,9 @@ const headerSpeedValue = $('headerSpeedValue');
     const fontSizeLabel = $('fontSizeLabel');
     if (fontSizeLabel) fontSizeLabel.textContent = t('fontSizeLabel');
 
-    // 更新右侧边栏的播放全文按钮
-    if (sidebarPlayAllBtn) {
-      const currentlyPlaying = isPlaying && currentUtterance;
-      sidebarPlayAllBtn.textContent = playAllLabel(currentlyPlaying);
-    }
-
-    // 更新主题选择选项的文本
-    if (themeSelect) {
-      const paperOption = themeSelect.querySelector('option[value="paper"]');
-      const sakuraOption = themeSelect.querySelector('option[value="sakura"]');
-      const stickyOption = themeSelect.querySelector('option[value="sticky"]');
-      const greenOption = themeSelect.querySelector('option[value="green"]');
-      const blueOption = themeSelect.querySelector('option[value="blue"]');
-      const darkOption = themeSelect.querySelector('option[value="dark"]');
-      const autoOption = themeSelect.querySelector('option[value="auto"]');
-      if (paperOption) paperOption.textContent = t('themePaper');
-      if (sakuraOption) sakuraOption.textContent = t('themeSakura');
-      if (stickyOption) stickyOption.textContent = t('themeSticky');
-      if (greenOption) greenOption.textContent = t('themeGreen');
-      if (blueOption) blueOption.textContent = t('themeBlue');
-      if (darkOption) darkOption.textContent = t('themeDark');
-      if (autoOption) autoOption.textContent = t('themeAuto');
-    }
-
-    // 更新侧边栏主题选择选项的文本
-    if (sidebarThemeSelect) {
-      const sidebarPaperOption = sidebarThemeSelect.querySelector('option[value="paper"]');
-      const sidebarSakuraOption = sidebarThemeSelect.querySelector('option[value="sakura"]');
-      const sidebarStickyOption = sidebarThemeSelect.querySelector('option[value="sticky"]');
-      const sidebarGreenOption = sidebarThemeSelect.querySelector('option[value="green"]');
-      const sidebarBlueOption = sidebarThemeSelect.querySelector('option[value="blue"]');
-      const sidebarDarkOption = sidebarThemeSelect.querySelector('option[value="dark"]');
-      const sidebarAutoOption = sidebarThemeSelect.querySelector('option[value="auto"]');
-      if (sidebarPaperOption) sidebarPaperOption.textContent = t('themePaper');
-      if (sidebarSakuraOption) sidebarSakuraOption.textContent = t('themeSakura');
-      if (sidebarStickyOption) sidebarStickyOption.textContent = t('themeSticky');
-      if (sidebarGreenOption) sidebarGreenOption.textContent = t('themeGreen');
-      if (sidebarBlueOption) sidebarBlueOption.textContent = t('themeBlue');
-      if (sidebarDarkOption) sidebarDarkOption.textContent = t('themeDark');
-      if (sidebarAutoOption) sidebarAutoOption.textContent = t('themeAuto');
-    }
-
-    if (themeSelect || sidebarThemeSelect) {
-      syncThemeSelects(savedThemePreference);
-    }
-
     const emptyText = $('emptyText');
     if (emptyText) emptyText.textContent = t('emptyText');
 
-    if (langSelect) {
-      langSelect.value = currentLang;
-      Array.from(langSelect.options || []).forEach(opt => opt.selected = (opt.value === currentLang));
-    }
-    
-    // 同步更新侧边栏语言选择器
-    if (sidebarLangSelect) {
-      sidebarLangSelect.value = currentLang;
-      Array.from(sidebarLangSelect.options || []).forEach(opt => opt.selected = (opt.value === currentLang));
-    }
     // 更新应用程序抽屉
     const appDrawerTitle = document.getElementById('appDrawerTitle');
     if (appDrawerTitle) appDrawerTitle.textContent = t('applications');
@@ -1918,34 +1862,11 @@ const headerSpeedValue = $('headerSpeedValue');
     });
   }
 
-  if (langSelect) {
-    langSelect.addEventListener('change', () => {
-      currentLang = langSelect.value || 'ja';
-      try { localStorage.setItem(LS.lang, currentLang); } catch (e) {}
-      if (sidebarLangSelect) sidebarLangSelect.value = currentLang;
-      // 导航国旗状态同步
-      applyI18n();
-      refreshOpenCardTexts();
-    });
-  }
-
-  if (sidebarLangSelect) {
-    sidebarLangSelect.addEventListener('change', () => {
-      currentLang = sidebarLangSelect.value || 'ja';
-      try { localStorage.setItem(LS.lang, currentLang); } catch (e) {}
-      if (langSelect) langSelect.value = currentLang;
-      applyI18n();
-      refreshOpenCardTexts();
-    });
-  }
-
   // 导航国旗点击切换语言
   function setLanguage(lang) {
     if (!lang || (lang !== 'ja' && lang !== 'en' && lang !== 'zh')) return;
     currentLang = lang;
     try { localStorage.setItem(LS.lang, currentLang); } catch (e) {}
-    if (langSelect) langSelect.value = currentLang;
-    if (sidebarLangSelect) sidebarLangSelect.value = currentLang;
     applyI18n();
     refreshOpenCardTexts();
   }
@@ -5627,37 +5548,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     try { initFontSizeControls(); } catch (_) {}
     try { applyI18n(); } catch (_) {}
     try { if ('speechSynthesis' in window) refreshVoices(); } catch (_) {}
-    // 动态挂载的主题选择器需要在此处重新绑定事件
-    try {
-      const modalThemeSelect = document.getElementById('themeSelect');
-      if (modalThemeSelect) {
-        // 同步当前偏好到下拉
-        modalThemeSelect.value = savedThemePreference;
-        Array.from(modalThemeSelect.options || []).forEach(opt => {
-          opt.selected = (opt.value === savedThemePreference);
-        });
-        // 绑定切换事件
-        modalThemeSelect.addEventListener('change', () => {
-          setThemePreference(modalThemeSelect.value);
-        });
-      }
-    } catch (_) {}
-
-    // 动态挂载的语言选择器需要在此处重新绑定事件
-    try {
-      const modalLangSelect = document.getElementById('langSelect');
-      if (modalLangSelect) {
-        // 同步当前语言到下拉
-        modalLangSelect.value = currentLang;
-        Array.from(modalLangSelect.options || []).forEach(opt => {
-          opt.selected = (opt.value === currentLang);
-        });
-        // 绑定切换事件
-        modalLangSelect.addEventListener('change', () => {
-          setLanguage(modalLangSelect.value);
-        });
-      }
-    } catch (_) {}
 
     // 备份/导入按钮事件
     try {
