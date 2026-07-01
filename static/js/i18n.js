@@ -224,6 +224,7 @@ const I18N = {
     ,'youtube.panel.error.notEmbeddable': '動画が利用できません（非公開または削除済み）'
     ,'youtube.panel.error.network': 'ネットワークエラー。再試行してください'
     ,'youtube.panel.error.parseFailed_fmt': '解析失敗：{msg}'
+    ,'youtube.panel.error.clipTooLong_fmt': '指定した範囲が{max}分を超えています。範囲を短くしてください'
     ,'youtube.panel.tabLoading': '読み込み中…'
     ,'youtube.import.intro': '動画の字幕を文字起こしして新しいドキュメントとして保存すると、すぐに TTS／分析ツール／JLPT ツールで読めます。'
     ,'youtube.import.btnExtract': '📥 字幕を抽出してドキュメントに保存'
@@ -561,6 +562,7 @@ const I18N = {
     ,'youtube.panel.error.notEmbeddable': 'Video unavailable (private or deleted)'
     ,'youtube.panel.error.network': 'Network error, please retry'
     ,'youtube.panel.error.parseFailed_fmt': 'Parse failed: {msg}'
+    ,'youtube.panel.error.clipTooLong_fmt': 'Selected clip exceeds {max} min. Please shorten the range'
     ,'youtube.panel.tabLoading': 'Loading…'
     ,'youtube.import.intro': "Transcribe the video's subtitles and save as a new document — ready for TTS / analyzer / JLPT tools right away."
     ,'youtube.import.btnExtract': '📥 Extract subtitles and save as document'
@@ -898,6 +900,7 @@ const I18N = {
     ,'youtube.panel.error.notEmbeddable': '视频不可用（私有或已删除）'
     ,'youtube.panel.error.network': '网络错误，请重试'
     ,'youtube.panel.error.parseFailed_fmt': '解析失败：{msg}'
+    ,'youtube.panel.error.clipTooLong_fmt': '所选片段超过 {max} 分钟，请缩短范围'
     ,'youtube.panel.tabLoading': '加载中…'
     ,'youtube.import.intro': '把视频字幕转录后保存为新文档，可立即用 TTS / 分析器 / JLPT 工具阅读。'
     ,'youtube.import.btnExtract': '📥 提取字幕并保存为文档'

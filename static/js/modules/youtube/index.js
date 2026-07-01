@@ -108,6 +108,17 @@ async function onParseClick() {
   const input = overlayEl.querySelector('#ytUrlInput').value;
   const parsed = parseYoutubeUrl(input);
   if (!parsed) { showError(tr('youtube.panel.error.invalidUrl', '请输入有效的 YouTube URL')); return; }
+  // oEmbed (the only keyless metadata source) has no duration field, and the
+  // IFrame Player's getDuration() is only available after a player has
+  // already loaded — too late to gate the Gemini call. An explicit clip
+  // range in the URL (?start=&end=) is the one duration signal we can check
+  // for free, before any network/API call.
+  if (typeof parsed.startSec === 'number' && typeof parsed.endSec === 'number' &&
+      (parsed.endSec - parsed.startSec) > MAX_DURATION_SEC) {
+    showError(trFmt('youtube.panel.error.clipTooLong_fmt', { max: Math.round(MAX_DURATION_SEC / 60) },
+      `所选片段超过 ${Math.round(MAX_DURATION_SEC / 60)} 分钟，请缩短范围`));
+    return;
+  }
   currentParsed = parsed;
   try {
     const meta = await fetchVideoMeta(parsed.videoId);

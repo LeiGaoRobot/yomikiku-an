@@ -41,6 +41,21 @@
     unmountPanel();
     check('cleanup after classic remount', !document.querySelector('.youtube-overlay'));
 
+    // Explicit clip range (?start=&end=) longer than the 10-min cap must be
+    // rejected before any network call (oEmbed/Gemini) — this is the only
+    // duration signal available without a paid Data API call.
+    mountPanel(document);
+    document.querySelector('#ytUrlInput').value =
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ&start=0&end=700';
+    document.querySelector('#ytParseBtn').click();
+    await new Promise(r => setTimeout(r, 0));
+    check('overlong clip range shows error',
+      !document.querySelector('#ytErrorBar').hidden,
+      document.querySelector('#ytErrorBar').textContent);
+    check('overlong clip range does not populate meta panel',
+      document.querySelector('#ytMeta').hidden);
+    unmountPanel();
+
     const pass = results.filter(r => r.pass).length;
     const fail = results.length - pass;
     document.getElementById('summary').innerHTML =
