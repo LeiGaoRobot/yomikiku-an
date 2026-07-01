@@ -379,18 +379,25 @@
   };
 
   // ----------------- volume helpers -----------------
+  // tts.js loads (and runs synchronously) before main-js.js, so on first call
+  // window.YomikikuanLS (bridged at main-js.js's IIFE init) never exists yet —
+  // volumeResolvedFromStorage lets refreshVoices() retry the real localStorage
+  // lookup once main-js.js has actually loaded, instead of permanently
+  // caching the boot-time "no bridge yet" fallback of 1.
+  let volumeResolvedFromStorage = false;
   function getSafeVolume() {
     const clamp01 = (x) => Math.max(0, Math.min(1, x));
     const v = Number(window.volume);
-    if (Number.isFinite(v)) return clamp01(v);
+    if (volumeResolvedFromStorage && Number.isFinite(v)) return clamp01(v);
     try {
-      const lsKey = window.LS && window.LS.volume;
+      const lsKey = window.YomikikuanLS && window.YomikikuanLS.volume;
       if (typeof lsKey === 'string' && lsKey) {
         const raw = localStorage.getItem(lsKey);
         const fromLS = Number(raw);
-        if (Number.isFinite(fromLS)) return clamp01(fromLS);
+        if (Number.isFinite(fromLS)) { volumeResolvedFromStorage = true; return clamp01(fromLS); }
       }
     } catch (_) {}
+    if (Number.isFinite(v)) return clamp01(v);
     return 1;
   }
   if (!Number.isFinite(Number(window.volume))) window.volume = getSafeVolume();
@@ -399,6 +406,7 @@
   window.listVoicesFiltered = listVoicesFiltered;
 
   window.refreshVoices = function refreshVoices() {
+    if (!volumeResolvedFromStorage) window.volume = getSafeVolume();
     window.voices = listVoicesFiltered();
     const ids = ['voiceSelect', 'sidebarVoiceSelect', 'headerVoiceSelect'];
     const selects = ids.map(id => document.getElementById(id));
@@ -413,7 +421,7 @@
       });
     });
     let pref = null;
-    try { pref = (window.LS && window.LS.voiceURI) ? localStorage.getItem(window.LS.voiceURI) : null; } catch (_) {}
+    try { pref = (window.YomikikuanLS && window.YomikikuanLS.voiceURI) ? localStorage.getItem(window.YomikikuanLS.voiceURI) : null; } catch (_) {}
     const chosen =
       (window.voices || []).find(v => (v.voiceURI || v.name) === pref) ||
       (window.voices || []).find(v => v.default) ||
