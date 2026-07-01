@@ -161,7 +161,7 @@ function renderExplanation(panel, result) {
   const grammar = Array.isArray(result.grammarPoints) ? result.grammarPoints : [];
   if (grammar.length) {
     const wrap = el('div', 'ap-analyzer-card__grammar');
-    wrap.appendChild(el('div', 'ap-analyzer-card__section-title', t('analyzer.section.grammar', 'Grammar')));
+    wrap.appendChild(el('div', 'ap-analyzer-card__section-title', t('analyzer.grammar.heading', 'Grammar')));
     const ul = el('ul', 'ap-analyzer-card__grammar-list');
     for (const g of grammar) ul.appendChild(el('li', null, String(g)));
     wrap.appendChild(ul);
@@ -170,7 +170,7 @@ function renderExplanation(panel, result) {
   const vocab = Array.isArray(result.vocab) ? result.vocab : [];
   if (vocab.length) {
     const wrap = el('div', 'ap-analyzer-card__vocab');
-    wrap.appendChild(el('div', 'ap-analyzer-card__section-title', t('analyzer.section.vocab', 'Vocabulary')));
+    wrap.appendChild(el('div', 'ap-analyzer-card__section-title', t('analyzer.vocab.heading', 'Vocabulary')));
     const dl = el('dl', 'ap-analyzer-card__vocab-list');
     for (const v of vocab) {
       const term = (v && (v.word || v.term || v.lemma)) || '';

@@ -687,12 +687,14 @@
 
 .jlpt-overlay,
 .summary-overlay,
-.vocab-overlay {
+.vocab-overlay,
+.youtube-overlay {
   padding: 12px;
 }
 .jlpt-panel,
 .summary-panel,
-.vocab-panel {
+.vocab-panel,
+.youtube-panel {
   width: 100%;
   max-height: calc(100dvh - 24px);
   max-height: calc(100vh - 24px);
@@ -701,12 +703,43 @@
 
 .jlpt-panel-header,
 .summary-panel-header,
-.vocab-panel-header {
+.vocab-panel-header,
+.youtube-panel-header {
   padding: 12px 14px;
 }
 .jlpt-panel-header h3,
 .summary-panel-header h3,
-.vocab-panel-header h3 { font-size: 15px; }
+.vocab-panel-header h3,
+.youtube-panel-header h3 { font-size: 15px; }
+
+/* YouTube panel — URL row, tabs, thumbnail meta */
+.youtube-url-row {
+  padding: 10px 14px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.youtube-url-row input {
+  flex: 1 1 100%;
+  min-height: 40px;
+  font-size: 14px;
+}
+.youtube-url-row button {
+  min-height: 40px;
+  padding: 8px 14px;
+  flex: 1 1 auto;
+}
+.youtube-tabs {
+  padding: 0 14px;
+  overflow-x: auto;
+}
+.youtube-tab {
+  padding: 10px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.youtube-tab-content { padding: 12px 14px; }
+.youtube-meta { padding: 0 14px 10px; }
+.youtube-meta img { width: 88px; }
 
 .jlpt-controls,
 .summary-controls,

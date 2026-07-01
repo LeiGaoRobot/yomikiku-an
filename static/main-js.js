@@ -1031,10 +1031,13 @@ const headerSpeedValue = $('headerSpeedValue');
           try { window.speechSynthesis && window.speechSynthesis.pause(); } catch (_) {}
         } else if (window.speechSynthesis && window.speechSynthesis.paused) {
           try { window.speechSynthesis.resume(); } catch (_) {}
-        } else {
-          const btn = document.getElementById('playAllBtn');
-          if (btn) btn.click();
         }
+        // Starting playback from a fully-stopped state is handled by the
+        // other, unconditionally-registered Space-key listener further
+        // down (main-js.js's "空格键全局播放/暂停" block), which calls
+        // playAllText()/stopSpeaking() directly. This branch used to look
+        // up a #playAllBtn that hasn't existed in index.html since the
+        // header refactor -- always a silent no-op, removed as dead code.
         return;
       }
 
@@ -1827,7 +1830,14 @@ const headerSpeedValue = $('headerSpeedValue');
     
     // 语言变化时刷新主题图标与aria标签
     updateReadingToggleLabels();
-    applyTheme(savedThemePreference);
+    // Read the persisted value directly rather than trusting this file's
+    // own savedThemePreference alias: theme.js (the ESM-canonical source)
+    // keeps its own independent copy, and code paths outside this IIFE
+    // (e.g. initUserProfile's backup-import) can only reach that one,
+    // leaving this alias stale until the next in-IIFE theme change.
+    let currentThemePref = savedThemePreference;
+    try { currentThemePref = localStorage.getItem(LS.theme) || savedThemePreference; } catch (_) {}
+    applyTheme(currentThemePref);
 
     // 更新设置面板与（若存在）侧边栏的文案
     try { updateSettingsLabels(); } catch (_) {}
