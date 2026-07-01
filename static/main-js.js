@@ -1358,6 +1358,17 @@ const headerSpeedValue = $('headerSpeedValue');
     });
   }
 
+  // Captures the native install prompt so BOTH the always-visible header
+  // icon (below) and the login-gated user-menu button (initUserProfile,
+  // outside this IIFE) can trigger a real install — window-scoped because
+  // those two call sites live in genuinely different JS scopes (the main
+  // IIFE closes before initUserProfile's definition; see the docManager/t/
+  // setLanguage fixes earlier for the same structural cause).
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.__yomikikuanDeferredInstallPrompt = e;
+  });
+
   // Phase-2 delegator → modules/pwa/installer.js. Inline fallback retained
   // per playback-boundary rule (boot-race safety: this runs once at boot
   // from main-js.js:6944 and must work even before the ESM module loads).
@@ -1373,24 +1384,36 @@ const headerSpeedValue = $('headerSpeedValue');
         formatMessage,
         startPwaDownload,
       });
-      return;
-    }
-    // Inline fallback (must stay byte-equivalent to the module's behavior).
-    if (pwaToastClose) {
-      pwaToastClose.addEventListener('click', () => hidePwaToast(0));
-    }
-    if (!('serviceWorker' in navigator) || !(window && 'caches' in window)) {
-      headerDownloadBtn.addEventListener('click', (event) => {
-        event.preventDefault();
-        updatePwaToast('error', {
-          title: formatMessage('pwaTitle'),
-          message: formatMessage('pwaUnsupported'),
-          icon: 'error'
+    } else {
+      // Inline fallback (must stay byte-equivalent to the module's behavior).
+      if (pwaToastClose) {
+        pwaToastClose.addEventListener('click', () => hidePwaToast(0));
+      }
+      if (!('serviceWorker' in navigator) || !(window && 'caches' in window)) {
+        headerDownloadBtn.addEventListener('click', (event) => {
+          event.preventDefault();
+          updatePwaToast('error', {
+            title: formatMessage('pwaTitle'),
+            message: formatMessage('pwaUnsupported'),
+            icon: 'error'
+          });
         });
-      });
-      return;
+        return;
+      }
+      headerDownloadBtn.addEventListener('click', startPwaDownload);
     }
-    headerDownloadBtn.addEventListener('click', startPwaDownload);
+
+    // Additive: trigger the real native "Add to Home Screen" prompt when
+    // the browser has offered one, regardless of which branch above ran.
+    // Previously only the login-gated user-menu button (userDownloadBtn)
+    // did this — anonymous users had no way to reach a real install prompt.
+    headerDownloadBtn.addEventListener('click', async () => {
+      const dp = window.__yomikikuanDeferredInstallPrompt;
+      if (!dp) return;
+      dp.prompt();
+      try { await dp.userChoice; } catch (_) {}
+      window.__yomikikuanDeferredInstallPrompt = null;
+    });
   }
 
   // Phase-2 delegator → modules/editor/reading-mode.js (canonical owner).
@@ -6493,16 +6516,10 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       }
     });
 
-    // PWA 安装功能
-    let deferredPrompt = null;
-    
-    // 监听 beforeinstallprompt 事件
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      deferredPrompt = e;
-      console.log('PWA install prompt captured');
-    });
-    
+    // PWA 安装功能 — beforeinstallprompt is captured once, shared with the
+    // header download button, at main-js.js:1367 (this function lives
+    // outside that IIFE, so it reads the window-scoped capture instead of
+    // keeping its own separate listener/local).
     userDownloadBtn.addEventListener('click', async () => {
       userProfileContainer.classList.remove('open');
       
@@ -6535,13 +6552,14 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         showInfoToast(t('installingApp'), 5000);
         
         // 尝试触发PWA安装
+        const deferredPrompt = window.__yomikikuanDeferredInstallPrompt;
         if (deferredPrompt) {
           // 显示安装提示
           deferredPrompt.prompt();
-          
+
           // 等待用户响应
           const { outcome } = await deferredPrompt.userChoice;
-          
+
           if (outcome === 'accepted') {
             console.log('User accepted PWA installation');
             showSuccessToast(t('installSuccess'));
@@ -6549,9 +6567,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
             console.log('User dismissed PWA installation');
             showInfoToast(t('installFailed'), 3000);
           }
-          
+
           // 清除 deferredPrompt
-          deferredPrompt = null;
+          window.__yomikikuanDeferredInstallPrompt = null;
         } else {
           // 如果没有安装提示，可能已经安装或不支持
           if (window.matchMedia('(display-mode: standalone)').matches) {
