@@ -4318,7 +4318,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       // 先检查是否需要删除空文档
       if (!textInput.value.trim()) {
         // 内容为空时，删除当前文档
-        docManager.deleteEmptyDocument();
+        documentManager.deleteEmptyDocument();
         return; // 空文档无需分析
       }
       
