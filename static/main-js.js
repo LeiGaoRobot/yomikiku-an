@@ -1128,6 +1128,10 @@ const headerSpeedValue = $('headerSpeedValue');
     const dict = I18N[currentLang] || I18N.ja;
     return dict[key] || key;
   }
+  // 暴露到全局：main-js.js 主 IIFE 在 initUserProfile 之前提前闭合（历史遗留
+  // 结构），initUserProfile 内的 userDownloadBtn 点击处理器等以顶层脚本作用域
+  // 直接裸调用 t(...)，若不导出会抛 ReferenceError（已修复的真实线上 bug）。
+  window.t = t;
 
   function formatMessage(key, params = {}) {
     const template = String(t(key) || key);
@@ -1846,6 +1850,11 @@ const headerSpeedValue = $('headerSpeedValue');
 
   // 暴露语言相关函数和变量到全局，供子菜单使用
   window.applyI18n = applyI18n;
+  // initUserProfile's applyBackup(afterApply) calls setLanguage(...) as a bare
+  // top-level-scope reference (same pre-existing main-IIFE-closes-early
+  // structure as the `t` export above) — without this export, importing a
+  // backup with a yomikikuan_lang setting throws ReferenceError.
+  window.setLanguage = setLanguage;
   window.getCurrentLang = () => currentLang;
   window.setCurrentLang = (lang) => {
     if (lang === 'ja' || lang === 'en' || lang === 'zh') {
