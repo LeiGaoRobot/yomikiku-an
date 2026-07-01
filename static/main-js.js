@@ -1079,11 +1079,13 @@ const headerSpeedValue = $('headerSpeedValue');
 
       if (ev.key === 'j' || ev.key === 'J' || ev.key === 'k' || ev.key === 'K') {
         try {
-          const a = document.querySelector('audio');
-          if (a && !a.paused && isFinite(a.duration)) {
+          const delta = (ev.key === 'k' || ev.key === 'K') ? 10 : -10;
+          // Only the Gemini engine has a seekable Audio element; go through
+          // tts.js's approved accessor rather than querying the DOM (the
+          // Audio element is never appended to it — see __seekLiveAudio's
+          // own comment for why this was previously a silent no-op).
+          if (typeof window.__seekLiveAudio === 'function' && window.__seekLiveAudio(delta)) {
             ev.preventDefault();
-            const delta = (ev.key === 'k' || ev.key === 'K') ? 10 : -10;
-            a.currentTime = Math.max(0, Math.min(a.duration - 0.1, a.currentTime + delta));
           }
         } catch (_) {}
         return;

@@ -467,6 +467,22 @@
     }
   };
 
+  // Second approved narrow hook into the Audio element (see CLAUDE.md's
+  // playback-boundary doc — only __applyLiveRate was previously listed).
+  // main-js.js's J/K seek shortcut used to query document.querySelector
+  // ('audio'), but Engine.audio is never appended to the DOM, so that was
+  // silently a no-op for every keypress. Web Speech (the other engine) has
+  // no seekable timeline at all, so this only ever does something when the
+  // Gemini engine's Audio element exists and is actually playing.
+  window.__seekLiveAudio = function (deltaSeconds) {
+    const a = Engine.audio;
+    if (!a || a.paused || !isFinite(a.duration)) return false;
+    try {
+      a.currentTime = Math.max(0, Math.min(a.duration - 0.1, a.currentTime + Number(deltaSeconds || 0)));
+      return true;
+    } catch (_) { return false; }
+  };
+
   function teardownAudio() {
     if (!Engine.audio) return;
     const a = Engine.audio;
