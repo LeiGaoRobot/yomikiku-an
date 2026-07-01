@@ -13,6 +13,16 @@ import * as cache from '../../analyzer/cache/idb.js';
 const PROVIDER_ID = 'yt-jlpt';
 const SCHEMA_VERSION = 1;
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+
 function urlFor(id) { return `https://www.youtube.com/watch?v=${id}`; }
 function cacheKey({ parsed, mode, level, count }) {
   return JSON.stringify({
@@ -38,7 +48,7 @@ export function render(root, ctx) {
       <button id="ytLisGo" type="button"
               style="padding:6px 14px;border:1px solid var(--border,rgba(0,0,0,0.15));
                      border-radius:8px;background:var(--btn-bg,#f3f3f5);cursor:pointer">
-        生成听力题
+        ${tr('youtube.listening.btnGenerate', '生成听力题')}
       </button>
     </div>
     <div id="ytLisStatus" style="font-size:13px;opacity:.7"></div>
@@ -53,7 +63,7 @@ export function render(root, ctx) {
     const level = root.querySelector('#ytLisLevel').value;
     const count = Math.max(1, Math.min(5, Number(root.querySelector('#ytLisCount').value) || 3));
     go.disabled = true;
-    status.textContent = '生成中…（约 30–90 秒）';
+    status.textContent = tr('youtube.listening.statusGenerating', '生成中…（约 30–90 秒）');
     out.innerHTML = '';
     try {
       const key = cacheKey({ parsed: ctx.parsed, mode, level, count });
@@ -75,9 +85,9 @@ export function render(root, ctx) {
       renderForMode(out, data);
     } catch (err) {
       status.textContent =
-        err.message === 'NO_API_KEY'        ? '❌ 缺少 Gemini API key'
-      : err.message === 'NO_JAPANESE_AUDIO' ? '❌ 视频没有日语音轨'
-      : err.message === 'RATE_LIMITED'      ? '❌ 速率受限，请稍后再试'
+        err.message === 'NO_API_KEY'        ? '❌ ' + tr('panel.error.no_key', '请先在设置中填写 Gemini API key')
+      : err.message === 'NO_JAPANESE_AUDIO' ? tr('youtube.listening.errorNoJapaneseAudio', '❌ 视频没有日语音轨')
+      : err.message === 'RATE_LIMITED'      ? '❌ ' + tr('panel.error.rate_limited', 'API 额度超限，稍后再试')
       : `❌ ${err.message}`;
     } finally {
       go.disabled = false;

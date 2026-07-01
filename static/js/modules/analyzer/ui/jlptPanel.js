@@ -23,6 +23,27 @@ const CSS_INJECTED = '__yomikikuanJlptPanelCssInjected';
 
 function apiKey() { return getApiKey(); }
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 function cacheKey(doc, level, count, mode) {
   return JSON.stringify({ docId: doc && doc.id, level, count, mode: mode || 'normal' });
 }
@@ -211,23 +232,23 @@ export function mountPanel(doc) {
   injectCss();
   if (activePanel) return activePanel;
   const article = Array.isArray(doc?.content) ? doc.content.join('\n') : String(doc?.content || '');
-  if (!article.trim()) { alert('当前文档为空，无法生成题目'); return null; }
+  if (!article.trim()) { alert(tr('panel.error.doc_empty_for_jlpt', '当前文档为空，无法生成题目')); return null; }
 
   const root = document.createElement('div');
   root.className = 'jlpt-overlay';
   root.innerHTML = `
-    <div class="jlpt-panel" role="dialog" aria-label="JLPT 聴解">
+    <div class="jlpt-panel" role="dialog" aria-label="${tr('panel.jlpt.dialogAriaLabel', 'JLPT 聴解').replace(/"/g, '&quot;')}">
       <header class="jlpt-panel-header">
-        <h3>🎧 JLPT 聴解练习</h3>
-        <button class="jlpt-close" type="button" aria-label="关闭">×</button>
+        <h3>${tr('panel.jlpt.title', '🎧 JLPT 聴解练习')}</h3>
+        <button class="jlpt-close" type="button" aria-label="${tr('panel.common.close', '关闭').replace(/"/g, '&quot;')}">×</button>
       </header>
       <nav class="jlpt-tabs">
-        <button class="jlpt-tab is-active" data-tab="practice">🎯 单题练习</button>
-        <button class="jlpt-tab" data-tab="exam">📝 模拟考试</button>
-        <button class="jlpt-tab" data-tab="history">📊 成绩记录</button>
+        <button class="jlpt-tab is-active" data-tab="practice">${tr('panel.jlpt.tab.practice', '🎯 单题练习')}</button>
+        <button class="jlpt-tab" data-tab="exam">${tr('panel.jlpt.tab.exam', '📝 模拟考试')}</button>
+        <button class="jlpt-tab" data-tab="history">${tr('panel.jlpt.tab.history', '📊 成绩记录')}</button>
       </nav>
       <div class="jlpt-controls">
-        <label>等级
+        <label>${tr('panel.jlpt.levelLabel', '等级')}
           <select data-role="level">
             <option value="N5">N5</option>
             <option value="N4">N4</option>
@@ -236,15 +257,15 @@ export function mountPanel(doc) {
             <option value="N1">N1</option>
           </select>
         </label>
-        <label>每类题量
+        <label>${tr('panel.jlpt.countLabel', '每类题量')}
           <select data-role="count">
             <option value="3">3</option>
             <option value="5" selected>5</option>
             <option value="10">10</option>
           </select>
         </label>
-        <button class="jlpt-go" data-role="go" type="button">生成</button>
-        <button class="jlpt-go secondary" data-role="regen" type="button">忽略缓存重新生成</button>
+        <button class="jlpt-go" data-role="go" type="button">${tr('panel.jlpt.generateBtn', '生成')}</button>
+        <button class="jlpt-go secondary" data-role="regen" type="button">${tr('panel.jlpt.regenBtn', '忽略缓存重新生成')}</button>
         <span class="jlpt-status" data-role="status"></span>
       </div>
       <div class="jlpt-recommendation" data-role="recommendation" hidden></div>
@@ -310,8 +331,8 @@ export function mountPanel(doc) {
       if (banner) {
         const acc = rec.accuracy == null ? null : Math.round(rec.accuracy * 100);
         const msg = (rec.confidence === 'low' || acc == null)
-          ? `📈 推荐 ${rec.level}（样本不足，请多做几题后再推荐）`
-          : `📈 推荐 ${rec.level}（最近 ${rec.sample} 题 ${acc}% 正确率）`;
+          ? trFmt('panel.jlpt.recommend.lowConfidenceSample_fmt', { level: rec.level }, `📈 推荐 ${rec.level}（样本不足，请多做几题后再推荐）`)
+          : trFmt('panel.jlpt.recommend.accuracy_fmt', { level: rec.level, sample: rec.sample, acc }, `📈 推荐 ${rec.level}（最近 ${rec.sample} 题 ${acc}% 正确率）`);
         banner.textContent = msg;
         banner.hidden = false;
       }
@@ -337,9 +358,9 @@ export function mountPanel(doc) {
         list.classList.add('jlpt-list');
         list.innerHTML = '';
         status.textContent = currentTab === 'exam'
-          ? '选择题型 → 点击"开始考试"进入 exam 模式'
-          : '选择题型 → 点击"生成"开始练习';
-        go.textContent = currentTab === 'exam' ? '开始考试' : '生成';
+          ? tr('panel.jlpt.tabStatus.exam', '选择题型 → 点击"开始考试"进入 exam 模式')
+          : tr('panel.jlpt.tabStatus.practice', '选择题型 → 点击"生成"开始练习');
+        go.textContent = currentTab === 'exam' ? tr('panel.jlpt.exam.start', '开始考试') : tr('panel.jlpt.generateBtn', '生成');
       }
     });
   });
@@ -359,7 +380,7 @@ export function mountPanel(doc) {
   }
 
   async function renderHistory(container) {
-    container.innerHTML = '<div class="jlpt-hist-empty">加载中…</div>';
+    container.innerHTML = `<div class="jlpt-hist-empty">${tr('panel.jlpt.history.loading', '加载中…')}</div>`;
     const rows = await listSessionHistory({ limit: 20 });
     container.innerHTML = '';
     const coach = buildCoachBanner(rows, { onTarget: runTargeted });
@@ -367,7 +388,7 @@ export function mountPanel(doc) {
     if (!rows.length) {
       const empty = document.createElement('div');
       empty.className = 'jlpt-hist-empty';
-      empty.textContent = '还没有考试记录——在"📝 模拟考试"做一套吧。';
+      empty.textContent = tr('panel.jlpt.history.empty', '还没有考试记录——在"📝 模拟考试"做一套吧。');
       container.appendChild(empty);
       return;
     }
@@ -377,13 +398,14 @@ export function mountPanel(doc) {
       const date = new Date(r.startedAt);
       const dstr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
       const modesTxt = (r.modes || []).map(m => MODE_META[m]?.emoji || '').join('');
+      const tookStr = trFmt('panel.jlpt.history.took_fmt', { s: Math.round((r.durationMs||0)/1000) }, `用时 ${Math.round((r.durationMs||0)/1000)}s`);
       const row = document.createElement('div');
       row.className = 'jlpt-hist-row';
       row.innerHTML = `
         <span class="pct ${cls}">${pct}%</span>
         <span style="flex:1;min-width:0;">
           <div>${r.level || ''} · ${r.correct}/${r.total} · ${modesTxt}</div>
-          <div class="meta">${dstr} · 用时 ${Math.round((r.durationMs||0)/1000)}s</div>
+          <div class="meta">${dstr} · ${tookStr}</div>
         </span>
       `;
       container.appendChild(row);
@@ -391,8 +413,8 @@ export function mountPanel(doc) {
   }
 
   async function runPractice({ bypassCache }) {
-    if (!selectedModes.size) { status.textContent = '请先选择至少一种题型'; return; }
-    if (!apiKey()) { status.textContent = '请先在设置中填写 Gemini API key'; return; }
+    if (!selectedModes.size) { status.textContent = tr('panel.jlpt.error.noModeSelected', '请先选择至少一种题型'); return; }
+    if (!apiKey()) { status.textContent = tr('panel.error.no_key', '请先在设置中填写 Gemini API key'); return; }
     go.disabled = true; regen.disabled = true;
     list.innerHTML = '';
     try { controller && controller.abort(); } catch (_) {}
@@ -405,7 +427,8 @@ export function mountPanel(doc) {
       const modeList = Array.from(selectedModes);
       for (let mi = 0; mi < modeList.length; mi++) {
         const mode = modeList[mi];
-        status.textContent = `生成中 ${mi+1}/${modeList.length}（${MODE_META[mode]?.nameJa || mode}${bypassCache ? ' · 忽略缓存' : ''}）…`;
+        const cacheSuffix = bypassCache ? tr('panel.jlpt.status.cacheSuffix', ' · 忽略缓存') : '';
+        status.textContent = trFmt('panel.jlpt.status.generating_fmt', { i: mi+1, n: modeList.length, mode: MODE_META[mode]?.nameJa || mode, cacheSuffix }, `生成中 ${mi+1}/${modeList.length}（${MODE_META[mode]?.nameJa || mode}${cacheSuffix}）…`);
         let payload;
         if (bypassCache) {
           const prompt = promptFor(mode, { article, level, count });
@@ -425,22 +448,22 @@ export function mountPanel(doc) {
         list.appendChild(secList);
         renderForMode(secList, payload, { examMode: false });
       }
-      status.textContent = '✓ 已生成';
+      status.textContent = '✓ ' + tr('panel.generated', '已生成');
     } catch (err) {
       console.warn('[jlpt] practice failed', err);
       const msg = err && err.message ? err.message : String(err);
-      if (msg === 'NO_API_KEY') status.textContent = '请先在设置中填写 Gemini API key';
-      else if (msg === 'RATE_LIMITED') status.textContent = 'API 额度超限，稍后再试';
-      else if (err?.name === 'AbortError') status.textContent = '已取消';
-      else status.textContent = `生成失败：${msg}`;
+      if (msg === 'NO_API_KEY') status.textContent = tr('panel.error.no_key', '请先在设置中填写 Gemini API key');
+      else if (msg === 'RATE_LIMITED') status.textContent = tr('panel.error.rate_limited', 'API 额度超限，稍后再试');
+      else if (err?.name === 'AbortError') status.textContent = tr('panel.aborted', '已取消');
+      else status.textContent = trFmt('panel.error.generic_fmt', { msg }, `生成失败：${msg}`);
     } finally {
       go.disabled = false; regen.disabled = false;
     }
   }
 
   async function runExam() {
-    if (!selectedModes.size) { status.textContent = '请先选择至少一种题型'; return; }
-    if (!apiKey()) { status.textContent = '请先在设置中填写 Gemini API key'; return; }
+    if (!selectedModes.size) { status.textContent = tr('panel.jlpt.error.noModeSelected', '请先选择至少一种题型'); return; }
+    if (!apiKey()) { status.textContent = tr('panel.error.no_key', '请先在设置中填写 Gemini API key'); return; }
     go.disabled = true; regen.disabled = true;
     list.innerHTML = '';
     try { controller && controller.abort(); } catch (_) {}
@@ -454,11 +477,11 @@ export function mountPanel(doc) {
       const modeList = Array.from(selectedModes);
       for (let mi = 0; mi < modeList.length; mi++) {
         const mode = modeList[mi];
-        status.textContent = `准备中 ${mi+1}/${modeList.length}（${MODE_META[mode]?.nameJa || mode}）…`;
+        status.textContent = trFmt('panel.jlpt.status.preparing_fmt', { i: mi+1, n: modeList.length, mode: MODE_META[mode]?.nameJa || mode }, `准备中 ${mi+1}/${modeList.length}（${MODE_META[mode]?.nameJa || mode}）…`);
         const { payload } = await generatePayload({ article, level, count, mode, signal: controller.signal, doc });
         itemsByMode[mode] = payload;
       }
-      status.textContent = '考试开始 — 请专注听音频';
+      status.textContent = tr('panel.jlpt.status.examStart', '考试开始 — 请专注听音频');
       const plan = { level, modes: modeList, docId: doc?.id || '' };
       startSession({
         root: list,
@@ -469,7 +492,7 @@ export function mountPanel(doc) {
     } catch (err) {
       console.warn('[jlpt] exam prep failed', err);
       const msg = err && err.message ? err.message : String(err);
-      status.textContent = (msg === 'NO_API_KEY') ? '请先在设置中填写 Gemini API key' : `准备失败：${msg}`;
+      status.textContent = (msg === 'NO_API_KEY') ? tr('panel.error.no_key', '请先在设置中填写 Gemini API key') : trFmt('panel.jlpt.error.examPrep_fmt', { msg }, `准备失败：${msg}`);
     } finally {
       go.disabled = false; regen.disabled = false;
     }
@@ -492,10 +515,10 @@ export function unmountPanel() {
 if (typeof window !== 'undefined') {
   window.__yomikikuanOpenJLPT = function () {
     const dm = window.documentManager;
-    if (!dm || typeof dm.getAllDocuments !== 'function') { alert('文档管理器未就绪'); return; }
+    if (!dm || typeof dm.getAllDocuments !== 'function') { alert(tr('panel.error.no_docmgr', '文档管理器未就绪')); return; }
     const activeId = typeof dm.getActiveId === 'function' ? dm.getActiveId() : null;
     const doc = dm.getAllDocuments().find((d) => d && d.id === activeId);
-    if (!doc) { alert('请先选择一个文档'); return; }
+    if (!doc) { alert(tr('panel.error.no_doc', '请先选择一个文档')); return; }
     mountPanel(doc);
   };
 }

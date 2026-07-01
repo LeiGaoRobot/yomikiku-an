@@ -27,6 +27,27 @@ function escapeHtml(s) {
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 function ensureIframeApi() {
   return new Promise((resolve) => {
     if (window.YT && window.YT.Player) return resolve();
@@ -48,7 +69,7 @@ function renderSubtitleList(root) {
   const list = root.querySelector('#ytSubs');
   list.innerHTML = segments.map((s, i) => `
     <div class="yt-sub" data-i="${i}" data-start="${s.start}">
-      <button type="button" class="yt-analyze" data-text="${escapeHtml(s.text || '')}" title="分析这一句">🔍</button>
+      <button type="button" class="yt-analyze" data-text="${escapeHtml(s.text || '')}" title="${tr('youtube.companion.analyzeTooltip', '分析这一句').replace(/"/g, '&quot;')}">🔍</button>
       <span class="yt-sub-text">${escapeHtml(s.text || '')}</span>
     </div>`).join('');
   list.addEventListener('click', (e) => {
@@ -112,7 +133,7 @@ export async function render(root, ctx) {
     </style>
     <div class="yt-companion">
       <div class="yt-player-wrap"><div id="ytPlayer"></div></div>
-      <div id="ytSubs">加载字幕中…</div>
+      <div id="ytSubs">${tr('youtube.companion.loadingSubs', '加载字幕中…')}</div>
     </div>`;
 
   // 1. Fetch (or load from cache) the timed transcript.
@@ -134,16 +155,16 @@ export async function render(root, ctx) {
       .trim();
     json = JSON.parse(stripped);
   } catch (err) {
-    const msg = err.message === 'NO_API_KEY' ? '缺少 Gemini API key'
-              : err.message === 'RATE_LIMITED' ? '速率受限，请稍后再试'
+    const msg = err.message === 'NO_API_KEY' ? tr('panel.error.no_key', '请先在设置中填写 Gemini API key')
+              : err.message === 'RATE_LIMITED' ? tr('panel.error.rate_limited', 'API 额度超限，稍后再试')
               : err.message;
     root.querySelector('#ytSubs').innerHTML =
-      `<div style="color:#ff3b30">字幕加载失败：${escapeHtml(msg)}</div>`;
+      `<div style="color:#ff3b30">${trFmt('youtube.companion.errorLoadFailed_fmt', { msg: escapeHtml(msg) }, `字幕加载失败：${escapeHtml(msg)}`)}</div>`;
     return;
   }
   if (json && json.error === 'NO_JAPANESE_AUDIO') {
     root.querySelector('#ytSubs').innerHTML =
-      `<div style="color:#ff3b30">视频没有日语音轨</div>`;
+      `<div style="color:#ff3b30">${tr('youtube.companion.errorNoJapaneseAudio', '视频没有日语音轨')}</div>`;
     return;
   }
   segments = Array.isArray(json) ? json : [];
@@ -159,13 +180,13 @@ export async function render(root, ctx) {
         onStateChange:  () => { /* no-op */ },
         onError:        () => {
           root.querySelector('#ytSubs').insertAdjacentHTML('afterbegin',
-            `<div style="color:#ff3b30;padding:6px 8px">⚠️ 视频无法嵌入（uploader 禁用 embed）</div>`);
+            `<div style="color:#ff3b30;padding:6px 8px">${tr('youtube.companion.errorEmbedDisabled', '⚠️ 视频无法嵌入（uploader 禁用 embed）')}</div>`);
         },
       },
     });
   } catch (err) {
     root.querySelector('#ytSubs').insertAdjacentHTML('afterbegin',
-      `<div style="color:#ff3b30;padding:6px 8px">播放器初始化失败：${escapeHtml(err.message)}</div>`);
+      `<div style="color:#ff3b30;padding:6px 8px">${trFmt('youtube.companion.errorPlayerInit_fmt', { msg: escapeHtml(err.message) }, `播放器初始化失败：${escapeHtml(err.message)}`)}</div>`);
   }
 
   // 3. Render subtitle list.

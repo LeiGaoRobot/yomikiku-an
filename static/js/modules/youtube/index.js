@@ -8,6 +8,27 @@ import { parseYoutubeUrl } from './url.js';
 import { fetchVideoMeta } from './oembed.js';
 
 const CSS_FLAG = '__yomikikuanYoutubeCssInjected';
+
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
 const MAX_DURATION_SEC = 600;  // hard cap for MVP
 let overlayEl = null;
 let currentParsed = null;       // { videoId, startSec?, endSec? }
@@ -54,19 +75,19 @@ function buildShell() {
   overlay.innerHTML = `
     <div class="youtube-panel" role="dialog" aria-modal="true" aria-label="YouTube import">
       <div class="youtube-panel-header">
-        <h3>从 YouTube 导入</h3>
-        <button type="button" class="youtube-close" aria-label="关闭">×</button>
+        <h3>${tr('youtube.panel.title', '从 YouTube 导入')}</h3>
+        <button type="button" class="youtube-close" aria-label="${tr('youtube.panel.closeAriaLabel', '关闭').replace(/"/g, '&quot;')}">×</button>
       </div>
       <div class="youtube-url-row">
-        <input type="url" id="ytUrlInput" placeholder="粘贴 YouTube URL（≤10 分钟）" />
-        <button type="button" id="ytParseBtn">解析视频</button>
+        <input type="url" id="ytUrlInput" placeholder="${tr('youtube.panel.urlPlaceholder', '粘贴 YouTube URL（≤10 分钟）').replace(/"/g, '&quot;')}" />
+        <button type="button" id="ytParseBtn">${tr('youtube.panel.parseBtn', '解析视频')}</button>
       </div>
       <div id="ytErrorBar" class="youtube-error" hidden></div>
       <div id="ytMeta" class="youtube-meta" hidden></div>
       <div class="youtube-tabs">
-        <button type="button" class="youtube-tab is-active" data-tab="import">📥 导入字幕</button>
-        <button type="button" class="youtube-tab" data-tab="companion">🎬 视频伴读</button>
-        <button type="button" class="youtube-tab" data-tab="listening">🎧 生成听力题</button>
+        <button type="button" class="youtube-tab is-active" data-tab="import">${tr('youtube.panel.tabImport', '📥 导入字幕')}</button>
+        <button type="button" class="youtube-tab" data-tab="companion">${tr('youtube.panel.tabCompanion', '🎬 视频伴读')}</button>
+        <button type="button" class="youtube-tab" data-tab="listening">${tr('youtube.panel.tabListening', '🎧 生成听力题')}</button>
       </div>
       <div id="ytTabContent" class="youtube-tab-content"></div>
     </div>`;
@@ -86,7 +107,7 @@ async function onParseClick() {
   clearError();
   const input = overlayEl.querySelector('#ytUrlInput').value;
   const parsed = parseYoutubeUrl(input);
-  if (!parsed) { showError('请输入有效的 YouTube URL'); return; }
+  if (!parsed) { showError(tr('youtube.panel.error.invalidUrl', '请输入有效的 YouTube URL')); return; }
   currentParsed = parsed;
   try {
     const meta = await fetchVideoMeta(parsed.videoId);
@@ -101,9 +122,9 @@ async function onParseClick() {
     m.hidden = false;
     await renderTab(activeTab);
   } catch (e) {
-    if (e.message === 'NOT_EMBEDDABLE') showError('视频不可用（私有或已删除）');
-    else if (e.message === 'NETWORK')   showError('网络错误，请重试');
-    else                                showError(`解析失败：${e.message}`);
+    if (e.message === 'NOT_EMBEDDABLE') showError(tr('youtube.panel.error.notEmbeddable', '视频不可用（私有或已删除）'));
+    else if (e.message === 'NETWORK')   showError(tr('youtube.panel.error.network', '网络错误，请重试'));
+    else                                showError(trFmt('youtube.panel.error.parseFailed_fmt', { msg: e.message }, `解析失败：${e.message}`));
   }
 }
 
@@ -122,7 +143,7 @@ async function renderTab(name) {
   }
   activeTab = name;
   const root = overlayEl.querySelector('#ytTabContent');
-  root.innerHTML = '<div style="opacity:.6">加载中…</div>';
+  root.innerHTML = `<div style="opacity:.6">${tr('youtube.panel.tabLoading', '加载中…')}</div>`;
   try {
     const mod = await loadTabModule(name);
     mod.render(root, { parsed: currentParsed, meta: currentMeta, maxDurationSec: MAX_DURATION_SEC });

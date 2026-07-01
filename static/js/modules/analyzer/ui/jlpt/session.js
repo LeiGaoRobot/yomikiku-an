@@ -16,6 +16,27 @@ const PROVIDER = 'jlpt-session';
 const SCHEMA = 1;
 const INDEX_KEY = JSON.stringify({ _index: true });
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 export function buildReport(answers, plan) {
   const byModeMap = {};
   let correct = 0;
@@ -107,7 +128,7 @@ export function startSession({ root, plan, itemsByMode, onFinish }) {
   const counter = document.createElement('span');
   const finishBtn = document.createElement('button');
   finishBtn.type = 'button';
-  finishBtn.textContent = '提前交卷';
+  finishBtn.textContent = tr('panel.jlpt.exam.finishEarly', '提前交卷');
   finishBtn.style.cssText = 'border:1px solid var(--border,rgba(0,0,0,.15));border-radius:6px;padding:2px 10px;background:transparent;color:inherit;cursor:pointer;font-size:11px;';
   meta.append(timerEl, counter, finishBtn);
   shell.appendChild(meta);
@@ -119,10 +140,10 @@ export function startSession({ root, plan, itemsByMode, onFinish }) {
   const nav = document.createElement('div');
   nav.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:8px;border-top:1px solid var(--border,rgba(0,0,0,.08));';
   const prevBtn = document.createElement('button');
-  prevBtn.type = 'button'; prevBtn.textContent = '← 上一题';
+  prevBtn.type = 'button'; prevBtn.textContent = tr('panel.jlpt.exam.prevQuestion', '← 上一题');
   prevBtn.style.cssText = 'padding:4px 12px;border:1px solid var(--border,rgba(0,0,0,.15));border-radius:6px;background:transparent;color:inherit;cursor:pointer;font-size:12px;';
   const nextBtn = document.createElement('button');
-  nextBtn.type = 'button'; nextBtn.textContent = '下一题 →';
+  nextBtn.type = 'button'; nextBtn.textContent = tr('panel.jlpt.exam.nextQuestion', '下一题 →');
   nextBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;font-size:13px;';
   nav.append(prevBtn, nextBtn);
   shell.appendChild(nav);
@@ -152,7 +173,7 @@ export function startSession({ root, plan, itemsByMode, onFinish }) {
     counter.textContent = `${idx + 1} / ${queue.length}`;
     progBar.style.width = `${Math.round(((idx + 1) / queue.length) * 100)}%`;
     prevBtn.disabled = idx === 0;
-    nextBtn.textContent = idx === queue.length - 1 ? '交卷 →' : '下一题 →';
+    nextBtn.textContent = idx === queue.length - 1 ? tr('panel.jlpt.exam.submitArrow', '交卷 →') : tr('panel.jlpt.exam.nextQuestion', '下一题 →');
   }
 
   prevBtn.addEventListener('click', () => {
@@ -187,7 +208,7 @@ export function startSession({ root, plan, itemsByMode, onFinish }) {
           if (!payload) return;
           const header = document.createElement('div');
           header.style.cssText = 'font-size:13px;font-weight:600;padding:10px 20px 4px;';
-          header.textContent = `回看 · ${mode}`;
+          header.textContent = trFmt('panel.jlpt.session.reviewHeader_fmt', { mode }, `回看 · ${mode}`);
           root.appendChild(header);
           const listEl = document.createElement('div');
           listEl.style.cssText = 'padding: 0 20px 14px; display:flex; flex-direction: column; gap: 12px;';

@@ -230,6 +230,11 @@ async function backupRoundtrip(page) {
 }
 
 async function youtubePanelOpens(page) {
+  // Pin the UI language to zh so the tab-label assertions below are
+  // deterministic — without this, a non-CJK Playwright browser locale
+  // (e.g. Chromium's default 'en-US') resolves currentLang to 'en' via
+  // detectBrowserLanguage(), rendering English tab labels instead.
+  await page.addInitScript(() => { try { localStorage.setItem('lang', 'zh'); } catch (_) {} });
   await page.goto(`${BASE}/index.html`);
   await waitForBoot(page);
 

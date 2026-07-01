@@ -21,16 +21,37 @@ function escapeHtml(s) {
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 export function render(root, ctx) {
   const { parsed, meta } = ctx;
   root.innerHTML = `
     <p style="opacity:.7;font-size:13px;margin-top:0">
-      把视频字幕转录后保存为新文档，可立即用 TTS / 分析器 / JLPT 工具阅读。
+      ${tr('youtube.import.intro', '把视频字幕转录后保存为新文档，可立即用 TTS / 分析器 / JLPT 工具阅读。')}
     </p>
     <button id="ytImportBtn" type="button"
             style="padding:8px 14px;border:1px solid var(--border,rgba(0,0,0,0.15));
                    border-radius:8px;background:var(--btn-bg,#f3f3f5);cursor:pointer">
-      📥 提取字幕并保存为文档
+      ${tr('youtube.import.btnExtract', '📥 提取字幕并保存为文档')}
     </button>
     <div id="ytImportStatus" style="margin-top:10px;font-size:13px"></div>`;
 
@@ -38,7 +59,7 @@ export function render(root, ctx) {
   const btn = root.querySelector('#ytImportBtn');
   btn.addEventListener('click', async () => {
     btn.disabled = true;
-    status.textContent = '正在转录…（首次约需 30–60 秒）';
+    status.textContent = tr('youtube.import.statusTranscribing', '正在转录…（首次约需 30–60 秒）');
     try {
       const key = cacheKey(parsed);
       let text = await cache.get(key, PROVIDER_ID, SCHEMA_VERSION);
@@ -59,16 +80,17 @@ export function render(root, ctx) {
         docs.setActiveId(created.id);
         try { docs.render(); } catch (_) {}
         try { docs.loadActiveDocument(); } catch (_) {}
-        status.innerHTML =
-          `✓ 已保存为文档 <strong>${escapeHtml((meta && meta.title) || created.id)}</strong>`;
+        status.innerHTML = trFmt('youtube.import.statusSaved_fmt',
+          { title: `<strong>${escapeHtml((meta && meta.title) || created.id)}</strong>` },
+          `✓ 已保存为文档 <strong>${escapeHtml((meta && meta.title) || created.id)}</strong>`);
       } else {
-        status.textContent = '✓ 已保存（请在文档列表查看）';
+        status.textContent = tr('youtube.import.statusSavedGeneric', '✓ 已保存（请在文档列表查看）');
       }
     } catch (err) {
       status.textContent =
-        err.message === 'NO_API_KEY'        ? '❌ 缺少 Gemini API key'
-      : err.message === 'NO_JAPANESE_AUDIO' ? '❌ 视频没有日语音轨'
-      : err.message === 'RATE_LIMITED'      ? '❌ 速率受限，请稍后再试'
+        err.message === 'NO_API_KEY'        ? '❌ ' + tr('panel.error.no_key', '请先在设置中填写 Gemini API key')
+      : err.message === 'NO_JAPANESE_AUDIO' ? tr('youtube.import.errorNoJapaneseAudio', '❌ 视频没有日语音轨')
+      : err.message === 'RATE_LIMITED'      ? '❌ ' + tr('panel.error.rate_limited', 'API 额度超限，稍后再试')
       : `❌ ${err.message}`;
     } finally {
       btn.disabled = false;

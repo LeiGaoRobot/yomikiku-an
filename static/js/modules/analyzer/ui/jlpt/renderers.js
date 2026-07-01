@@ -6,6 +6,27 @@ import { MODE_META } from './prompts.js';
 
 const CSS_FLAG = '__yomikikuanJlptRenderersCssInjected';
 
+function tr(key, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanGetText === 'function') {
+      const v = window.YomikikuanGetText(key, fallback);
+      if (typeof v === 'string') return v;
+    }
+  } catch (_) {}
+  return fallback;
+}
+function trFmt(key, params, fallback) {
+  try {
+    if (typeof window !== 'undefined' && typeof window.YomikikuanFormat === 'function') {
+      const v = window.YomikikuanFormat(key, params || {});
+      if (typeof v === 'string' && v !== key) return v;
+    }
+  } catch (_) {}
+  let s = fallback || key;
+  Object.entries(params || {}).forEach(([k, v]) => { s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)); });
+  return s;
+}
+
 export function injectCss() {
   if (typeof window === 'undefined' || window[CSS_FLAG]) return;
   window[CSS_FLAG] = true;
@@ -199,7 +220,7 @@ function transcriptBlock({ lines, rawText, examMode, lockKey }) {
   const stageBadge = document.createElement('span');
   stageBadge.className = 'jlpt-stage-badge';
   stageBadge.dataset.stage = 'fast';
-  stageBadge.textContent = '🔊 ready';
+  stageBadge.textContent = tr('panel.jlpt.renderers.stageReady', '🔊 ready');
 
   const playFast = document.createElement('button');
   playFast.type = 'button';
@@ -211,11 +232,11 @@ function transcriptBlock({ lines, rawText, examMode, lockKey }) {
 
   const staged = document.createElement('button');
   staged.type = 'button';
-  staged.textContent = '🎧 一键三阶段';
+  staged.textContent = tr('panel.jlpt.renderers.playThreeStage', '🎧 一键三阶段');
 
   const revealBtn = document.createElement('button');
   revealBtn.type = 'button';
-  revealBtn.textContent = '👁 查看文本';
+  revealBtn.textContent = tr('panel.jlpt.renderers.transcriptReveal', '👁 查看文本');
 
   toolbar.append(stageBadge, playFast, playSlow, staged, revealBtn);
   wrap.appendChild(toolbar);
@@ -229,7 +250,7 @@ function transcriptBlock({ lines, rawText, examMode, lockKey }) {
       row.innerHTML = `
         ${speakerBadge(ln.speaker || 'N')}
         <span class="tx">${escapeHtml(ln.text || '')}</span>
-        <button type="button" class="play-one" aria-label="朗读这行">▶︎</button>
+        <button type="button" class="play-one" aria-label="${tr('panel.jlpt.renderers.playLineAria', '朗读这行').replace(/"/g, '&quot;')}">▶︎</button>
       `;
       row.querySelector('.play-one').addEventListener('click', () => {
         speak(ln.text || '', { voice: voiceForSpeaker(ln.speaker), lockKey: examMode ? lockKey : null });
@@ -244,7 +265,7 @@ function transcriptBlock({ lines, rawText, examMode, lockKey }) {
   const reveal = () => {
     wrap.classList.remove('is-blurred');
     stageBadge.dataset.stage = 'reveal';
-    stageBadge.textContent = '✓ revealed';
+    stageBadge.textContent = tr('panel.jlpt.renderers.stageRevealed', '✓ revealed');
   };
   revealBtn.addEventListener('click', reveal);
 
@@ -295,7 +316,7 @@ export function depthPanel(depth, { stem, level } = {}) {
     const sec = document.createElement('div');
     sec.className = 'jlpt-depth-section';
     sec.dataset.k = 'vocab';
-    sec.innerHTML = `<div class="jlpt-depth-label">📚 词汇</div>`;
+    sec.innerHTML = `<div class="jlpt-depth-label">${tr('panel.jlpt.renderers.depthVocab', '📚 词汇')}</div>`;
     vocab.forEach((v) => {
       const row = document.createElement('div');
       row.className = 'jlpt-depth-row';
@@ -303,7 +324,7 @@ export function depthPanel(depth, { stem, level } = {}) {
         <span class="surface">${escapeHtml(v.surface || '')}</span>
         <span class="reading">${escapeHtml(v.reading || '')}</span>
         <span class="meaning">${escapeHtml(v.meaning_zh || v.meaning || '')}</span>
-        <button type="button" class="addv" title="加入词汇本">＋</button>
+        <button type="button" class="addv" title="${tr('panel.jlpt.renderers.addVocabTitle', '加入词汇本').replace(/"/g, '&quot;')}">＋</button>
       `;
       row.querySelector('.addv').addEventListener('click', async (ev) => {
         ev.stopPropagation();
@@ -323,7 +344,7 @@ export function depthPanel(depth, { stem, level } = {}) {
           }
         } catch (e) {
           console.warn('[jlpt] addVocab failed', e);
-          btn.textContent = '失败';
+          btn.textContent = tr('panel.jlpt.renderers.addVocabFailed', '失败');
         }
       });
       sec.appendChild(row);
@@ -335,7 +356,7 @@ export function depthPanel(depth, { stem, level } = {}) {
     const sec = document.createElement('div');
     sec.className = 'jlpt-depth-section';
     sec.dataset.k = 'grammar';
-    sec.innerHTML = `<div class="jlpt-depth-label">📐 语法点</div>`;
+    sec.innerHTML = `<div class="jlpt-depth-label">${tr('panel.jlpt.renderers.depthGrammar', '📐 语法点')}</div>`;
     grammar.forEach((g) => {
       const row = document.createElement('div');
       row.className = 'jlpt-depth-row';
@@ -349,7 +370,7 @@ export function depthPanel(depth, { stem, level } = {}) {
     const sec = document.createElement('div');
     sec.className = 'jlpt-depth-section';
     sec.dataset.k = 'traps';
-    sec.innerHTML = `<div class="jlpt-depth-label">⚠️ 陷阱分析</div>`;
+    sec.innerHTML = `<div class="jlpt-depth-label">${tr('panel.jlpt.renderers.depthTraps', '⚠️ 陷阱分析')}</div>`;
     traps.forEach((t) => {
       const row = document.createElement('div');
       row.className = 'jlpt-depth-row';
@@ -412,13 +433,13 @@ function mcqCard({ q, qi, payload, examMode, onAnswer, skipTranscript }) {
   reveal.hidden = true;
   const answerLine = document.createElement('div');
   answerLine.className = 'jlpt-q-answer';
-  answerLine.innerHTML = `<b>正解：${String.fromCharCode(65 + (isFinite(correctIdx) ? correctIdx : 0))}</b>`;
+  answerLine.innerHTML = `<b>${tr('panel.jlpt.truth_label', '正解：')}${String.fromCharCode(65 + (isFinite(correctIdx) ? correctIdx : 0))}</b>`;
   const explainLine = document.createElement('div');
   explainLine.className = 'jlpt-q-explain';
   explainLine.textContent = q.explanation || '';
   const citeLine = document.createElement('div');
   citeLine.className = 'jlpt-q-cite';
-  citeLine.textContent = q.citation ? `出典：${q.citation}` : '';
+  citeLine.textContent = q.citation ? trFmt('panel.jlpt.cite_fmt', { src: q.citation }, `出典：${q.citation}`) : '';
   reveal.append(answerLine, explainLine, citeLine);
 
   const depth = depthPanel(q.depth, { stem: q.stem, level });
@@ -427,7 +448,7 @@ function mcqCard({ q, qi, payload, examMode, onAnswer, skipTranscript }) {
   const revealBtn = document.createElement('button');
   revealBtn.type = 'button';
   revealBtn.className = 'jlpt-q-show';
-  revealBtn.textContent = '查看答案/解析';
+  revealBtn.textContent = tr('panel.btn.reveal', '查看答案/解析');
   revealBtn.hidden = true;
   revealBtn.addEventListener('click', () => { reveal.hidden = !reveal.hidden; });
 
@@ -487,7 +508,7 @@ function mcqCard({ q, qi, payload, examMode, onAnswer, skipTranscript }) {
 
 function renderKadaiOrPointOrGist(listEl, payload, ctx) {
   const items = Array.isArray(payload.items) ? payload.items : [];
-  if (!items.length) { emptyEl(listEl, '未生成任何题目'); return; }
+  if (!items.length) { emptyEl(listEl, tr('panel.jlpt.empty.questions', '未生成任何题目')); return; }
   items.forEach((q, qi) => {
     listEl.appendChild(mcqCard({ q, qi, payload, examMode: ctx?.examMode, onAnswer: ctx?.onAnswer }));
   });
@@ -495,7 +516,7 @@ function renderKadaiOrPointOrGist(listEl, payload, ctx) {
 
 function renderHatsuOrSokuji(listEl, payload, ctx) {
   const items = Array.isArray(payload.items) ? payload.items : [];
-  if (!items.length) { emptyEl(listEl, '未生成任何题目'); return; }
+  if (!items.length) { emptyEl(listEl, tr('panel.jlpt.empty.questions', '未生成任何题目')); return; }
   items.forEach((q, qi) => {
     const card = document.createElement('div');
     card.className = 'jlpt-q';
@@ -510,7 +531,7 @@ function renderHatsuOrSokuji(listEl, payload, ctx) {
         <span class="jlpt-q-type">${escapeHtml(q.type || MODE_META[payload.mode]?.nameJa)}</span>
       </div>
       <div class="jlpt-play-group">
-        <button type="button" data-act="play">▶︎ 朗读 ${payload.mode === 'sokuji' ? '问句' : '情境'}</button>
+        <button type="button" data-act="play">${trFmt('panel.jlpt.renderers.readAloud_fmt', { target: payload.mode === 'sokuji' ? tr('panel.jlpt.renderers.targetQuestion', '问句') : tr('panel.jlpt.renderers.targetSituation', '情境') }, `▶︎ 朗读 ${payload.mode === 'sokuji' ? '问句' : '情境'}`)}</button>
       </div>
     `;
     card.appendChild(header);
@@ -518,7 +539,7 @@ function renderHatsuOrSokuji(listEl, payload, ctx) {
     const situation = document.createElement('div');
     situation.className = 'jlpt-q-situation';
     situation.textContent = payload.mode === 'sokuji'
-      ? `問題：${q.prompt || ''}`
+      ? trFmt('panel.jlpt.renderers.sokujiPrompt_fmt', { prompt: q.prompt || '' }, `問題：${q.prompt || ''}`)
       : (q.situation || '');
     card.appendChild(situation);
 
@@ -534,7 +555,7 @@ function renderHatsuOrSokuji(listEl, payload, ctx) {
     const reveal = document.createElement('div');
     reveal.className = 'jlpt-q-reveal';
     reveal.hidden = true;
-    reveal.innerHTML = `<div class="jlpt-q-answer"><b>正解：${String.fromCharCode(65 + (isFinite(correctIdx) ? correctIdx : 0))}</b></div>`;
+    reveal.innerHTML = `<div class="jlpt-q-answer"><b>${tr('panel.jlpt.truth_label', '正解：')}${String.fromCharCode(65 + (isFinite(correctIdx) ? correctIdx : 0))}</b></div>`;
     const note = payload.mode === 'sokuji' ? q.reasoning_zh : q.pragmatic_zh;
     if (note) {
       const p = document.createElement('div');
@@ -603,7 +624,7 @@ function renderHatsuOrSokuji(listEl, payload, ctx) {
 
 function renderTogo(listEl, payload, ctx) {
   const items = Array.isArray(payload.items) ? payload.items : [];
-  if (!items.length) { emptyEl(listEl, '未生成任何题目'); return; }
+  if (!items.length) { emptyEl(listEl, tr('panel.jlpt.empty.questions', '未生成任何题目')); return; }
   items.forEach((unit, ui) => {
     const wrap = document.createElement('div');
     wrap.className = 'jlpt-q';
@@ -653,7 +674,7 @@ function renderDialogue(listEl, payload, ctx) {
 
 function renderDictation(listEl, payload) {
   const items = Array.isArray(payload.items) ? payload.items : [];
-  if (!items.length) { emptyEl(listEl, '未生成任何听写题'); return; }
+  if (!items.length) { emptyEl(listEl, tr('panel.jlpt.empty.dictation', '未生成任何听写题')); return; }
   items.forEach((it) => {
     const card = document.createElement('div');
     card.className = 'jlpt-q';
@@ -661,14 +682,14 @@ function renderDictation(listEl, payload) {
       <div class="jlpt-q-header">
         <div class="jlpt-q-type-wrap">
           <span class="jlpt-q-level">${escapeHtml(payload.level || '')}</span>
-          <span class="jlpt-q-type">听写</span>
+          <span class="jlpt-q-type">${tr('panel.jlpt.type.dictation', '听写')}</span>
         </div>
         <div class="jlpt-play-group">
-          <button type="button" data-act="play">▶︎ 朗读</button>
-          <button type="button" data-act="slow">🐢 0.75×</button>
+          <button type="button" data-act="play">${tr('panel.btn.play', '▶︎ 朗读')}</button>
+          <button type="button" data-act="slow">${tr('panel.jlpt.renderers.dictationSlow', '🐢 0.75×')}</button>
         </div>
       </div>
-      <div class="jlpt-q-cite">提示：${escapeHtml(it.hint || '')}</div>
+      <div class="jlpt-q-cite">${trFmt('panel.jlpt.hint_fmt', { hint: escapeHtml(it.hint || '') }, `提示：${escapeHtml(it.hint || '')}`)}</div>
     `;
     card.querySelector('[data-act="play"]').addEventListener('click', () => speak(it.sentence || '', { rate: 1 }));
     card.querySelector('[data-act="slow"]').addEventListener('click', () => speak(it.sentence || '', { rate: 0.75 }));
@@ -676,13 +697,13 @@ function renderDictation(listEl, payload) {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'jlpt-dict-input';
-    input.placeholder = '请输入听到的内容';
+    input.placeholder = tr('panel.jlpt.input.placeholder', '请输入听到的内容');
     card.appendChild(input);
 
     const check = document.createElement('button');
     check.className = 'jlpt-q-show';
     check.type = 'button';
-    check.textContent = '对照答案';
+    check.textContent = tr('panel.btn.check', '对照答案');
     card.appendChild(check);
 
     const diff = document.createElement('div');
@@ -696,10 +717,10 @@ function renderDictation(listEl, payload) {
       diff.hidden = false;
       diff.innerHTML = '';
       const truthLine = document.createElement('div');
-      truthLine.innerHTML = `<b>正解：</b>${escapeHtml(truth)}`;
+      truthLine.innerHTML = `<b>${tr('panel.jlpt.truth_label', '正解：')}</b>${escapeHtml(truth)}`;
       const userLine = document.createElement('div');
       userLine.style.marginTop = '6px';
-      userLine.innerHTML = `<b>你的：</b>${diffHighlight(user, truth)}`;
+      userLine.innerHTML = `<b>${tr('panel.jlpt.user_label', '你的：')}</b>${diffHighlight(user, truth)}`;
       diff.append(truthLine, userLine);
       const correct = user === truth;
       card.classList.add('answered');
@@ -713,8 +734,8 @@ function renderDictation(listEl, payload) {
       const shadow = document.createElement('div');
       shadow.className = 'jlpt-shadow';
       shadow.innerHTML = `
-        <button type="button" data-act="rec">🎤 跟读</button>
-        <span class="shadow-hint">Shadowing：点击后用嘴重复这句话，系统对比字符差异</span>
+        <button type="button" data-act="rec">${tr('panel.jlpt.renderers.shadowRecordBtn', '🎤 跟读')}</button>
+        <span class="shadow-hint">${tr('panel.jlpt.renderers.shadowHint', 'Shadowing：点击后用嘴重复这句话，系统对比字符差异')}</span>
         <span class="shadow-transcript" hidden></span>
       `;
       const recBtn = shadow.querySelector('[data-act="rec"]');
@@ -729,7 +750,7 @@ function renderDictation(listEl, payload) {
           rec.interimResults = false;
           rec.continuous = false;
           recBtn.classList.add('is-recording');
-          recBtn.textContent = '⏺ 录音中…';
+          recBtn.textContent = tr('panel.jlpt.renderers.shadowRecording', '⏺ 录音中…');
           hint.hidden = true;
           transcriptEl.hidden = false;
           transcriptEl.textContent = '';
@@ -745,29 +766,30 @@ function renderDictation(listEl, payload) {
             const score = Math.round((charScore * 0.6 + avgConf * 0.4) * 100);
             const medal = score >= 90 ? '🏆' : score >= 75 ? '🥈' : score >= 60 ? '🥉' : '💪';
             const color = score >= 75 ? '#1d7d3f' : score >= 60 ? '#cc7a00' : '#ff3b30';
+            const resultLine = trFmt('panel.jlpt.renderers.shadowResult_fmt', { diffHtml: diffHighlight(txt, truth) }, `你说：${diffHighlight(txt, truth)}`);
+            const scoreValue = trFmt('panel.jlpt.renderers.shadowScoreValue_fmt', { score }, `${score}分`);
+            const scoreDetail = trFmt('panel.jlpt.renderers.shadowScoreDetail_fmt', { charPct: Math.round(charScore*100), confPct: Math.round(avgConf*100) }, `字符匹配 ${Math.round(charScore*100)}% · 识别置信度 ${Math.round(avgConf*100)}%`);
             transcriptEl.innerHTML = `
-              <div>你说：${diffHighlight(txt, truth)}</div>
+              <div>${resultLine}</div>
               <div style="margin-top:4px;font-size:11px;color:${color};">
-                ${medal} <b>${score}分</b>
-                · 字符匹配 ${Math.round(charScore*100)}%
-                · 识别置信度 ${Math.round(avgConf*100)}%
+                ${medal} <b>${scoreValue}</b> · ${scoreDetail}
               </div>
             `;
           };
           rec.onerror = (e) => {
-            transcriptEl.textContent = `识别错误：${e.error || e.message || 'unknown'}`;
+            transcriptEl.textContent = trFmt('panel.jlpt.renderers.shadowRecError_fmt', { err: e.error || e.message || 'unknown' }, `识别错误：${e.error || e.message || 'unknown'}`);
           };
           rec.onend = () => {
             recBtn.classList.remove('is-recording');
-            recBtn.textContent = '🎤 再录一遍';
+            recBtn.textContent = tr('panel.jlpt.renderers.shadowRecordAgain', '🎤 再录一遍');
             rec = null;
           };
           rec.start();
         } catch (err) {
           recBtn.classList.remove('is-recording');
-          recBtn.textContent = '🎤 跟读';
+          recBtn.textContent = tr('panel.jlpt.renderers.shadowRecordBtn', '🎤 跟读');
           transcriptEl.hidden = false;
-          transcriptEl.textContent = `无法启动识别：${err.message || err}`;
+          transcriptEl.textContent = trFmt('panel.jlpt.renderers.shadowStartFailed_fmt', { err: err.message || err }, `无法启动识别：${err.message || err}`);
         }
       });
       card.appendChild(shadow);
@@ -787,7 +809,7 @@ export function diffHighlight(user, truth) {
     else if (a == null) out += `<u style="color:#ff3b30;">＿</u>`;
     else out += `<u style="color:#ff3b30;">${escapeHtml(a)}</u>`;
   }
-  return out || '<i style="opacity:.5;">(未输入)</i>';
+  return out || `<i style="opacity:.5;">${tr('panel.jlpt.renderers.emptyInput', '(未输入)')}</i>`;
 }
 
 function emptyEl(listEl, msg) {
@@ -818,7 +840,7 @@ export function renderForMode(listEl, payload, ctx = {}) {
       return renderDictation(listEl, payload);
     default:
       if (Array.isArray(payload?.questions)) return renderDialogue(listEl, payload, ctx);
-      emptyEl(listEl, `未知模式 ${mode}`);
+      emptyEl(listEl, trFmt('panel.jlpt.renderers.unknownMode_fmt', { mode }, `未知模式 ${mode}`));
   }
 }
 
@@ -836,7 +858,7 @@ export function renderScorecard(container, report, ctx = {}) {
 
   const sub = document.createElement('div');
   sub.className = 'sc-subtitle';
-  sub.textContent = `答对 ${report.correct} / ${report.total}  ·  用时 ${formatDuration(report.durationMs)}  ·  ${report.level || ''} 级`;
+  sub.textContent = trFmt('panel.jlpt.renderers.scorecardSubtitle_fmt', { correct: report.correct, total: report.total, duration: formatDuration(report.durationMs), level: report.level || '' }, `答对 ${report.correct} / ${report.total}  ·  用时 ${formatDuration(report.durationMs)}  ·  ${report.level || ''} 级`);
 
   const breakdown = document.createElement('div');
   breakdown.className = 'sc-breakdown';
@@ -858,12 +880,12 @@ export function renderScorecard(container, report, ctx = {}) {
   const reviewBtn = document.createElement('button');
   reviewBtn.type = 'button';
   reviewBtn.className = 'jlpt-q-show';
-  reviewBtn.textContent = '📋 查看逐题详解';
+  reviewBtn.textContent = tr('panel.jlpt.renderers.scorecardReview', '📋 查看逐题详解');
   reviewBtn.addEventListener('click', () => ctx.onReview && ctx.onReview());
   const retakeBtn = document.createElement('button');
   retakeBtn.type = 'button';
   retakeBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;font-size:13px;';
-  retakeBtn.textContent = '🔁 再来一套';
+  retakeBtn.textContent = tr('panel.jlpt.renderers.scorecardRetake', '🔁 再来一套');
   retakeBtn.addEventListener('click', () => ctx.onRetake && ctx.onRetake());
   actions.append(reviewBtn, retakeBtn);
 
