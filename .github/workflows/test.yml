@@ -28,7 +28,7 @@ jobs:
           npm install --no-save playwright
           npx playwright install chromium --with-deps
 
-      - name: Run test suite (15 *.test.html pages, 374 cases)
+      - name: Run test suite (42 *.test.html pages, 1132 cases)
         run: npm test 2>&1 | tee test-output.log
 
       - name: Upload test output on failure

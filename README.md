@@ -35,16 +35,13 @@ YomiKiku-an is a browser-based tool for reading and listening practice in Japane
 - Mobile: on small screens (≤768px) modals near-fullscreen, tap targets per WCAG 2.2; on ≤480px flashcard grade buttons reflow to 2×2 and filter pills wrap.
 
 ### Usage
-Online: https://leigaorobot.github.io/yomikiku-an
-
-Local:
 ```bash
 python -m http.server 8000
 # then open http://localhost:8000
 ```
 
 ### Tests
-353 cases across 14 `*.test.html` pages, runnable headlessly:
+1132 cases across 42 `*.test.html` pages, runnable headlessly:
 ```bash
 npm test          # boots a local HTTP server + Playwright Chromium, prints
                   # per-page status + a TOTAL line, exits 0 on full pass.
@@ -142,7 +139,7 @@ Pull requests are welcome. For issues and feature requests, use GitHub Issues: h
 - モバイル：768px 以下でモーダルがほぼ全画面、タップ領域は WCAG 2.2 準拠。480px 以下でフラッシュカード採点ボタンが 2×2 に折り返し。
 
 ### テスト
-14 ページの `*.test.html` に 353 ケース、ヘッドレスで一括実行できます:
+42 ページの `*.test.html` に 1132 ケース、ヘッドレスで一括実行できます:
 ```bash
 npm test          # ローカル HTTP サーバ + Playwright Chromium を起動して
                   # 全ページの結果と TOTAL を表示。失敗があれば非ゼロ終了。
@@ -151,8 +148,6 @@ push / PR ごとに [Tests workflow](.github/workflows/test.yml) で同じスイ
 が走ります。ローカルの pre-push フックは `bash scripts/install-hooks.sh`。
 
 ### 使い方
-オンライン：https://leigaorobot.github.io/yomikiku-an
-
 ローカル：
 ```bash
 python -m http.server 8000
@@ -228,7 +223,7 @@ YomiKiku-an（読み聞く庵）是一款基于浏览器的日语阅读与听力
 - 移动端：≤768px 时模态近全屏，tap 目标符合 WCAG 2.2；≤480px 时抽卡 4 档按钮 2×2 排版。
 
 ### 测试
-14 个 `*.test.html` 页面共 353 个用例，一条命令跑完：
+42 个 `*.test.html` 页面共 1132 个用例，一条命令跑完：
 ```bash
 npm test          # 启动本地 HTTP 服务 + Playwright Chromium，打印每页
                   # 结果和 TOTAL 行；任何失败都返回非零退出码。
@@ -237,8 +232,6 @@ npm test          # 启动本地 HTTP 服务 + Playwright Chromium，打印每�
 测试。本地接 pre-push 钩子: `bash scripts/install-hooks.sh`。
 
 ### 使用
-在线版：https://leigaorobot.github.io/yomikiku-an
-
 本地运行：
 ```bash
 python -m http.server 8000
