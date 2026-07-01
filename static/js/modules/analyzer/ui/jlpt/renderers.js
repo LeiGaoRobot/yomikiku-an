@@ -281,7 +281,7 @@ function transcriptBlock({ lines, rawText, examMode, lockKey }) {
   return wrap;
 }
 
-function depthPanel(depth, { stem, level } = {}) {
+export function depthPanel(depth, { stem, level } = {}) {
   if (!depth || typeof depth !== 'object') return null;
   const vocab = Array.isArray(depth.vocab) ? depth.vocab : [];
   const grammar = Array.isArray(depth.grammar) ? depth.grammar : [];
@@ -305,23 +305,26 @@ function depthPanel(depth, { stem, level } = {}) {
         <span class="meaning">${escapeHtml(v.meaning_zh || v.meaning || '')}</span>
         <button type="button" class="addv" title="加入词汇本">＋</button>
       `;
-      row.querySelector('.addv').addEventListener('click', (ev) => {
+      row.querySelector('.addv').addEventListener('click', async (ev) => {
         ev.stopPropagation();
+        const btn = ev.currentTarget;
+        if (btn.disabled) return;
         try {
           if (typeof window.__yomikikuanAddVocab === 'function') {
-            window.__yomikikuanAddVocab({
-              surface: v.surface || '',
+            await window.__yomikikuanAddVocab({
+              word: v.surface || '',
               reading: v.reading || '',
-              meaning_zh: v.meaning_zh || v.meaning || '',
-              source_stem: stem || '',
-              level: level || '',
+              gloss: v.meaning_zh || v.meaning || '',
+              source: { stem: stem || '', level: level || '' },
             });
-            const btn = ev.currentTarget;
             btn.textContent = '✓';
             btn.disabled = true;
             btn.style.background = 'rgba(52,199,89,.16)';
           }
-        } catch (e) { console.warn('[jlpt] addVocab failed', e); }
+        } catch (e) {
+          console.warn('[jlpt] addVocab failed', e);
+          btn.textContent = '失败';
+        }
       });
       sec.appendChild(row);
     });

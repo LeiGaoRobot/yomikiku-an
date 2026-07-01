@@ -201,7 +201,7 @@ function parseJson(raw) {
   return JSON.parse(cleaned);
 }
 
-function render(bodyEl, payload) {
+export function render(bodyEl, payload) {
   bodyEl.innerHTML = '';
   if (!payload) { bodyEl.textContent = tr('panel.summary.empty', '无结果'); return; }
 
@@ -274,21 +274,25 @@ function render(bodyEl, payload) {
         <span style="flex:1;font-size:13px;color:var(--muted,#555);">${escapeHtml(v.meaning_zh || v.meaning || '')}</span>
         <button type="button" class="addv" style="border:1px solid var(--border,rgba(0,0,0,.15));background:transparent;border-radius:999px;padding:0 8px;font-size:10.5px;cursor:pointer;color:inherit;">＋ 加入词汇本</button>
       `;
-      row.querySelector('.addv').addEventListener('click', (ev) => {
+      row.querySelector('.addv').addEventListener('click', async (ev) => {
+        const btn = ev.currentTarget;
+        if (btn.disabled) return;
         try {
           if (typeof window.__yomikikuanAddVocab === 'function') {
-            window.__yomikikuanAddVocab({
-              surface: v.surface || '',
+            await window.__yomikikuanAddVocab({
+              word: v.surface || '',
               reading: v.reading || '',
-              meaning_zh: v.meaning_zh || v.meaning || '',
-              source_stem: v.example_ja || '',
-              level: payload.recommendedLevel || '',
+              gloss: v.meaning_zh || v.meaning || '',
+              source: { example_ja: v.example_ja || '', level: payload.recommendedLevel || '' },
             });
-            ev.currentTarget.textContent = '✓';
-            ev.currentTarget.disabled = true;
-            ev.currentTarget.style.background = 'rgba(52,199,89,.16)';
+            btn.textContent = '✓';
+            btn.disabled = true;
+            btn.style.background = 'rgba(52,199,89,.16)';
           }
-        } catch (e) { console.warn('[summary] addVocab failed', e); }
+        } catch (e) {
+          console.warn('[summary] addVocab failed', e);
+          btn.textContent = '失败';
+        }
       });
       if (v.example_ja) {
         const ex = document.createElement('div');

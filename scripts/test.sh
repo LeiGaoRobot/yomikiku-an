@@ -90,6 +90,7 @@ const TESTS = [
   'static/js/modules/editor/editor-toolbar.test.html',
   'static/js/modules/gemini/client.test.html',
   'static/js/modules/analyzer/ui/article-summary-helpers.test.html',
+  'static/js/modules/analyzer/ui/articleSummary.test.html',
   'static/js/modules/analyzer/ui/vocab-helpers.test.html',
   'static/js/modules/youtube/url.test.html',
   'static/js/modules/youtube/oembed.test.html',

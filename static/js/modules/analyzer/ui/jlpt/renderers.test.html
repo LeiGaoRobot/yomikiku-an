@@ -27,6 +27,7 @@
       formatDuration,
       renderForMode,
       renderScorecard,
+      depthPanel,
     } from './renderers.js';
 
     const results = [];
@@ -151,6 +152,55 @@
       renderScorecard(el, { total: 0, correct: 0, durationMs: 0, level: 'N1', byMode: [] }, {});
       check('renderScorecard 0/0 → 0% (no NaN)',
         el.querySelector('.sc-total')?.textContent === '0%');
+    }
+
+    // ---------- depthPanel: vocab "+" button save-to-vocab payload shape ----------
+    {
+      const depth = {
+        vocab: [{ surface: '猫', reading: 'ねこ', meaning_zh: '猫' }],
+      };
+      const el = depthPanel(depth, { stem: '今日は猫がいる。', level: 'N4' });
+      scratch.appendChild(el);
+
+      let captured = null;
+      const prevAdd = window.__yomikikuanAddVocab;
+      window.__yomikikuanAddVocab = (entry) => { captured = entry; return Promise.resolve('fake-id'); };
+
+      el.querySelector('.addv').click();
+      window.__yomikikuanAddVocab = prevAdd;
+
+      check('depthPanel vocab "+" sends entry.word (not entry.surface)',
+        captured && captured.word === '猫',
+        `got word=${JSON.stringify(captured && captured.word)}`);
+      check('depthPanel vocab "+" sends entry.gloss (not entry.meaning_zh)',
+        captured && captured.gloss === '猫',
+        `got gloss=${JSON.stringify(captured && captured.gloss)}`);
+      check('depthPanel vocab "+" sends entry.reading',
+        captured && captured.reading === 'ねこ');
+    }
+
+    {
+      // addVocab rejecting (e.g. malformed entry) must not be silently
+      // swallowed by a synchronous try/catch around an un-awaited call —
+      // the click handler has to actually await it so its own catch fires.
+      const depth = { vocab: [{ surface: 'X', reading: 'X', meaning_zh: 'X' }] };
+      const el = depthPanel(depth, { stem: '', level: '' });
+      scratch.appendChild(el);
+
+      const prevAdd = window.__yomikikuanAddVocab;
+      let rejectionSeenByWindow = false;
+      const prevOnRejection = window.onunhandledrejection;
+      window.onunhandledrejection = (ev) => { rejectionSeenByWindow = true; ev.preventDefault(); };
+      window.__yomikikuanAddVocab = () => Promise.reject(new Error('EMPTY_VOCAB'));
+
+      el.querySelector('.addv').click();
+      await new Promise((r) => setTimeout(r, 20));
+
+      window.__yomikikuanAddVocab = prevAdd;
+      window.onunhandledrejection = prevOnRejection;
+
+      check('depthPanel vocab "+" awaits addVocab (no unhandled rejection)',
+        !rejectionSeenByWindow);
     }
 
     const pass = results.filter(r => r.pass).length;
