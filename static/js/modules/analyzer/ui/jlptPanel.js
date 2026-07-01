@@ -213,7 +213,7 @@ function buildModeGrid(level, selectedModes) {
       <div class="icon">${meta.emoji}</div>
       <div style="flex:1;min-width:0;">
         <div class="title">${meta.nameJa}</div>
-        <div class="sub">${meta.nameZh}</div>
+        <div class="sub">${tr(`panel.jlpt.modeDesc.${mode}`, meta.nameZh)}</div>
         <div class="level-chips">${levelChips}</div>
       </div>
     `;
@@ -441,7 +441,7 @@ export function mountPanel(doc) {
         }
         const sec = document.createElement('div');
         sec.style.cssText = 'font-size:13px;font-weight:600;padding:4px 2px;margin-top:4px;display:flex;align-items:center;gap:8px;';
-        sec.innerHTML = `<span style="font-size:16px;">${MODE_META[mode]?.emoji || ''}</span><span>${MODE_META[mode]?.nameJa || mode}</span><span style="color:var(--muted,#888);font-weight:400;font-size:11px;">· ${MODE_META[mode]?.nameZh || ''}</span>`;
+        sec.innerHTML = `<span style="font-size:16px;">${MODE_META[mode]?.emoji || ''}</span><span>${MODE_META[mode]?.nameJa || mode}</span><span style="color:var(--muted,#888);font-weight:400;font-size:11px;">· ${tr(`panel.jlpt.modeDesc.${mode}`, MODE_META[mode]?.nameZh || '')}</span>`;
         list.appendChild(sec);
         const secList = document.createElement('div');
         secList.style.cssText = 'display:flex;flex-direction:column;gap:10px;';

@@ -40,6 +40,12 @@
     const prevKey = localStorage.getItem(KEY);
     localStorage.setItem(KEY, 'TEST-FAKE-KEY');
 
+    // Stub the i18n lookup so we can assert the mode-card description is
+    // actually routed through tr(), not hardcoded to MODE_META.nameZh.
+    const prevGetText = window.YomikikuanGetText;
+    window.YomikikuanGetText = (key) =>
+      key === 'panel.jlpt.modeDesc.kadai' ? 'STUB-EN-KADAI-DESC' : key;
+
     try {
       // mountPanel calls alert() on empty content; capture & suppress.
       const origAlert = window.alert;
@@ -91,6 +97,11 @@
       check('mode grid mount point present', !!modeGridMount);
       check('mode grid is populated', (modeGridMount?.children?.length || 0) > 0);
 
+      const kadaiCard = modeGridMount?.querySelector('.jlpt-mode-card[data-mode="kadai"] .sub');
+      check('mode card description is i18n-routed, not hardcoded nameZh',
+        kadaiCard?.textContent === 'STUB-EN-KADAI-DESC',
+        `got "${kadaiCard?.textContent}"`);
+
       overlay.querySelector('.jlpt-close').click();
       await sleep(120);
       check('close button removes overlay',
@@ -124,6 +135,8 @@
     } finally {
       if (prevKey === null) localStorage.removeItem(KEY);
       else localStorage.setItem(KEY, prevKey);
+      if (prevGetText === undefined) delete window.YomikikuanGetText;
+      else window.YomikikuanGetText = prevGetText;
     }
 
     const pass = results.filter(r => r.pass).length;

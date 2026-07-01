@@ -73,6 +73,7 @@ export function buildCoachBanner(history, { onTarget } = {}) {
   if (!diag) return null;
 
   const meta = MODE_META[diag.mode] || { emoji: '🎯', nameJa: diag.mode, nameZh: '' };
+  const modeDesc = tr(`panel.jlpt.modeDesc.${diag.mode}`, meta.nameZh);
   const pct = Math.round(diag.accuracy * 100);
 
   const wrap = document.createElement('div');
@@ -90,7 +91,7 @@ export function buildCoachBanner(history, { onTarget } = {}) {
       <div class="coach-detail">
         ${accuracyText}
         ${diag.reason === 'critical' ? ` · <b>${reinforceText}</b>` : ''}
-        <br><span style="opacity:.8;">${meta.nameZh}</span>
+        <br><span style="opacity:.8;">${modeDesc}</span>
       </div>
       <button type="button" class="coach-cta" data-role="target">${ctaText}</button>
     </div>
