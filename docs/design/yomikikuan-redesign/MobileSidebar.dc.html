@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; text-decoration: none; } a:hover { color: #8F1A24; }
+    svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .ibtn { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); }
+    .ibtn:hover { background: rgba(11,22,35,.06); color: #0B1623; }
+    .chip { height: 28px; padding: 0 10px; border-radius: 980px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: rgba(11,22,35,.72); border: 1px solid rgba(11,22,35,.14); }
+    .chip.on { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .btn { height: 36px; padding: 0 16px; border-radius: 980px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(11,22,35,.14); color: #0B1623; }
+    .btn.primary { background: #E63946; color: #FFFDFA; border-color: #E63946; }
+    .btn.ink { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .read { font-family: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif; letter-spacing: 0.02em; }
+    ruby { ruby-align: center; ruby-position: over; }
+    rt { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 0.42em; font-weight: 400; color: rgba(11,22,35,.56); letter-spacing: 0; line-height: 1; }
+    .lv { height: 20px; padding: 0 8px; border-radius: 980px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+    .lv.n5 { background: #30d158; color: #0b3d1a; } .lv.n4 { background: #a6d94f; color: #2b3a12; } .lv.n3 { background: #ffcc00; color: #3a2d00; } .lv.n2 { background: #ff9f0a; color: #3a1f00; } .lv.n1 { background: #ff453a; color: #3d0d0a; }
+    .panel { background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); border-radius: 18px; box-shadow: 0 24px 64px rgba(11,22,35,.16); display: flex; flex-direction: column; overflow: hidden; }
+    .panel-h { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px 24px; }
+    .panel-h .ttl { font-size: 17px; font-weight: 600; letter-spacing: -0.018em; }
+    .panel-h .sub { font-size: 13px; color: rgba(11,22,35,.56); }
+    .tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid rgba(11,22,35,.08); }
+    .tab { height: 40px; padding: 0 12px; font-size: 14px; font-weight: 500; color: rgba(11,22,35,.56); display: inline-flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.on { color: #0B1623; border-bottom-color: #0B1623; }
+    .card { background: #FAF7F2; border: 1px solid rgba(11,22,35,.06); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .h6 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: rgba(11,22,35,.56); }
+    .muted { color: rgba(11,22,35,.56); }
+    .field { height: 36px; padding: 0 12px; border-radius: 8px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.12); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .toggle { width: 40px; height: 24px; border-radius: 12px; background: rgba(11,22,35,.14); position: relative; flex: none; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.2); }
+    .toggle.on { background: #0B1623; } .toggle.on::after { left: 18px; }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .menu-item { height: 40px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: #0B1623; }
+    .menu-item:hover { background: rgba(11,22,35,.06); }
+    .menu-item .kv { margin-left: auto; font-size: 13px; color: rgba(11,22,35,.4); }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #FAF7F2; position: relative; overflow: hidden;">
+  <div style="position: absolute; inset: 0; padding: 54px 20px 0; opacity: .5;" class="read"><div style="font-size: 20px; line-height: 2.1; margin-top: 70px;">静かな庵で、日本語の文章を声に出して読む。分からない言葉があれば、その場で辞書を引ける。</div></div>
+  <div style="position: absolute; inset: 0; background: rgba(11,22,35,.32);"></div>
+  <aside style="position: absolute; left: 0; top: 0; bottom: 0; width: 300px; background: #F3EEE6; box-shadow: 12px 0 40px rgba(11,22,35,.16); display: flex; flex-direction: column; padding: 60px 12px 24px; gap: 4px;">
+    <div class="row" style="padding: 0 8px 12px; gap: 10px;">
+      <svg width="26" height="26" viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect width="64" height="64" rx="12" fill="#FFFDFA"></rect><circle cx="50" cy="14" r="5" fill="#E63946"></circle><path d="M20 46 L32 22 L44 46" stroke="#0B1623" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></path><path d="M10 42 C22 36 42 48 54 42" stroke="#0B1623" stroke-width="3.5" stroke-linecap="round" opacity="0.9"></path></svg>
+      <div style="font-size: 17px; font-weight: 600; letter-spacing: -0.018em;">読み聞く庵</div>
+      <div class="ibtn" style="margin-left: auto; width: 40px; height: 40px;"><svg class="ic" viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"></path></svg></div>
+    </div>
+    <div class="field" style="height: 40px; color: rgba(11,22,35,.4);"><svg class="ic" viewBox="0 0 20 20" style="width: 18px; height: 18px;"><circle cx="9" cy="9" r="5.5"></circle><path d="M13.5 13.5 17 17"></path></svg>検索</div>
+    <div class="row" style="justify-content: space-between; padding: 16px 8px 6px;"><div class="h6">文档</div><div class="ibtn" style="width: 32px; height: 32px;"><svg class="ic" viewBox="0 0 20 20" style="width: 18px; height: 18px;"><path d="M10 4v12M4 10h12"></path></svg></div></div>
+    <div style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
+      <div class="row" style="min-height: 52px; padding: 8px 10px; border-radius: 8px; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.04); font-weight: 500; gap: 10px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #ffcc00;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 15px;">静かな庵で読む</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">今日 · 1,240 字</div></div><svg class="ic" viewBox="0 0 20 20" style="width: 16px; height: 16px; color: #E63946; fill: #E63946;"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+      <div class="row" style="min-height: 52px; padding: 8px 10px; border-radius: 8px; gap: 10px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #a6d94f;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 15px;">駅までの道案内</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">昨日 · 380 字</div></div></div>
+      <div class="row" style="min-height: 52px; padding: 8px 10px; border-radius: 8px; gap: 10px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #ff9f0a;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 15px;">NHK ニュース：気候変動と農業</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">9月2日 · 2,010 字</div></div></div>
+      <div class="row" style="min-height: 52px; padding: 8px 10px; border-radius: 8px; gap: 10px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #30d158;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 15px;">自己紹介の練習</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">8月30日 · 210 字</div></div></div>
+      <div class="row" style="min-height: 52px; padding: 8px 10px; border-radius: 8px; gap: 10px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #ff453a;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 15px;">夏目漱石『こころ』抜粋</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">8月27日 · 3,400 字</div></div></div>
+    </div>
+    <div class="h6" style="padding: 10px 8px 6px;">AI 工具</div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;">
+      <div style="height: 56px; border-radius: 11px; background: #FFFDFA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; color: rgba(11,22,35,.72);"><svg class="ic" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"></rect><path d="M6 17h8"></path><path d="M7 8h6M7 11h4"></path></svg>词汇本</div>
+      <div style="height: 56px; border-radius: 11px; background: #FFFDFA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; color: rgba(11,22,35,.72);"><svg class="ic" viewBox="0 0 20 20"><path d="M3.5 4.5h5.5v11H3.5zM11 4.5h5.5v11H11z"></path></svg>解析</div>
+      <div style="height: 56px; border-radius: 11px; background: #FFFDFA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; color: rgba(11,22,35,.72);"><svg class="ic" viewBox="0 0 20 20"><path d="M4 11v-1a6 6 0 0 1 12 0v1"></path><rect x="3" y="11" width="4" height="5" rx="1.5"></rect><rect x="13" y="11" width="4" height="5" rx="1.5"></rect></svg>听力题</div>
+      <div style="height: 56px; border-radius: 11px; background: #FFFDFA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 10px; color: rgba(11,22,35,.72);"><svg class="ic" viewBox="0 0 20 20"><rect x="2.5" y="4.5" width="15" height="11" rx="3"></rect><path d="M8.5 7.5v5l4-2.5z"></path></svg>YouTube</div>
+    </div>
+    <div class="row" style="padding: 14px 8px 0; gap: 12px;"><div style="width: 32px; height: 32px; border-radius: 50%; background: #0B1623; color: #FAF7F2; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;">P</div><div style="display: flex; flex-direction: column;"><div style="font-size: 14px; font-weight: 500;">Paul</div><div class="muted" style="font-size: 12px;">今日 3 / 5 篇 · 連続 12 日</div></div><div class="ibtn" style="margin-left: auto;"><svg class="ic" viewBox="0 0 20 20"><path d="M10 3.5v2M10 14.5v2M3.5 10h2M14.5 10h2M5.4 5.4l1.4 1.4M13.2 13.2l1.4 1.4M5.4 14.6l1.4-1.4M13.2 6.8l1.4-1.4"></path><circle cx="10" cy="10" r="2.5"></circle></svg></div></div>
+  </aside>
+</div>
+</x-dc>
+</body>
+</html>

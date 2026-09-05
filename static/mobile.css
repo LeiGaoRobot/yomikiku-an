@@ -898,3 +898,37 @@
     margin-right: 0 !important;
   }
 }
+
+/* ---- 「和纸书斋」 rail + dock on small screens ----
+   The right rail becomes a bottom tab strip; the player dock sits above it.
+   --yk-rail-h includes the home-indicator inset so every bottom-anchored
+   element (dock, inspector drawer, update toast, reading toggle) clears it. */
+:root { --yk-rail-h: calc(60px + env(safe-area-inset-bottom, 0px)); }
+.ai-rail {
+  top: auto; left: 0; right: 0; bottom: 0;
+  width: auto; height: var(--yk-rail-h);
+  flex-direction: row; justify-content: space-around; align-items: center;
+  padding: 2px 8px calc(2px + env(safe-area-inset-bottom, 0px));
+  border-left: none; border-top: 1px solid var(--border);
+}
+.ai-rail .ai-rail-btn { width: 60px !important; padding: 2px 0 !important; }
+.ai-rail .ai-rail-btn > span:first-child { height: 32px; }
+.ai-rail #inspectorToggleBtn { margin-bottom: 0; }
+.main-header { right: 0 !important; width: 100% !important; }
+.content-main { padding-right: 0; padding-bottom: var(--yk-rail-h); }
+.content-area .play-control-bar,
+.main-container.collapsed .content-area .play-control-bar,
+.main-container.two-pane .content-area .play-control-bar,
+.main-container.two-pane.collapsed .content-area .play-control-bar {
+  position: fixed; top: auto;
+  left: 12px; right: 12px; bottom: calc(var(--yk-rail-h) + 8px);
+  transform: none; width: auto;
+}
+.content-scroll-area { padding-bottom: calc(var(--yk-rail-h) + 110px) !important; }
+.inspector-drawer { right: 0 !important; bottom: var(--yk-rail-h) !important; }
+.content-area .play-control-bar { flex-wrap: nowrap !important; overflow-x: auto !important; }
+.content-area .play-control-bar .header-voice-controls { flex-wrap: nowrap !important; }
+.content-area .play-control-bar .slider-inline-label { display: none; }
+.content-area .play-control-bar #headerVoiceSelect { max-width: 120px; }
+.ap-update-toast { bottom: calc(var(--yk-rail-h) + 12px) !important; }
+.reading-mode-toggle { right: 12px !important; bottom: calc(var(--yk-rail-h) + 84px) !important; }

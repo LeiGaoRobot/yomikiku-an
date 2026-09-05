@@ -1,6 +1,7 @@
 /* ============================================================
-   Apple-inspired FULL REDESIGN layer for YomiKiku-an
-   Source: getdesign.md/apple (DESIGN.md spec)
+   「和纸书斋」 theme layer for YomiKiku-an
+   Tokens: docs/design/yomikikuan-redesign/Tokens.dc.html (paper / ink / hanko)
+   Origin: Apple-inspired layout layer (DESIGN.md) — structure kept, palette swapped
    Loaded AFTER static/styles.css — acts as an override layer
    that reshapes layout, typography, color, motion, and chrome.
    ============================================================ */
@@ -9,34 +10,40 @@
    1. Tokens
 ---------------------------------------------------------------- */
 :root {
-  /* Palette */
-  --ap-bg:              #fbfbfd;       /* page canvas – slightly cooler than #f5f5f7 */
-  --ap-surface:         #ffffff;       /* content card */
-  --ap-surface-2:       #f5f5f7;       /* sidebar / secondary panel */
-  --ap-surface-3:       #ededf0;       /* hover / pressed on light surfaces */
-  --ap-ink:             #1d1d1f;       /* primary text */
-  --ap-ink-80:          rgba(29,29,31,.80);
-  --ap-ink-64:          rgba(29,29,31,.64);
-  --ap-ink-48:          rgba(29,29,31,.48);
-  --ap-ink-24:          rgba(29,29,31,.24);
-  --ap-ink-08:          rgba(29,29,31,.08);
-  --ap-ink-04:          rgba(29,29,31,.04);
+  /* Palette — 「和纸书斋」 paper / ink / hanko-red, lifted from static/favicon.svg.
+     Variable names keep the historical --ap-* prefix so every consumer keeps working. */
+  --ap-bg:              #FAF7F2;       /* page canvas – warm paper */
+  --ap-surface:         #FFFDFA;       /* content card */
+  --ap-surface-2:       #F3EEE6;       /* sidebar / secondary panel */
+  --ap-surface-3:       #EBE4D9;       /* hover / pressed on light surfaces */
+  --ap-ink:             #0B1623;       /* primary text – sumi ink */
+  --ap-ink-80:          rgba(11,22,35,.80);
+  --ap-ink-64:          rgba(11,22,35,.64);
+  --ap-ink-48:          rgba(11,22,35,.48);
+  --ap-ink-24:          rgba(11,22,35,.24);
+  --ap-ink-08:          rgba(11,22,35,.08);
+  --ap-ink-04:          rgba(11,22,35,.04);
 
-  --ap-blue:            #0071e3;
-  --ap-blue-hover:      #0077ed;
-  --ap-blue-press:      #006edb;
-  --ap-link:            #0066cc;
-  --ap-link-dark:       #2997ff;
+  /* Accent — hanko red. Kept under the legacy --ap-blue name (it is the
+     single "primary" hue every rule references); reserved for play / current
+     sentence / primary action. */
+  --ap-blue:            #E63946;
+  --ap-blue-hover:      #D62F3C;
+  --ap-blue-press:      #C42834;
+  --ap-link:            #B3232F;
+  --ap-link-dark:       #FF6B75;
+  --ap-accent-rgb:      230,57,70;
+  --ap-on-accent:       #FFFDFA;       /* text/icon on the accent fill */
 
   --ap-success:         #30d158;
   --ap-warn:            #ff9f0a;
   --ap-error:           #ff3b30;
 
-  /* Shadows */
-  --ap-shadow-1:        0 1px 2px rgba(0,0,0,.04);
-  --ap-shadow-2:        0 4px 16px rgba(0,0,0,.06);
-  --ap-shadow-3:        0 12px 40px rgba(0,0,0,.10);
-  --ap-shadow-card:     3px 5px 30px 0px rgba(0,0,0,.22);
+  /* Elevation */
+  --ap-shadow-1:        0 1px 2px rgba(11,22,35,.04);
+  --ap-shadow-2:        0 4px 16px rgba(11,22,35,.06);
+  --ap-shadow-3:        0 12px 40px rgba(11,22,35,.10);
+  --ap-shadow-card:     3px 5px 30px 0px rgba(11,22,35,.16);
 
   /* Radii */
   --ap-r-xs:  5px;
@@ -47,7 +54,7 @@
   --ap-r-2xl: 22px;
   --ap-r-pill: 980px;
 
-  /* Spacing scale (8px base) */
+  /* Spacing (4px base) */
   --ap-s-1: 4px;
   --ap-s-2: 8px;
   --ap-s-3: 12px;
@@ -66,13 +73,13 @@
   --ap-dur: 200ms;
   --ap-dur-slow: 320ms;
 
-  /* Typography */
-  --ap-font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont,
-    "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
-    "Yu Gothic", "Meiryo", sans-serif;
-  --ap-font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont,
-    "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
-    "Yu Gothic", "Meiryo", sans-serif;
+  /* Type */
+  --ap-font-display: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+                     "Noto Sans JP", "Yu Gothic", "Segoe UI", sans-serif;
+  --ap-font-text:    -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+                     "Noto Sans JP", "Yu Gothic", "Segoe UI", sans-serif;
+  --ap-font-read:    "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Noto Serif JP",
+                     "Yu Mincho", "MS PMincho", serif;
   --ap-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
@@ -91,17 +98,18 @@
   --border:               var(--ap-ink-08);
   --elev:                 var(--ap-surface);
   --primary:              var(--ap-blue);
+  --accent:               var(--ap-blue);
 
-  --toolbar-bg:           rgba(255,255,255,.72);
+  --toolbar-bg:           rgba(255,253,250,.72);
   --toolbar-border:       var(--ap-ink-08);
   --toolbar-shadow:       var(--ap-shadow-2);
-  --toolbar-chip-bg:      #ffffff;
+  --toolbar-chip-bg:      #FFFDFA;
   --toolbar-chip-border:  var(--ap-ink-08);
-  --toolbar-chip-hover:   rgba(0,113,227,.10);
+  --toolbar-chip-hover:   rgba(230,57,70,.10);
   --toolbar-chip-neutral: var(--ap-surface-2);
   --toolbar-chip-neutral-border: var(--ap-ink-04);
-  --header-shadow-strong: rgba(0,0,0,.08);
-  --header-shadow-soft:   rgba(0,0,0,.04);
+  --header-shadow-strong: rgba(11,22,35,.08);
+  --header-shadow-soft:   rgba(11,22,35,.04);
 
   --scroll-track:       rgba(0,0,0,.03);
   --scroll-thumb:       rgba(0,0,0,.18);
@@ -109,17 +117,27 @@
 }
 
 :root[data-theme="dark"] {
-  --ap-bg:       #000000;
-  --ap-surface:  #1d1d1f;
-  --ap-surface-2:#121214;
-  --ap-surface-3:#2a2a2c;
-  --ap-ink:      #f5f5f7;
-  --ap-ink-80:   rgba(245,245,247,.80);
-  --ap-ink-64:   rgba(245,245,247,.64);
-  --ap-ink-48:   rgba(245,245,247,.48);
-  --ap-ink-24:   rgba(245,245,247,.24);
-  --ap-ink-08:   rgba(245,245,247,.08);
-  --ap-ink-04:   rgba(245,245,247,.04);
+  /* 墨夜 — paper/ink inverted. Accent lifted to pass contrast on dark. */
+  --ap-bg:       #121417;
+  --ap-surface:  #1C1F26;
+  --ap-surface-2:#17191E;
+  --ap-surface-3:#22262E;
+  --ap-ink:      #F2EDE4;
+  --ap-ink-80:   rgba(242,237,228,.80);
+  --ap-ink-64:   rgba(242,237,228,.64);
+  --ap-ink-48:   rgba(242,237,228,.48);
+  --ap-ink-24:   rgba(242,237,228,.24);
+  --ap-ink-08:   rgba(242,237,228,.08);
+  --ap-ink-04:   rgba(242,237,228,.04);
+  --ap-blue:       #FF6B75;
+  --ap-blue-hover: #FF8A92;
+  --ap-blue-press: #E63946;
+  --ap-link:       #FF8A92;
+  --ap-accent-rgb: 255,107,117;
+  --ap-on-accent:  #0B1623;         /* ink on the lifted pink — white would be ~2.7:1 */
+  --ap-shadow-1:   0 1px 2px rgba(0,0,0,.30);
+  --ap-shadow-2:   0 8px 24px rgba(0,0,0,.35);
+  --ap-shadow-3:   0 12px 40px rgba(0,0,0,.45);
 
   --bg:     var(--ap-bg);
   --text:   var(--ap-ink);
@@ -127,13 +145,14 @@
   --border: var(--ap-ink-08);
   --elev:   var(--ap-surface);
   --primary: var(--ap-blue);
+  --accent:  var(--ap-blue);
 
-  --toolbar-bg: rgba(0,0,0,.72);
+  --toolbar-bg: rgba(18,20,23,.72);
   --toolbar-border: var(--ap-ink-08);
-  --toolbar-chip-bg: #272729;
+  --toolbar-chip-bg: #1C1F26;
   --toolbar-chip-border: var(--ap-ink-08);
-  --toolbar-chip-hover: rgba(41,151,255,.16);
-  --toolbar-chip-neutral: #28282a;
+  --toolbar-chip-hover: rgba(255,107,117,.16);
+  --toolbar-chip-neutral: #22262E;
   --toolbar-chip-neutral-border: var(--ap-ink-08);
   --scroll-track: rgba(255,255,255,.04);
   --scroll-thumb: rgba(255,255,255,.20);
@@ -205,11 +224,11 @@ aside.folder-management {
 /* Active doc/folder highlight — Apple Blue tint, keep styles.css geometry */
 .doc-list .doc-item.active,
 .folder-list .folder-item.active {
-  background: rgba(0,113,227,.08) !important;
+  background: rgba(var(--ap-accent-rgb),.08) !important;
   color: var(--ap-ink) !important;
 }
 :root[data-theme="dark"] .doc-list .doc-item.active {
-  background: rgba(41,151,255,.16) !important;
+  background: rgba(255,107,117,.16) !important;
   color: var(--ap-link-dark) !important;
 }
 
@@ -217,13 +236,13 @@ aside.folder-management {
    5. Header — color only, keep geometry from styles.css
 ---------------------------------------------------------------- */
 .main-header {
-  background: rgba(251,251,253,.78) !important;
+  background: rgba(250,247,242,.78) !important;
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
   border-color: var(--ap-ink-08) !important;
 }
 :root[data-theme="dark"] .main-header {
-  background: rgba(0,0,0,.72) !important;
+  background: rgba(18,20,23,.72) !important;
   border-color: var(--ap-ink-08) !important;
 }
 
@@ -324,7 +343,7 @@ button.primary,
 button[type="submit"]:not(.secondary),
 #geminiApiKeySave {
   background: var(--ap-blue) !important;
-  color: #fff !important;
+  color: var(--ap-on-accent, #FFFDFA) !important;
   border: 1px solid transparent !important;
   border-radius: var(--ap-r-sm) !important;
   padding: 8px 16px !important;
@@ -403,7 +422,7 @@ input[type="url"]:focus,
 select:focus,
 textarea:focus {
   border-color: var(--ap-blue);
-  box-shadow: 0 0 0 4px rgba(0,113,227,.18);
+  box-shadow: 0 0 0 4px rgba(var(--ap-accent-rgb),.18);
   background: var(--ap-surface);
 }
 
@@ -433,7 +452,7 @@ input[type="range"] {
 }
 input[type="range"]:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(0,113,227,.22);
+  box-shadow: 0 0 0 4px rgba(var(--ap-accent-rgb),.22);
   border-radius: 999px;
 }
 input[type="range"]::-webkit-slider-thumb {
@@ -442,7 +461,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ap-surface);
   border: 1px solid rgba(0,0,0,.12);
   box-shadow: 0 1px 3px rgba(0,0,0,.22);
   cursor: pointer;
@@ -452,7 +471,7 @@ input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 input[type="range"]::-webkit-slider-thumb:active { transform: scale(.92); }
 input[type="range"]::-moz-range-thumb {
   width: 16px; height: 16px; border-radius: 50%;
-  background: #fff; border: 1px solid rgba(0,0,0,.12);
+  background: var(--ap-surface); border: 1px solid rgba(0,0,0,.12);
   box-shadow: 0 1px 3px rgba(0,0,0,.22); cursor: pointer;
 }
 :root[data-theme="dark"] input[type="range"] { background: rgba(255,255,255,.14); }
@@ -548,8 +567,8 @@ input[type="checkbox"] {
 }
 .token-pill.playing {
   border-color: var(--ap-blue) !important;
-  box-shadow: 0 0 0 3px rgba(0,113,227,.18), var(--ap-shadow-2);
-  background: rgba(0,113,227,.04);
+  box-shadow: 0 0 0 3px rgba(var(--ap-accent-rgb),.18), var(--ap-shadow-2);
+  background: rgba(var(--ap-accent-rgb),.04);
 }
 
 /* Typography only — no layout. */
@@ -571,7 +590,7 @@ input[type="checkbox"] {
 }
 
 :root[data-theme="dark"] .token-pill {
-  background: #1d1d1f;
+  background: var(--ap-surface);
   box-shadow: none;
 }
 :root[data-theme="dark"] .token-pill:hover {
@@ -629,7 +648,7 @@ input[type="checkbox"] {
 
 :root[data-theme="dark"] .settings-modal-content,
 :root[data-theme="dark"] .search-modal-content {
-  background: #1d1d1f !important;
+  background: var(--ap-surface) !important;
   border-color: var(--ap-ink-08) !important;
 }
 
@@ -838,7 +857,7 @@ select {
 
 :root[data-theme="dark"] .user-dropdown-menu,
 :root[data-theme="dark"] .new-doc-dropdown-menu {
-  background: #1d1d1f !important;
+  background: var(--ap-surface) !important;
   border-color: var(--ap-ink-08) !important;
 }
 
@@ -846,8 +865,8 @@ select {
    16. Gemini settings panel (appended by tts.js)
 ---------------------------------------------------------------- */
 #geminiSettingsSection {
-  background: linear-gradient(180deg, rgba(0,113,227,.04), transparent) !important;
-  border: 1px solid rgba(0,113,227,.18) !important;
+  background: linear-gradient(180deg, rgba(var(--ap-accent-rgb),.04), transparent) !important;
+  border: 1px solid rgba(var(--ap-accent-rgb),.18) !important;
 }
 #geminiSettingsSection .sidebar-title::before {
   content: "✦ ";
@@ -948,7 +967,7 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
     background: var(--ap-surface) !important;
   }
   :root[data-theme="dark"] .main-header {
-    background: #1d1d1f !important;
+    background: var(--ap-surface) !important;
   }
 
   /* Reduce motion on small screens */
@@ -972,11 +991,11 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
    19. Selection & highlight
 ---------------------------------------------------------------- */
 ::selection {
-  background: rgba(0,113,227,.20);
+  background: rgba(var(--ap-accent-rgb),.20);
   color: inherit;
 }
 :root[data-theme="dark"] ::selection {
-  background: rgba(41,151,255,.28);
+  background: rgba(255,107,117,.28);
 }
 
 /* ---------------------------------------------------------------
@@ -1017,7 +1036,7 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
 }
 .ap-update-toast__refresh {
   background: var(--ap-blue);
-  color: #fff;
+  color: var(--ap-on-accent, #FFFDFA);
   border: 1px solid transparent;
   border-radius: var(--ap-r-sm);
   padding: 6px 14px;
@@ -1050,7 +1069,7 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
 }
 .ap-update-toast__dismiss:hover { background: var(--ap-ink-08); color: var(--ap-ink); }
 :root[data-theme="dark"] .ap-update-toast {
-  background: #1d1d1f;
+  background: var(--ap-surface);
   border-color: var(--ap-ink-08);
 }
 @media (max-width: 480px) {
@@ -1070,7 +1089,7 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
   line-height: 1;
 }
 .ruby-toggle-btn .ruby-toggle-label ruby {
-  font-family: var(--ap-font-display), "Hiragino Mincho Pro", "Yu Mincho", serif;
+  font-family: var(--ap-font-read);
   font-size: 13px;
   font-weight: 600;
   line-height: 1;
@@ -1084,14 +1103,14 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
   color: inherit;
 }
 .ruby-toggle-btn.is-active {
-  background: rgba(0,113,227,.10) !important;
+  background: rgba(var(--ap-accent-rgb),.10) !important;
   color: var(--ap-blue) !important;
 }
 .ruby-toggle-btn.is-active:hover {
-  background: rgba(0,113,227,.16) !important;
+  background: rgba(var(--ap-accent-rgb),.16) !important;
 }
 :root[data-theme="dark"] .ruby-toggle-btn.is-active {
-  background: rgba(41,151,255,.16) !important;
+  background: rgba(255,107,117,.16) !important;
   color: var(--ap-link-dark) !important;
 }
 
@@ -1102,7 +1121,7 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
   display: block;
   padding: 6px 0 10px;
   line-height: 2.2;
-  font-family: var(--ap-font-display), "Hiragino Mincho Pro", "Yu Mincho", serif;
+  font-family: var(--ap-font-read);
   font-size: 22px;
   letter-spacing: 0.02em;
   color: var(--ap-ink);
@@ -1121,11 +1140,11 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
   border-radius: 3px;
 }
 .line-container.ruby-line .ruby-token:hover {
-  background: rgba(0,113,227,.08);
+  background: rgba(var(--ap-accent-rgb),.08);
   color: var(--ap-blue);
 }
 .line-container.ruby-line .ruby-token.playing {
-  background: rgba(0,113,227,.14);
+  background: rgba(var(--ap-accent-rgb),.14);
   color: var(--ap-blue);
 }
 .line-container.ruby-line ruby {
@@ -1148,7 +1167,7 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
 }
 :root[data-theme="dark"] .line-container.ruby-line rt { color: var(--ap-ink-64); }
 :root[data-theme="dark"] .line-container.ruby-line .ruby-token:hover {
-  background: rgba(41,151,255,.16);
+  background: rgba(255,107,117,.16);
   color: var(--ap-link-dark);
 }
 
@@ -1169,7 +1188,7 @@ kbd {
    translucent surface with hairline dividers.
 ---------------------------------------------------------------- */
 .play-control-bar {
-  background: rgba(251,251,253,.78) !important;
+  background: rgba(250,247,242,.78) !important;
   -webkit-backdrop-filter: saturate(180%) blur(18px);
   backdrop-filter: saturate(180%) blur(18px);
   border: 1px solid var(--ap-ink-08) !important;
@@ -1179,7 +1198,7 @@ kbd {
   padding: 8px 12px !important;
 }
 :root[data-theme="dark"] .play-control-bar {
-  background: rgba(29,29,31,.72) !important;
+  background: rgba(28,31,38,.72) !important;
   border-color: var(--ap-ink-08) !important;
 }
 
@@ -1390,7 +1409,7 @@ kbd {
   margin-top: 8px;
   display: inline-flex; gap: 8px;
   padding: 6px 14px; border-radius: 8px;
-  border: none; background: #ff9500; color: #fff;
+  border: none; background: #ff9500; color: var(--ap-on-accent, #FFFDFA);
   font-weight: 500; font-size: 12px; cursor: pointer; letter-spacing: -0.006em;
 }
 .jlpt-coach .coach-cta:hover { background: #ff8c00; }
@@ -1398,7 +1417,7 @@ kbd {
   background: linear-gradient(135deg, rgba(255,159,10,.14), rgba(255,69,58,.08));
   border-color: rgba(255,159,10,.38);
 }
-:root[data-theme="dark"] .jlpt-coach .coach-title { color: #f5f5f7; }
+:root[data-theme="dark"] .jlpt-coach .coach-title { color: var(--ap-ink); }
 
 /* ---------------------------------------------------------------
    26. Shadowing mode surface for dictation
@@ -1407,17 +1426,17 @@ kbd {
   display: flex; align-items: center; gap: 8px;
   margin-top: 8px; padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(0,113,227,.06);
-  border: 1px solid rgba(0,113,227,.20);
+  background: rgba(var(--ap-accent-rgb),.06);
+  border: 1px solid rgba(var(--ap-accent-rgb),.20);
   font-size: 12px;
 }
 .jlpt-shadow button {
-  background: #0071e3; color: #fff; border: none;
+  background: var(--ap-blue); color: var(--ap-on-accent, #FFFDFA); border: none;
   border-radius: 999px; padding: 4px 12px;
   font-size: 11px; cursor: pointer;
   transition: background 120ms var(--ap-ease);
 }
-.jlpt-shadow button:hover { background: #0077ed; }
+.jlpt-shadow button:hover { background: var(--ap-blue-hover); }
 .jlpt-shadow button.is-recording {
   background: #ff3b30;
   animation: jlptPulse 1s ease-in-out infinite;
@@ -1457,7 +1476,7 @@ aside.folder-management {
 .folder-management .search-box:focus,
 .folder-management input[type="search"]:focus {
   background: var(--ap-surface) !important;
-  box-shadow: 0 0 0 3px rgba(0,113,227,.18);
+  box-shadow: 0 0 0 3px rgba(var(--ap-accent-rgb),.18);
   border-color: var(--ap-blue) !important;
 }
 
@@ -1493,7 +1512,7 @@ aside.folder-management {
   color: var(--ap-ink) !important;
 }
 .folder-item.active {
-  background: rgba(0,113,227,.10) !important;
+  background: rgba(var(--ap-accent-rgb),.10) !important;
   color: var(--ap-blue) !important;
   font-weight: 500;
 }
@@ -1501,8 +1520,8 @@ aside.folder-management {
   background: rgba(245,245,247,.06) !important;
 }
 :root[data-theme="dark"] .folder-item.active {
-  background: rgba(41,151,255,.16) !important;
-  color: #2997ff !important;
+  background: rgba(255,107,117,.16) !important;
+  color: var(--ap-link-dark) !important;
 }
 
 .doc-list {
@@ -1525,7 +1544,7 @@ aside.folder-management {
   background: var(--ap-ink-04) !important;
 }
 .doc-list .doc-item.active {
-  background: rgba(0,113,227,.10) !important;
+  background: rgba(var(--ap-accent-rgb),.10) !important;
 }
 .doc-list .doc-item.active::before {
   content: "";
@@ -1539,10 +1558,10 @@ aside.folder-management {
   background: rgba(245,245,247,.06) !important;
 }
 :root[data-theme="dark"] .doc-list .doc-item.active {
-  background: rgba(41,151,255,.14) !important;
+  background: rgba(255,107,117,.14) !important;
 }
 :root[data-theme="dark"] .doc-list .doc-item.active::before {
-  background: #2997ff;
+  background: var(--ap-link-dark);
 }
 
 .doc-list .doc-item .doc-item-title,
@@ -1606,8 +1625,8 @@ aside.folder-management {
 }
 .folder-management .btn-new:hover,
 .folder-management .new-doc-btn:hover {
-  background: rgba(0,113,227,.08) !important;
-  border-color: rgba(0,113,227,.28) !important;
+  background: rgba(var(--ap-accent-rgb),.08) !important;
+  border-color: rgba(var(--ap-accent-rgb),.28) !important;
   color: var(--ap-blue) !important;
 }
 
@@ -1639,5 +1658,242 @@ aside.folder-management {
   cursor: pointer;
 }
 .summary-export-btn:hover {
-  background: rgba(0,113,227,.08) !important;
+  background: rgba(var(--ap-accent-rgb),.08) !important;
 }
+
+/* ---------------------------------------------------------------
+   16. Header AI buttons — stroke SVG icons (replaced emoji glyphs)
+---------------------------------------------------------------- */
+.theme-icon-btn--emoji { width: 34px; height: 34px; }
+.theme-icon-btn--emoji > span { display: inline-flex; transform: none; }
+.theme-icon-btn--emoji:hover > span { transform: none; }
+.theme-icon-btn svg.ap-ic,
+.inspector-sparkle svg.ap-ic {
+  width: 20px; height: 20px;
+  fill: none !important;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ---------------------------------------------------------------
+   17. 「和纸书斋」 layout — right AI rail + bottom player dock
+   Design source: docs/design/yomikikuan-redesign/Main.dc.html
+   DOM: the five AI buttons live in <aside class="ai-rail"> (index.html);
+   the player bar keeps its place in .content-area and is only positioned.
+---------------------------------------------------------------- */
+.ai-rail {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 72px;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 14px 0;
+  background: var(--ap-surface-2);
+  border-left: 1px solid var(--ap-ink-08);
+}
+.ai-rail .ai-rail-btn {
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 64px !important;
+  height: auto !important;
+  padding: 4px 0 !important;
+  border-radius: var(--ap-r-md) !important;
+  color: var(--ap-ink-80) !important;
+  background: transparent !important;
+}
+.ai-rail .ai-rail-btn:hover { background: transparent !important; }
+.ai-rail .ai-rail-btn > span:first-child {
+  width: 44px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--ap-r-md);
+  transition: background var(--ap-dur-fast) var(--ap-ease);
+}
+.ai-rail .ai-rail-btn:hover > span:first-child { background: var(--ap-ink-08); }
+.ai-rail .ai-rail-btn:active > span:first-child { transform: scale(.94); }
+.ai-rail .ai-rail-label {
+  font-size: 10px; line-height: 1.2; letter-spacing: 0;
+  color: var(--ap-ink-64);
+}
+.ai-rail #inspectorToggleBtn > span:first-child { background: var(--ap-ink); color: var(--ap-bg); }
+.ai-rail #inspectorToggleBtn:hover > span:first-child { background: var(--ap-ink-80); }
+.ai-rail #inspectorToggleBtn[aria-expanded="true"] > span:first-child { background: var(--ap-blue); color: var(--ap-on-accent, #FFFDFA); }
+.ai-rail #inspectorToggleBtn { margin-bottom: 6px; }
+.ai-rail .inspector-sparkle { display: inline-flex; }
+/* missing-key red dot (mirrors :root.no-gemini-key rules in styles.css) */
+:root.no-gemini-key .ai-rail #jlptBtn > span:first-child::after,
+:root.no-gemini-key .ai-rail #articleSummaryBtn > span:first-child::after,
+:root.no-gemini-key .ai-rail #vocabBtn > span:first-child::after {
+  content: ""; position: absolute; top: 6px; right: 8px;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ap-error); box-shadow: 0 0 0 2px var(--ap-surface-2);
+}
+.ai-rail .ai-rail-btn > span:first-child { position: relative; }
+
+/* make room for the rail */
+.main-header { right: 72px !important; width: auto !important; }
+.content-main { padding-right: 72px; }
+
+/* Player dock — floats at the bottom of the reading column */
+.content-area .play-control-bar {
+  position: fixed;
+  bottom: 20px;
+  left: calc(50% + 84px);            /* +120 (sidebar/2) −36 (rail/2) */
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 240px - 72px - 48px));
+  max-width: none;
+  z-index: 900;
+  border-radius: var(--ap-r-xl) !important;
+  background: rgba(255,253,250,.92) !important;
+  box-shadow: var(--ap-shadow-3), 0 0 0 1px var(--ap-ink-04);
+  padding: 10px 14px !important;
+}
+.main-container.collapsed .content-area .play-control-bar {
+  left: calc(50% - 36px);
+  width: min(760px, calc(100vw - 72px - 48px));
+}
+/* two-pane: styles.css pins the bar sticky at the top of the reading pane with
+   a more specific selector; restate the dock over the right-hand pane instead. */
+.main-container.two-pane .content-area .play-control-bar {
+  position: fixed;
+  top: auto;
+  bottom: 20px;
+  left: calc(240px + (100vw - 240px - 72px) * 0.75);
+  width: min(600px, calc((100vw - 240px - 72px) / 2 - 32px));
+  padding: 10px 14px !important;
+  box-shadow: var(--ap-shadow-3), 0 0 0 1px var(--ap-ink-04);
+}
+.main-container.two-pane.collapsed .content-area .play-control-bar {
+  left: calc((100vw - 72px) * 0.75);
+  width: min(600px, calc((100vw - 72px) / 2 - 32px));
+}
+/* 10. in-place reading-mode toggle used to sit at right:28px — now behind the rail */
+.reading-mode-toggle { right: 92px !important; bottom: 100px !important; } /* above the dock, clear of the rail */
+:root[data-theme="dark"] .content-area .play-control-bar { background: rgba(28,31,38,.92) !important; }
+.content-scroll-area { padding-bottom: 140px !important; }
+.play-control-bar .play-control-bar-buttons { background: transparent !important; gap: 4px; }
+.play-control-bar .play-control-bar-buttons .play-toggle {
+  width: 38px !important; height: 38px !important;
+  border-radius: 50% !important;
+  background: var(--ap-blue) !important;
+  box-shadow: 0 4px 16px rgba(var(--ap-accent-rgb),.28);
+}
+.play-control-bar .play-control-bar-buttons .play-toggle:hover { background: var(--ap-blue-hover) !important; }
+.play-control-bar .play-control-bar-buttons .play-toggle svg { fill: var(--ap-on-accent, #FFFDFA) !important; }
+.play-control-bar .play-progress { height: 4px; }
+.play-control-bar .play-progress-fill { background: var(--ap-blue); }
+.play-control-bar .play-control-bar-buttons { border: none !important; }
+/* Inspector drawer slides in left of the rail */
+.inspector-drawer { right: 72px !important; }
+
+/* ---------------------------------------------------------------
+   18. Shared modal shell, toasts, document rows
+   Design source: docs/design/yomikikuan-redesign/JlptPanel.dc.html et al.
+   One shell for every overlay: ink 32% scrim + 6px blur, surface panel,
+   18px radius, tabs underlined in ink (no fills).
+---------------------------------------------------------------- */
+.jlpt-overlay, .summary-overlay, .vocab-overlay, .youtube-overlay,
+.settings-modal, .search-modal {
+  background: rgba(11,22,35,.32) !important;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.jlpt-panel, .summary-panel, .vocab-panel, .youtube-panel,
+.settings-modal-content, .search-modal-content {
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  border: 1px solid var(--ap-ink-08);
+  border-radius: var(--ap-r-xl) !important;
+  box-shadow: 0 24px 64px rgba(11,22,35,.16) !important;
+}
+.jlpt-panel-header h3, .summary-panel-header h3, .vocab-panel-header h3,
+.youtube-panel-header h3, .settings-modal-title, .inspector-title {
+  font-family: var(--ap-font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+.jlpt-tab, .youtube-tab, .vocab-tab {
+  height: 40px;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--ap-ink-64) !important;
+  border-bottom: 2px solid transparent !important;
+}
+.jlpt-tab.is-active, .youtube-tab.is-active, .vocab-tab[aria-selected="true"] {
+  color: var(--ap-ink) !important;
+  border-bottom-color: var(--ap-ink) !important;
+  font-weight: 600 !important;
+}
+.jlpt-close, .summary-close, .vocab-close, .youtube-close,
+.settings-modal-close, .search-modal-close {
+  width: 34px; height: 34px;
+  border-radius: var(--ap-r-sm) !important;
+  color: var(--ap-ink-64) !important;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.jlpt-close:hover, .summary-close:hover, .vocab-close:hover, .youtube-close:hover,
+.settings-modal-close:hover, .search-modal-close:hover {
+  background: var(--ap-ink-08) !important;
+  color: var(--ap-ink) !important;
+}
+.search-modal-input { font-size: 17px; color: var(--ap-ink); }
+.search-modal-input::placeholder { color: var(--ap-ink-48); }
+
+/* Update toast — ink card with a hanko-red refresh pill */
+.ap-update-toast {
+  background: var(--ap-ink) !important;
+  color: var(--ap-bg) !important;
+  border: none !important;
+  border-radius: var(--ap-r-lg) !important;
+  box-shadow: var(--ap-shadow-3) !important;
+}
+.ap-update-toast__title { color: var(--ap-bg) !important; }
+.ap-update-toast__desc  { color: var(--ap-ink-24) !important; opacity: 1; color: rgba(250,247,242,.64) !important; }
+.ap-update-toast__refresh {
+  height: 30px; padding: 0 12px;
+  border-radius: var(--ap-r-pill) !important;
+  background: var(--ap-blue) !important;
+  color: var(--ap-on-accent, #FFFDFA) !important;
+  font-size: 13px; font-weight: 600;
+  border: none !important;
+}
+.ap-update-toast__refresh:hover { background: var(--ap-blue-hover) !important; }
+.ap-update-toast__dismiss { color: rgba(250,247,242,.56) !important; background: transparent !important; border: none !important; }
+.ap-update-toast__dismiss:hover { color: var(--ap-bg) !important; }
+:root[data-theme="dark"] .ap-update-toast { background: var(--ap-surface) !important; color: var(--ap-ink) !important; border: 1px solid var(--ap-ink-08) !important; }
+:root[data-theme="dark"] .ap-update-toast__title { color: var(--ap-ink) !important; }
+:root[data-theme="dark"] .ap-update-toast__desc { color: var(--ap-ink-64) !important; }
+:root[data-theme="dark"] .ap-update-toast__dismiss { color: var(--ap-ink-48) !important; }
+
+/* Document rows — current item is a raised surface card, no left accent bar */
+.doc-item.active {
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-04) !important;
+  border-left: 1px solid var(--ap-ink-04) !important;
+  padding-left: 10px !important;
+  box-shadow: var(--ap-shadow-1) !important;
+  font-weight: 500;
+}
+.doc-item.active .doc-item-title { color: var(--ap-ink); }
+/* Settings modal header — plain surface header, no gradient band */
+.settings-modal-header {
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  border-bottom: 1px solid var(--ap-ink-08);
+  padding: 18px 20px 14px 24px !important;
+}
+.settings-modal-title { color: var(--ap-ink) !important; }
+.settings-modal-title .settings-icon { fill: var(--ap-ink-64) !important; }
+.settings-modal-close { background: transparent !important; }
+.settings-modal-close svg { fill: currentColor !important; }
+.settings-modal .settings-section { background: var(--ap-surface-2) !important; border: 1px solid var(--ap-ink-04) !important; border-radius: var(--ap-r-lg) !important; }
+/* dock toggles stay on one line */
+#bilingualToggle { width: auto !important; padding: 6px 8px !important; }
+#bilingualToggle > span { white-space: nowrap; }

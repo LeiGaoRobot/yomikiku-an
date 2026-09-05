@@ -79,7 +79,7 @@ function ringSvg(pct, color, label, value, target) {
     <div class="pr-ring">
       <svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true">
         <circle cx="36" cy="36" r="${r}" fill="none" stroke="rgba(0,0,0,.08)" stroke-width="6"/>
-        <circle cx="36" cy="36" r="${r}" fill="none" stroke="${color}" stroke-width="6"
+        <circle cx="36" cy="36" r="${r}" fill="none" style="stroke:${color}" stroke-width="6"
                 stroke-dasharray="${c}" stroke-dashoffset="${offset}"
                 stroke-linecap="round" transform="rotate(-90 36 36)"/>
       </svg>
@@ -155,7 +155,7 @@ function render() {
       <span>连续 <span class="val">${s}</span> 天</span>
     </div>
     <div class="pr-rings">
-      ${ringSvg(docsP, '#0071e3', '阅读', today.docs?.length || 0, GOALS.docs)}
+      ${ringSvg(docsP, 'var(--ap-blue, #E63946)', '阅读', today.docs?.length || 0, GOALS.docs)}
       ${ringSvg(minP,  '#34c759', '听音频', today.minutes || 0, GOALS.minutes)}
       ${ringSvg(vocP,  '#af52de', '新词',   today.vocabAdded || 0, GOALS.vocab)}
     </div>

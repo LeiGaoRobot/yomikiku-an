@@ -96,7 +96,7 @@ export function startSession({ root, plan, itemsByMode, onFinish }) {
   const prog = document.createElement('div');
   prog.style.cssText = 'height:6px;border-radius:999px;background:rgba(0,0,0,.06);overflow:hidden;';
   const progBar = document.createElement('div');
-  progBar.style.cssText = 'height:100%;background:#0071e3;width:0%;transition:width .2s ease;';
+  progBar.style.cssText = 'height:100%;background:var(--ap-blue, #E63946);width:0%;transition:width .2s ease;';
   prog.appendChild(progBar);
   shell.appendChild(prog);
 
@@ -123,7 +123,7 @@ export function startSession({ root, plan, itemsByMode, onFinish }) {
   prevBtn.style.cssText = 'padding:4px 12px;border:1px solid var(--border,rgba(0,0,0,.15));border-radius:6px;background:transparent;color:inherit;cursor:pointer;font-size:12px;';
   const nextBtn = document.createElement('button');
   nextBtn.type = 'button'; nextBtn.textContent = '下一题 →';
-  nextBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;font-size:13px;';
+  nextBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--ap-blue, #E63946);color:var(--ap-on-accent, #fff);cursor:pointer;font-size:13px;';
   nav.append(prevBtn, nextBtn);
   shell.appendChild(nav);
 

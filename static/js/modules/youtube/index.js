@@ -41,7 +41,7 @@ function injectCss() {
     .youtube-tabs { display:flex; padding:0 20px; border-bottom:1px solid var(--border,rgba(0,0,0,0.08)); }
     .youtube-tab { background:none; border:none; padding:10px 14px; cursor:pointer;
       font-size:13px; color:var(--muted,#888); border-bottom:2px solid transparent; margin-bottom:-1px; }
-    .youtube-tab.is-active { color:var(--text,#111); border-bottom-color:#0071e3; font-weight:600; }
+    .youtube-tab.is-active { color:var(--text,#111); border-bottom-color:var(--ap-blue, #E63946); font-weight:600; }
     .youtube-tab-content { flex:1; overflow-y:auto; padding:14px 20px; min-height:200px; }
     .youtube-error { color:#ff3b30; font-size:13px; padding:0 20px 8px; }
   `;
@@ -64,9 +64,9 @@ function buildShell() {
       <div id="ytErrorBar" class="youtube-error" hidden></div>
       <div id="ytMeta" class="youtube-meta" hidden></div>
       <div class="youtube-tabs">
-        <button type="button" class="youtube-tab is-active" data-tab="import">📥 导入字幕</button>
-        <button type="button" class="youtube-tab" data-tab="companion">🎬 视频伴读</button>
-        <button type="button" class="youtube-tab" data-tab="listening">🎧 生成听力题</button>
+        <button type="button" class="youtube-tab is-active" data-tab="import">导入字幕</button>
+        <button type="button" class="youtube-tab" data-tab="companion">视频伴读</button>
+        <button type="button" class="youtube-tab" data-tab="listening">生成听力题</button>
       </div>
       <div id="ytTabContent" class="youtube-tab-content"></div>
     </div>`;

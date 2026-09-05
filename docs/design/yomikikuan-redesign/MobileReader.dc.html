@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; } a:hover { color: #8F1A24; }
+    svg.ic { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .ibtn { width: 44px; height: 44px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); }
+    .line { display: flex; flex-direction: column; gap: 0; padding: 4px 0 8px; }
+    .txt { font-family: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif; font-size: 20px; line-height: 2.1; letter-spacing: 0.02em; }
+    ruby { ruby-align: center; ruby-position: over; }
+    rt { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 0.42em; color: rgba(11,22,35,.56); line-height: 1; }
+    .chip { height: 32px; padding: 0 12px; border-radius: 980px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: rgba(11,22,35,.72); border: 1px solid rgba(11,22,35,.14); }
+    .chip.on { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+  </style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #FAF7F2; display: flex; flex-direction: column; position: relative; overflow: hidden; box-sizing: border-box; padding-top: 54px;">
+
+  <header style="height: 52px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 8px;">
+    <div class="ibtn"><svg class="ic" viewBox="0 0 20 20"><path d="M3 5h14M3 10h14M3 15h14"></path></svg></div>
+    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px;">
+      <div style="font-size: 16px; font-weight: 600; letter-spacing: -0.018em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">静かな庵で読む</div>
+      <div style="font-size: 12px; color: rgba(11,22,35,.4); display: flex; align-items: center; gap: 6px;"><span>1,240 字</span><span style="height: 16px; padding: 0 6px; border-radius: 980px; background: #ffcc00; color: #3a2d00; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center;">N3</span></div>
+    </div>
+    <div class="ibtn"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2.5l1.6 4.4 4.4 1.6-4.4 1.6L10 14.5 8.4 10.1 4 8.5l4.4-1.6z"></path><path d="M16 14l.6 1.4 1.4.6-1.4.6L16 18l-.6-1.4-1.4-.6 1.4-.6z"></path></svg></div>
+    <div class="ibtn"><svg class="ic" viewBox="0 0 20 20"><circle cx="5" cy="10" r="1.2"></circle><circle cx="10" cy="10" r="1.2"></circle><circle cx="15" cy="10" r="1.2"></circle></svg></div>
+  </header>
+
+  <div style="display: flex; gap: 8px; padding: 6px 20px 10px; overflow: hidden;">
+    <div class="chip on">ふりがな</div>
+    <div class="chip">ア</div>
+    <div class="chip">中/日</div>
+    <div class="chip">1.0×</div>
+  </div>
+
+  <section style="flex: 1; min-height: 0; overflow: hidden; padding: 12px 20px 0; display: flex; flex-direction: column; gap: 2px;">
+    <div class="line"><div class="txt"><ruby>静<rt>しず</rt></ruby>かな<ruby>庵<rt>いおり</rt></ruby>で、<ruby>日本語<rt>にほんご</rt></ruby>の<ruby>文章<rt>ぶんしょう</rt></ruby>を<ruby>声<rt>こえ</rt></ruby>に<ruby>出<rt>だ</rt></ruby>して<ruby>読<rt>よ</rt></ruby>む。</div></div>
+    <div class="line" style="background: rgba(230,57,70,.05); margin: 0 -12px; padding: 4px 12px 8px; border-radius: 10px; position: relative;">
+      <div style="position: absolute; left: 0; top: 20px; width: 5px; height: 5px; border-radius: 50%; background: {{accent}};"></div>
+      <div class="txt"><ruby>分<rt>わ</rt></ruby>からない<ruby>言葉<rt>ことば</rt></ruby>があれば、<span style="background: rgba(230,57,70,.14); color: #B3232F; border-radius: 3px;">その<ruby>場<rt>ば</rt></ruby>で</span><ruby>辞書<rt>じしょ</rt></ruby>を<ruby>引<rt>ひ</rt></ruby>ける。</div>
+    </div>
+    <div style="margin: 6px 0 10px; padding: 12px 14px; border-radius: 12px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); box-shadow: 0 4px 16px rgba(11,22,35,.06); display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', serif; font-size: 17px; font-weight: 600;">その場で</span>
+        <span style="font-size: 12px; color: rgba(11,22,35,.56);">そのばで</span>
+        <span style="margin-left: auto; height: 18px; padding: 0 7px; border-radius: 980px; background: #a6d94f; color: #2b3a12; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center;">N4</span>
+      </div>
+      <div style="font-size: 13px; line-height: 1.5; color: rgba(11,22,35,.72);">当场、就在那个地方。强调不需要转移到别处就能完成动作。</div>
+      <div style="display: flex; gap: 8px;"><div class="chip" style="height: 30px;">加入词汇本</div><div class="chip" style="height: 30px;">整句解析</div></div>
+    </div>
+    <div class="line"><div class="txt"><ruby>読<rt>よ</rt></ruby>み<ruby>終<rt>お</rt></ruby>わったら、<ruby>耳<rt>みみ</rt></ruby>で<ruby>聞<rt>き</rt></ruby>いて<ruby>確<rt>たし</rt></ruby>かめる。</div></div>
+    <div class="line"><div class="txt"><ruby>少<rt>すこ</rt></ruby>しずつ、<ruby>毎日<rt>まいにち</rt></ruby><ruby>続<rt>つづ</rt></ruby>けることが<ruby>一番<rt>いちばん</rt></ruby>の<ruby>近道<rt>ちかみち</rt></ruby>だ。</div></div>
+  </section>
+
+  <div style="position: absolute; left: 16px; right: 16px; bottom: 24px; height: 72px; border-radius: 20px; background: rgba(255,253,250,.94); border: 1px solid rgba(11,22,35,.08); box-shadow: 0 12px 40px rgba(11,22,35,.12); display: flex; align-items: center; gap: 12px; padding: 0 14px 0 10px;">
+    <div class="ibtn"><svg class="ic" viewBox="0 0 20 20"><path d="M14 4.5v11L6 10z"></path><path d="M5 4.5v11"></path></svg></div>
+    <div style="width: 48px; height: 48px; border-radius: 50%; background: {{accent}}; color: #FFFDFA; display: flex; align-items: center; justify-content: center; flex: none; box-shadow: 0 4px 16px rgba(230,57,70,.28);">
+      <svg viewBox="0 0 20 20" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6.5 4v12M11.5 4v12"></path></svg>
+    </div>
+    <div class="ibtn"><svg class="ic" viewBox="0 0 20 20"><path d="M6 4.5v11l8-5.5z"></path><path d="M15 4.5v11"></path></svg></div>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; justify-content: space-between; font-size: 11px; color: rgba(11,22,35,.56);"><span>2 / 5 句</span><span>0:41</span></div>
+      <div style="height: 4px; border-radius: 999px; background: rgba(11,22,35,.08); position: relative;"><div style="position: absolute; left: 0; top: 0; height: 4px; width: 36%; border-radius: 999px; background: {{accent}};"></div></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#E63946","options":["#E63946","#B3232F","#3B4A8C","#0B1623"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#E63946' };
+  }
+}
+</script>
+</body>
+</html>

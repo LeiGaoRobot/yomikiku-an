@@ -72,8 +72,8 @@ function injectCss() {
       border-bottom: 2px solid transparent;
     }
     .vocab-tab[aria-selected="true"] {
-      color: var(--accent, #0071e3);
-      border-bottom-color: var(--accent, #0071e3);
+      color: var(--ap-blue, #E63946);
+      border-bottom-color: var(--ap-blue, #E63946);
     }
     .vocab-filter {
       display: flex; gap: 8px; padding: 10px 20px;
@@ -87,8 +87,8 @@ function injectCss() {
       cursor: pointer; font-size: 12px;
     }
     .vocab-filter button[aria-pressed="true"] {
-      background: var(--accent, #0071e3); color: #fff;
-      border-color: var(--accent, #0071e3);
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff);
+      border-color: var(--ap-blue, #E63946);
     }
     .vocab-filter .count { margin-left: auto; color: var(--muted, #888); }
     .vocab-list {
@@ -151,7 +151,7 @@ function injectCss() {
     }
     .vocab-grade button[data-q="1"] { border-color: #ff3b30; color: #ff3b30; }
     .vocab-grade button[data-q="3"] { border-color: #ff9500; color: #ff9500; }
-    .vocab-grade button[data-q="4"] { border-color: #0071e3; color: #0071e3; }
+    .vocab-grade button[data-q="4"] { border-color: var(--ap-blue, #E63946); color: var(--ap-blue, #E63946); }
     .vocab-grade button[data-q="5"] { border-color: #34c759; color: #34c759; }
     .vocab-grade button:hover { background: var(--elevated, rgba(0,0,0,0.04)); }
     .vocab-review-meta {
@@ -217,7 +217,7 @@ export async function mountPanel() {
           <option value="created"></option>
           <option value="random"></option>
         </select>
-        <button type="button" data-role="review" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;"></button>
+        <button type="button" data-role="review" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:none;background:var(--ap-blue, #E63946);color:var(--ap-on-accent, #fff);cursor:pointer;"></button>
         <span class="count" data-role="count"></span>
       </div>
       <div class="vocab-list" data-role="list"></div>
@@ -227,7 +227,7 @@ export async function mountPanel() {
   // Populate i18n text nodes deterministically (template had empty labels
   // so screen readers/users see the correct language immediately).
   const setText = (sel, key, fb) => { const el = root.querySelector(sel); if (el) el.textContent = tr(key, fb); };
-  setText('[data-role="title"]',              'panel.vocab.title',                '🧠 词汇本 / 错题本');
+  setText('[data-role="title"]',              'panel.vocab.title',                '词汇本 / 错题本');
   setText('.vocab-tab[data-tab="vocab"]',     'panel.vocab.tab.vocab',            '词汇本');
   setText('.vocab-tab[data-tab="mistakes"]',  'panel.vocab.tab.mistakes',         '错题本');
   setText('[data-bucket="all"]',              'panel.vocab.filter.all',           '全部');

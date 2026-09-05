@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; text-decoration: none; } a:hover { color: #8F1A24; }
+    svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .ibtn { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); }
+    .ibtn:hover { background: rgba(11,22,35,.06); color: #0B1623; }
+    .chip { height: 28px; padding: 0 10px; border-radius: 980px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: rgba(11,22,35,.72); border: 1px solid rgba(11,22,35,.14); }
+    .chip.on { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .btn { height: 36px; padding: 0 16px; border-radius: 980px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(11,22,35,.14); color: #0B1623; }
+    .btn.primary { background: #E63946; color: #FFFDFA; border-color: #E63946; }
+    .btn.ink { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .read { font-family: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif; letter-spacing: 0.02em; }
+    ruby { ruby-align: center; ruby-position: over; }
+    rt { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 0.42em; font-weight: 400; color: rgba(11,22,35,.56); letter-spacing: 0; line-height: 1; }
+    .lv { height: 20px; padding: 0 8px; border-radius: 980px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+    .lv.n5 { background: #30d158; color: #0b3d1a; } .lv.n4 { background: #a6d94f; color: #2b3a12; } .lv.n3 { background: #ffcc00; color: #3a2d00; } .lv.n2 { background: #ff9f0a; color: #3a1f00; } .lv.n1 { background: #ff453a; color: #3d0d0a; }
+    .panel { background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); border-radius: 18px; box-shadow: 0 24px 64px rgba(11,22,35,.16); display: flex; flex-direction: column; overflow: hidden; }
+    .panel-h { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px 24px; }
+    .panel-h .ttl { font-size: 17px; font-weight: 600; letter-spacing: -0.018em; }
+    .panel-h .sub { font-size: 13px; color: rgba(11,22,35,.56); }
+    .tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid rgba(11,22,35,.08); }
+    .tab { height: 40px; padding: 0 12px; font-size: 14px; font-weight: 500; color: rgba(11,22,35,.56); display: inline-flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.on { color: #0B1623; border-bottom-color: #0B1623; }
+    .card { background: #FAF7F2; border: 1px solid rgba(11,22,35,.06); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .h6 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: rgba(11,22,35,.56); }
+    .muted { color: rgba(11,22,35,.56); }
+    .field { height: 36px; padding: 0 12px; border-radius: 8px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.12); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .toggle { width: 40px; height: 24px; border-radius: 12px; background: rgba(11,22,35,.14); position: relative; flex: none; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.2); }
+    .toggle.on { background: #0B1623; } .toggle.on::after { left: 18px; }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .menu-item { height: 40px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: #0B1623; }
+    .menu-item:hover { background: rgba(11,22,35,.06); }
+    .menu-item .kv { margin-left: auto; font-size: 13px; color: rgba(11,22,35,.4); }
+  </style>
+</helmet>
+<div style="width: 1100px; height: 760px; background: #FAF7F2; position: relative; overflow: hidden;"><div style="position: absolute; inset: 0; display: flex;"><div style="width: 200px; background: #F3EEE6; border-right: 1px solid rgba(11,22,35,.06);"></div><div style="flex: 1; padding: 60px 80px;" class="read"><div style="font-size: 20px; line-height: 2.2; color: rgba(11,22,35,.5);">静かな庵で、日本語の文章を声に出して読む。<br>分からない言葉があれば、その場で辞書を引ける。<br>読み終わったら、耳で聞いて確かめる。</div></div><div style="width: 56px; background: #F3EEE6; border-left: 1px solid rgba(11,22,35,.06);"></div></div><div style="position: absolute; inset: 0; background: rgba(11,22,35,.32); backdrop-filter: blur(6px);"></div>
+<div class="panel" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 760px;">
+  <div class="panel-h"><div style="display: flex; flex-direction: column; gap: 2px;"><div class="ttl">文章解析</div><div class="sub">整篇 · 已从缓存加载 · 点「重新生成」可重新调用</div></div><div class="chip">重新生成</div><div class="ibtn" style="margin-left: auto;"><svg class="ic" viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"></path></svg></div></div>
+  <div style="flex: 1; min-height: 0; overflow: hidden; padding: 4px 24px 24px; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 20px;">
+    <div style="display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; flex-direction: column; gap: 6px;"><div class="h6">要約</div><div style="font-size: 15px; line-height: 1.6;">在安静的小屋里朗读日语文章，遇到不懂的词当场查词典，读完后用耳朵确认。作者认为每天坚持一点是最快的捷径。</div></div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><div class="h6">推奨レベル</div><div class="row"><span class="lv n3" style="height: 24px; font-size: 12px;">N3</span><span class="muted" style="font-size: 13px;">词汇 N4 为主，句型含「〜ば」「〜ことが〜だ」</span></div></div>
+      <div style="display: flex; flex-direction: column; gap: 8px;"><div class="h6">キー文</div>
+        <div class="read" style="font-size: 16px; line-height: 1.8; padding: 10px 14px; background: #FAF7F2; border-radius: 10px;">少しずつ、毎日続けることが一番の近道だ。</div>
+        <div class="read" style="font-size: 16px; line-height: 1.8; padding: 10px 14px; background: #FAF7F2; border-radius: 10px;">分からない言葉があれば、その場で辞書を引ける。</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 6px;"><div class="h6">学習ポイント</div>
+        <div style="font-size: 14px; line-height: 1.6; display: flex; flex-direction: column; gap: 4px;"><div>· 条件形「〜ば」：分からない言葉があれば</div><div>· 名词化「〜こと」＋断定「だ」</div><div>· 副词「少しずつ」表示渐进</div></div>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px; min-height: 0;">
+      <div class="h6">重要語彙</div>
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div class="card" style="flex-direction: row; align-items: center; padding: 10px 12px; gap: 10px;"><div style="display: flex; flex-direction: column;"><span class="read" style="font-size: 16px; font-weight: 600;">近道</span><span class="muted" style="font-size: 12px;">ちかみち · 捷径</span></div><span class="lv n3" style="margin-left: auto;">N3</span><div class="ibtn" style="width: 28px; height: 28px;"><svg class="ic" viewBox="0 0 20 20" style="width: 16px; height: 16px;"><path d="M10 4v12M4 10h12"></path></svg></div></div>
+        <div class="card" style="flex-direction: row; align-items: center; padding: 10px 12px; gap: 10px;"><div style="display: flex; flex-direction: column;"><span class="read" style="font-size: 16px; font-weight: 600;">確かめる</span><span class="muted" style="font-size: 12px;">たしかめる · 确认</span></div><span class="lv n3" style="margin-left: auto;">N3</span><div style="width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; color: #0b3d1a;"><svg class="ic" viewBox="0 0 20 20" style="width: 16px; height: 16px; stroke-width: 2.5;"><path d="M4 10.5l4 4 8-9"></path></svg></div></div>
+        <div class="card" style="flex-direction: row; align-items: center; padding: 10px 12px; gap: 10px;"><div style="display: flex; flex-direction: column;"><span class="read" style="font-size: 16px; font-weight: 600;">辞書</span><span class="muted" style="font-size: 12px;">じしょ · 词典</span></div><span class="lv n4" style="margin-left: auto;">N4</span><div class="ibtn" style="width: 28px; height: 28px;"><svg class="ic" viewBox="0 0 20 20" style="width: 16px; height: 16px;"><path d="M10 4v12M4 10h12"></path></svg></div></div>
+        <div class="card" style="flex-direction: row; align-items: center; padding: 10px 12px; gap: 10px;"><div style="display: flex; flex-direction: column;"><span class="read" style="font-size: 16px; font-weight: 600;">庵</span><span class="muted" style="font-size: 12px;">いおり · 草庵</span></div><span class="lv n1" style="margin-left: auto;">N1</span><div class="ibtn" style="width: 28px; height: 28px;"><svg class="ic" viewBox="0 0 20 20" style="width: 16px; height: 16px;"><path d="M10 4v12M4 10h12"></path></svg></div></div>
+      </div>
+      <div class="h6" style="margin-top: 4px;">文法ポイント</div>
+      <div class="card" style="gap: 4px;"><div style="font-size: 14px; font-weight: 600;">〜ば（条件）</div><div class="muted" style="font-size: 13px; line-height: 1.5;">如果……就……。例：分からない言葉があれば、その場で辞書を引ける。</div></div>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+</body>
+</html>

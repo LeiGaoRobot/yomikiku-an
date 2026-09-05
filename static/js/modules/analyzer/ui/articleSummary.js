@@ -63,14 +63,14 @@ function injectCss() {
     }
     .summary-go {
       padding: 6px 14px; border-radius: 8px; border: none;
-      background: var(--accent, #0071e3); color: #fff; font-weight: 500;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff); font-weight: 500;
       cursor: pointer; font-size: 13px;
     }
     .summary-go:disabled { opacity: 0.5; cursor: wait; }
     .summary-regen {
       padding: 6px 14px; border-radius: 8px;
-      background: transparent; color: var(--accent, #0071e3);
-      border: 1px solid var(--accent, #0071e3);
+      background: transparent; color: var(--ap-blue, #E63946);
+      border: 1px solid var(--ap-blue, #E63946);
       cursor: pointer; font-size: 13px;
     }
     .summary-status { font-size: 12px; color: var(--muted, #888); }
@@ -90,7 +90,7 @@ function injectCss() {
     .summary-level-pill {
       display: inline-block;
       padding: 3px 10px; border-radius: 999px;
-      background: var(--accent, #0071e3); color: #fff;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff);
       font-weight: 600; font-size: 12px;
     }
     :root[data-theme="dark"] .summary-panel { background: #1c1c1e; color: #f2f2f7; }
@@ -359,7 +359,7 @@ export function mountPanel(doc) {
   `;
   document.body.appendChild(root);
   const titleEl = root.querySelector('[data-role="title"]');
-  if (titleEl) titleEl.textContent = tr('panel.summary.title', '📖 文章解析');
+  if (titleEl) titleEl.textContent = tr('panel.summary.title', '文章解析');
   const a11y = mountModalA11y(root.querySelector('.summary-panel'), {
     initialFocus: root.querySelector('.summary-close'),
   });
