@@ -117,7 +117,7 @@ function injectCss() {
     }
     .jlpt-go {
       padding: 6px 14px; border-radius: 8px; border: none;
-      background: var(--ap-blue, #E63946); color: #fff; font-weight: 500;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff); font-weight: 500;
       cursor: pointer; font-size: 13px;
     }
     .jlpt-go:disabled { opacity: 0.5; cursor: wait; }

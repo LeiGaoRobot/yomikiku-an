@@ -123,7 +123,7 @@ export function startSession({ root, plan, itemsByMode, onFinish }) {
   prevBtn.style.cssText = 'padding:4px 12px;border:1px solid var(--border,rgba(0,0,0,.15));border-radius:6px;background:transparent;color:inherit;cursor:pointer;font-size:12px;';
   const nextBtn = document.createElement('button');
   nextBtn.type = 'button'; nextBtn.textContent = '下一题 →';
-  nextBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--ap-blue, #E63946);color:#fff;cursor:pointer;font-size:13px;';
+  nextBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--ap-blue, #E63946);color:var(--ap-on-accent, #fff);cursor:pointer;font-size:13px;';
   nav.append(prevBtn, nextBtn);
   shell.appendChild(nav);
 

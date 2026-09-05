@@ -63,7 +63,7 @@ function injectCss() {
     }
     .summary-go {
       padding: 6px 14px; border-radius: 8px; border: none;
-      background: var(--ap-blue, #E63946); color: #fff; font-weight: 500;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff); font-weight: 500;
       cursor: pointer; font-size: 13px;
     }
     .summary-go:disabled { opacity: 0.5; cursor: wait; }
@@ -90,7 +90,7 @@ function injectCss() {
     .summary-level-pill {
       display: inline-block;
       padding: 3px 10px; border-radius: 999px;
-      background: var(--ap-blue, #E63946); color: #fff;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff);
       font-weight: 600; font-size: 12px;
     }
     :root[data-theme="dark"] .summary-panel { background: #1c1c1e; color: #f2f2f7; }

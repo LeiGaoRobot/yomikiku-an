@@ -33,6 +33,7 @@
   --ap-link:            #B3232F;
   --ap-link-dark:       #FF6B75;
   --ap-accent-rgb:      230,57,70;
+  --ap-on-accent:       #FFFDFA;       /* text/icon on the accent fill */
 
   --ap-success:         #30d158;
   --ap-warn:            #ff9f0a;
@@ -133,6 +134,7 @@
   --ap-blue-press: #E63946;
   --ap-link:       #FF8A92;
   --ap-accent-rgb: 255,107,117;
+  --ap-on-accent:  #0B1623;         /* ink on the lifted pink — white would be ~2.7:1 */
   --ap-shadow-1:   0 1px 2px rgba(0,0,0,.30);
   --ap-shadow-2:   0 8px 24px rgba(0,0,0,.35);
   --ap-shadow-3:   0 12px 40px rgba(0,0,0,.45);
@@ -341,7 +343,7 @@ button.primary,
 button[type="submit"]:not(.secondary),
 #geminiApiKeySave {
   background: var(--ap-blue) !important;
-  color: #FFFDFA !important;
+  color: var(--ap-on-accent, #FFFDFA) !important;
   border: 1px solid transparent !important;
   border-radius: var(--ap-r-sm) !important;
   padding: 8px 16px !important;
@@ -1034,7 +1036,7 @@ button, a, .token-pill, .theme-icon-btn, .dropdown-item, .folder-item, .doc-item
 }
 .ap-update-toast__refresh {
   background: var(--ap-blue);
-  color: #FFFDFA;
+  color: var(--ap-on-accent, #FFFDFA);
   border: 1px solid transparent;
   border-radius: var(--ap-r-sm);
   padding: 6px 14px;
@@ -1407,7 +1409,7 @@ kbd {
   margin-top: 8px;
   display: inline-flex; gap: 8px;
   padding: 6px 14px; border-radius: 8px;
-  border: none; background: #ff9500; color: #FFFDFA;
+  border: none; background: #ff9500; color: var(--ap-on-accent, #FFFDFA);
   font-weight: 500; font-size: 12px; cursor: pointer; letter-spacing: -0.006em;
 }
 .jlpt-coach .coach-cta:hover { background: #ff8c00; }
@@ -1429,7 +1431,7 @@ kbd {
   font-size: 12px;
 }
 .jlpt-shadow button {
-  background: var(--ap-blue); color: #FFFDFA; border: none;
+  background: var(--ap-blue); color: var(--ap-on-accent, #FFFDFA); border: none;
   border-radius: 999px; padding: 4px 12px;
   font-size: 11px; cursor: pointer;
   transition: background 120ms var(--ap-ease);
@@ -1721,7 +1723,7 @@ aside.folder-management {
 }
 .ai-rail #inspectorToggleBtn > span:first-child { background: var(--ap-ink); color: var(--ap-bg); }
 .ai-rail #inspectorToggleBtn:hover > span:first-child { background: var(--ap-ink-80); }
-.ai-rail #inspectorToggleBtn[aria-expanded="true"] > span:first-child { background: var(--ap-blue); color: #FFFDFA; }
+.ai-rail #inspectorToggleBtn[aria-expanded="true"] > span:first-child { background: var(--ap-blue); color: var(--ap-on-accent, #FFFDFA); }
 .ai-rail #inspectorToggleBtn { margin-bottom: 6px; }
 .ai-rail .inspector-sparkle { display: inline-flex; }
 /* missing-key red dot (mirrors :root.no-gemini-key rules in styles.css) */
@@ -1756,6 +1758,23 @@ aside.folder-management {
   left: calc(50% - 36px);
   width: min(760px, calc(100vw - 72px - 48px));
 }
+/* two-pane: styles.css pins the bar sticky at the top of the reading pane with
+   a more specific selector; restate the dock over the right-hand pane instead. */
+.main-container.two-pane .content-area .play-control-bar {
+  position: fixed;
+  top: auto;
+  bottom: 20px;
+  left: calc(240px + (100vw - 240px - 72px) * 0.75);
+  width: min(600px, calc((100vw - 240px - 72px) / 2 - 32px));
+  padding: 10px 14px !important;
+  box-shadow: var(--ap-shadow-3), 0 0 0 1px var(--ap-ink-04);
+}
+.main-container.two-pane.collapsed .content-area .play-control-bar {
+  left: calc((100vw - 72px) * 0.75);
+  width: min(600px, calc((100vw - 72px) / 2 - 32px));
+}
+/* 10. in-place reading-mode toggle used to sit at right:28px — now behind the rail */
+.reading-mode-toggle { right: 92px !important; bottom: 100px !important; } /* above the dock, clear of the rail */
 :root[data-theme="dark"] .content-area .play-control-bar { background: rgba(28,31,38,.92) !important; }
 .content-scroll-area { padding-bottom: 140px !important; }
 .play-control-bar .play-control-bar-buttons { background: transparent !important; gap: 4px; }
@@ -1766,7 +1785,7 @@ aside.folder-management {
   box-shadow: 0 4px 16px rgba(var(--ap-accent-rgb),.28);
 }
 .play-control-bar .play-control-bar-buttons .play-toggle:hover { background: var(--ap-blue-hover) !important; }
-.play-control-bar .play-control-bar-buttons .play-toggle svg { fill: #FFFDFA !important; }
+.play-control-bar .play-control-bar-buttons .play-toggle svg { fill: var(--ap-on-accent, #FFFDFA) !important; }
 .play-control-bar .play-progress { height: 4px; }
 .play-control-bar .play-progress-fill { background: var(--ap-blue); }
 .play-control-bar .play-control-bar-buttons { border: none !important; }
@@ -1841,7 +1860,7 @@ aside.folder-management {
   height: 30px; padding: 0 12px;
   border-radius: var(--ap-r-pill) !important;
   background: var(--ap-blue) !important;
-  color: #FFFDFA !important;
+  color: var(--ap-on-accent, #FFFDFA) !important;
   font-size: 13px; font-weight: 600;
   border: none !important;
 }

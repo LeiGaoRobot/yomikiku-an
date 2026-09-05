@@ -85,7 +85,7 @@ export function injectCss() {
       display: inline-flex; align-items:center; justify-content:center;
       font-size: 11px; font-weight: 700; color: #fff;
     }
-    .jlpt-line .sp[data-speaker="A"], .jlpt-line .sp[data-speaker="男"] { background: var(--ap-blue, #E63946); }
+    .jlpt-line .sp[data-speaker="A"], .jlpt-line .sp[data-speaker="男"] { background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff); }
     .jlpt-line .sp[data-speaker="B"], .jlpt-line .sp[data-speaker="女"] { background: #af52de; }
     .jlpt-line .sp[data-speaker="N"], .jlpt-line .sp[data-speaker="narrator"] { background: #8e8e93; }
     .jlpt-line .tx { flex: 1 1 auto; }
@@ -859,7 +859,7 @@ export function renderScorecard(container, report, ctx = {}) {
   reviewBtn.addEventListener('click', () => ctx.onReview && ctx.onReview());
   const retakeBtn = document.createElement('button');
   retakeBtn.type = 'button';
-  retakeBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--ap-blue, #E63946);color:#fff;cursor:pointer;font-size:13px;';
+  retakeBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--ap-blue, #E63946);color:var(--ap-on-accent, #fff);cursor:pointer;font-size:13px;';
   retakeBtn.textContent = '🔁 再来一套';
   retakeBtn.addEventListener('click', () => ctx.onRetake && ctx.onRetake());
   actions.append(reviewBtn, retakeBtn);
