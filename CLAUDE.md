@@ -104,7 +104,7 @@ The playback state machine lives **only** in `main-js.js` — local `playSegment
 
 `service-worker.js` deliberately does NOT call `self.skipWaiting()` in `install`. A new worker waits until the page posts `{ type: 'SKIP_WAITING' }`. `main-js.js` registers the SW on every load, shows an `.ap-update-toast` (right-bottom blue `刷新` button) when a new version reaches `installed` state while a current worker is still in control, then posts `SKIP_WAITING` and reloads on `controllerchange`.
 
-**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v20`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
+**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v77`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
 
 Fetch strategy:
 - Navigation → `networkFirst` (fallback to cached `index.html` offline)
@@ -134,17 +134,24 @@ Filename: `yomikikuan-backup-<YYYYMMDD-HHMMSS>.json`. Current version: **v3**.
 
 Bump `version` if the top-level shape changes. Export/import live in `modules/backup/index.js`; file I/O helpers in `modules/backup/io.js`.
 
-### Header toolbar button IDs
+### Header toolbar + AI rail button IDs
 
-Quick index for wiring new features into the header:
-- `#diffBadgeMount` — difficulty pill (auto-populated by `analyzer/ui/badge.js`)
-- `#articleSummaryBtn` — 📖 document-level summary
-- `#jlptBtn` — 🎧 JLPT listening question generator
-- `#youtubeBtn` — ▶️ YouTube import (paste URL → A 字幕导入 / B 视频伴读 / C 听力题)
-- `#vocabBtn` — 🧠 词汇本 / 错题本
-- `#bilingualToggle` — 中/日 per-line translation toggle (carries `aria-pressed` state)
-- `#rubyModeToggle`, `#readingScriptToggle` — existing ふりがな / かな script toggles
-- All click handlers go through `modules/ui/panel-triggers.js` (lazy-imports the panel module + invokes `window.__yomikikuanOpen*`).
+Quick index for wiring new features. Since the 「和纸书斋」 redesign (see `docs/design/yomikikuan-redesign/`) the five AI entry points live in a **right-hand vertical rail** `<aside class="ai-rail" id="aiRail">` (index.html, first child of `main.content-main`), not in the header. Click wiring is by id, so DOM location is irrelevant to the handlers.
+- `#diffBadgeMount` — difficulty pill in the header (auto-populated by `analyzer/ui/badge.js`)
+- `#inspectorToggleBtn` — rail · AI Inspector drawer (`ui/inspector.js`; drawer is offset `right: 72px` to sit left of the rail)
+- `#vocabBtn` — rail · 词汇本 / 错题本
+- `#articleSummaryBtn` — rail · document-level summary
+- `#jlptBtn` — rail · JLPT listening question generator
+- `#youtubeBtn` — rail · YouTube import (paste URL → A 字幕导入 / B 视频伴读 / C 听力题)
+- `#bilingualToggle` — 中/日 per-line translation toggle in the player dock (carries `aria-pressed` state)
+- `#rubyModeToggle`, `#readingScriptToggle` — ふりがな / かな script toggles in the player dock
+- `#headerPlayControl` (`.play-control-bar`) — the **player dock**: stays in `.content-area` in the DOM, positioned `fixed` at the bottom by `theme-apple.css` §17 (mobile: above the rail, which becomes a bottom tab strip).
+- Icons are stroke SVGs with class `ap-ic` (20px grid, 1.75 stroke). `inspector.js` still injects `display:none` for the four AI ids (header consolidation); `.ai-rail #id` rules re-show them inside the rail.
+- All panel click handlers go through `modules/ui/panel-triggers.js` (lazy-imports the panel module + invokes `window.__yomikikuanOpen*`).
+
+### Visual tokens
+
+`static/theme-apple.css` §1 holds the palette. Names keep the historical `--ap-*` prefix; values are the 「和纸书斋」 set from `static/favicon.svg`: paper `#FAF7F2` / surface `#FFFDFA` / ink `#0B1623` / hanko-red accent `#E63946` (still named `--ap-blue`, plus `--ap-accent-rgb` for `rgba()` tints). Dark theme (`[data-theme="dark"]`) inverts paper/ink and lifts the accent to `#FF6B75`. Reading lines use `--ap-font-read` (Mincho first). Design source of truth: `docs/design/yomikikuan-redesign/Tokens.dc.html`.
 
 ### UI module conventions
 

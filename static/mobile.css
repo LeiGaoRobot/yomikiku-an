@@ -898,3 +898,29 @@
     margin-right: 0 !important;
   }
 }
+
+/* ---- 「和纸书斋」 rail + dock on small screens ----
+   The right rail becomes a bottom tab strip; the player dock sits above it. */
+.ai-rail {
+  top: auto; left: 0; right: 0; bottom: 0;
+  width: auto; height: 60px;
+  flex-direction: row; justify-content: space-around; align-items: center;
+  padding: 2px 8px calc(2px + env(safe-area-inset-bottom));
+  border-left: none; border-top: 1px solid var(--border);
+}
+.ai-rail .ai-rail-btn { width: 60px !important; padding: 2px 0 !important; }
+.ai-rail .ai-rail-btn > span:first-child { height: 32px; }
+.ai-rail #inspectorToggleBtn { margin-bottom: 0; }
+.main-header { right: 0 !important; width: 100% !important; }
+.content-main { padding-right: 0; padding-bottom: 60px; }
+.content-area .play-control-bar,
+.main-container.collapsed .content-area .play-control-bar {
+  left: 12px; right: 12px; bottom: 68px;
+  transform: none; width: auto;
+}
+.content-scroll-area { padding-bottom: 170px !important; }
+.inspector-drawer { right: 0 !important; bottom: 60px !important; }
+.content-area .play-control-bar { flex-wrap: nowrap !important; overflow-x: auto !important; }
+.content-area .play-control-bar .header-voice-controls { flex-wrap: nowrap !important; }
+.content-area .play-control-bar .slider-inline-label { display: none; }
+.content-area .play-control-bar #headerVoiceSelect { max-width: 120px; }

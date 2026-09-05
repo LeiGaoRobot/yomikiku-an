@@ -80,7 +80,7 @@
 
 ## 状态（2026-09-05）
 
-全部 21 张板已完成并做过一轮截图校对：桌面 5（阅读 / Inspector / 编辑 / 沉浸阅读 / 墨夜）、面板 8、手机 3、登录、Components、Tokens、备选方向 2。画布：https://claude.ai/code/artifact/0b1da224-6654-4981-84ec-bca444a1829d 。源文件 `docs/design/yomikikuan-redesign/*.dc.html` + `canvas.json`。下一步是回写：`theme-apple.css` 换成纸/墨 token，播放条改底部 dock，AI 入口改右侧竖栏，emoji 图标换 SVG；改动缓存资产时 bump `CACHE_VERSION`。
+全部 21 张板已完成并做过一轮截图校对：桌面 5（阅读 / Inspector / 编辑 / 沉浸阅读 / 墨夜）、面板 8、手机 3、登录、Components、Tokens、备选方向 2。画布：https://claude.ai/code/artifact/0b1da224-6654-4981-84ec-bca444a1829d 。源文件 `docs/design/yomikikuan-redesign/*.dc.html` + `canvas.json`。回写已完成（同日）：`theme-apple.css` 换成纸/墨/朱印 token（含墨夜暗色），阅读行改明朝体，emoji 图标换 SVG，播放条改为底部固定 dock，五个 AI 入口移到右侧 `.ai-rail`（手机端变为底部 tab 条），`CACHE_VERSION` v76→v77。42 个测试页 1132 例全部通过。未回写：登录页（login.html 仍为 Apple 冷灰）、Components 板上的 toast 样式。
 
 ## 6. 需要决定的点
 
