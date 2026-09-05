@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; color: #1d1d1f; background: #fbfbfd; }
+    a { color: #0066cc; } a:hover { color: #004499; }
+    .wire { border: 1.5px dashed rgba(29,29,31,.28); border-radius: 8px; background: #fff; }
+    .lbl { font-size: 11px; color: rgba(29,29,31,.56); letter-spacing: 0.04em; }
+    .bar { height: 8px; border-radius: 4px; background: rgba(29,29,31,.12); }
+  </style>
+</helmet>
+<div style="width: 720px; height: 450px; background: #fbfbfd; display: flex; flex-direction: column; box-sizing: border-box; padding: 20px 24px; gap: 14px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <div style="font-size: 13px; font-weight: 600; letter-spacing: 0.02em;">方向 C · 工作台 · 三栏并置</div>
+    <div class="lbl">低保真 · 保留 Apple 冷灰 token，提高密度</div>
+  </div>
+  <div class="wire" style="height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 10px;">
+    <div class="bar" style="width: 90px;"></div>
+    <div style="flex: 1;"></div>
+    <div class="bar" style="width: 24px;"></div><div class="bar" style="width: 24px;"></div><div class="bar" style="width: 24px;"></div><div class="bar" style="width: 24px;"></div>
+    <div style="width: 24px; height: 24px; border-radius: 50%; background: #0071e3;"></div>
+  </div>
+  <div style="flex: 1; display: flex; gap: 12px; min-height: 0;">
+    <div class="wire" style="width: 130px; display: flex; flex-direction: column; gap: 8px; padding: 10px;">
+      <div class="lbl">文档</div>
+      <div class="bar" style="width: 80%;"></div><div class="bar" style="width: 100%; background: #0071e3;"></div><div class="bar" style="width: 65%;"></div><div class="bar" style="width: 90%;"></div><div class="bar" style="width: 70%;"></div>
+    </div>
+    <div class="wire" style="flex: 1; display: flex; flex-direction: column; gap: 8px; padding: 10px;">
+      <div class="lbl">Markdown 编辑器</div>
+      <div class="bar" style="width: 95%;"></div><div class="bar" style="width: 88%;"></div><div class="bar" style="width: 92%;"></div><div class="bar" style="width: 60%;"></div><div class="bar" style="width: 90%;"></div><div class="bar" style="width: 75%;"></div>
+    </div>
+    <div class="wire" style="flex: 1.2; display: flex; flex-direction: column; gap: 8px; padding: 10px;">
+      <div class="lbl">阅读 · 逐句同步高亮</div>
+      <div style="font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', serif; font-size: 15px; line-height: 1.9;">静かな庵で、日本語の文章を声に出して読む。<span style="background: rgba(0,113,227,.12);">分からない言葉があれば、その場で辞書を引ける。</span>読み終わったら、耳で聞いて確かめる。</div>
+      <div style="flex: 1;"></div>
+      <div style="height: 28px; border-radius: 14px; background: rgba(29,29,31,.08); display: flex; align-items: center; gap: 8px; padding: 0 8px;"><div style="width: 16px; height: 16px; border-radius: 50%; background: #0071e3;"></div><div style="flex: 1; height: 3px; border-radius: 2px; background: rgba(29,29,31,.16);"></div></div>
+    </div>
+    <div class="wire" style="width: 150px; display: flex; flex-direction: column; gap: 8px; padding: 10px;">
+      <div class="lbl">Inspector · 词汇 / 解析 / 听力题</div>
+      <div class="bar" style="width: 60%;"></div><div class="bar" style="width: 100%; height: 40px;"></div><div class="bar" style="width: 100%; height: 40px;"></div><div class="bar" style="width: 80%;"></div>
+    </div>
+  </div>
+  <div class="lbl">动机：编辑与阅读同屏，适合重度整理文本的用户，改动成本最低（几乎只是重排现有组件）。代价：1440 宽度下阅读列只剩约 480px，22px 明朝体一行不到 20 字，阅读舒适度下降。</div>
+</div>
+</x-dc>
+</body>
+</html>
