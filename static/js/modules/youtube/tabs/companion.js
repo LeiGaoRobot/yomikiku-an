@@ -106,7 +106,7 @@ export async function render(root, ctx) {
       .yt-sub { display:flex; gap:8px; padding:6px 8px; border-radius:6px; cursor:pointer;
                 align-items:center; }
       .yt-sub:hover { background:rgba(0,0,0,0.04); }
-      .yt-sub.is-active { background:rgba(0,113,227,.12); font-weight:600; }
+      .yt-sub.is-active { background:rgba(var(--ap-accent-rgb, 230,57,70),.12); font-weight:600; }
       .yt-analyze { background:none; border:none; cursor:pointer; opacity:.6; padding:0 4px; }
       .yt-analyze:hover { opacity:1; }
     </style>

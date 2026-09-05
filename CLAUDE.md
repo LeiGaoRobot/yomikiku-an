@@ -146,7 +146,7 @@ Quick index for wiring new features. Since the 「和纸书斋」 redesign (see 
 - `#bilingualToggle` — 中/日 per-line translation toggle in the player dock (carries `aria-pressed` state)
 - `#rubyModeToggle`, `#readingScriptToggle` — ふりがな / かな script toggles in the player dock
 - `#headerPlayControl` (`.play-control-bar`) — the **player dock**: stays in `.content-area` in the DOM, positioned `fixed` at the bottom by `theme-apple.css` §17 (mobile: above the rail, which becomes a bottom tab strip).
-- Icons are stroke SVGs with class `ap-ic` (20px grid, 1.75 stroke). `inspector.js` still injects `display:none` for the four AI ids (header consolidation); `.ai-rail #id` rules re-show them inside the rail.
+- Icons are stroke SVGs with class `ap-ic` (20px grid, 1.75 stroke). Every overlay shares one shell (`theme-apple.css` §18): ink 32% scrim, surface panel, 18px radius, ink-underlined tabs.
 - All panel click handlers go through `modules/ui/panel-triggers.js` (lazy-imports the panel module + invokes `window.__yomikikuanOpen*`).
 
 ### Visual tokens

@@ -97,6 +97,7 @@
   --border:               var(--ap-ink-08);
   --elev:                 var(--ap-surface);
   --primary:              var(--ap-blue);
+  --accent:               var(--ap-blue);
 
   --toolbar-bg:           rgba(255,253,250,.72);
   --toolbar-border:       var(--ap-ink-08);
@@ -142,6 +143,7 @@
   --border: var(--ap-ink-08);
   --elev:   var(--ap-surface);
   --primary: var(--ap-blue);
+  --accent:  var(--ap-blue);
 
   --toolbar-bg: rgba(18,20,23,.72);
   --toolbar-border: var(--ap-ink-08);
@@ -1692,8 +1694,6 @@ aside.folder-management {
   background: var(--ap-surface-2);
   border-left: 1px solid var(--ap-ink-08);
 }
-/* inspector.js hides the four AI buttons in the header (they were folded into
-   the drawer). Inside the rail they are the primary entry points again. */
 .ai-rail .ai-rail-btn {
   display: inline-flex !important;
   flex-direction: column;
@@ -1769,10 +1769,112 @@ aside.folder-management {
 .play-control-bar .play-control-bar-buttons .play-toggle svg { fill: #FFFDFA !important; }
 .play-control-bar .play-progress { height: 4px; }
 .play-control-bar .play-progress-fill { background: var(--ap-blue); }
-/* inspector.js injects `#vocabBtn … { display:none !important }` (header
-   consolidation). Inside the rail the id+class selector wins that fight. */
-.ai-rail #vocabBtn, .ai-rail #articleSummaryBtn, .ai-rail #jlptBtn, .ai-rail #youtubeBtn,
-.ai-rail #inspectorToggleBtn { display: inline-flex !important; }
 .play-control-bar .play-control-bar-buttons { border: none !important; }
 /* Inspector drawer slides in left of the rail */
 .inspector-drawer { right: 72px !important; }
+
+/* ---------------------------------------------------------------
+   18. Shared modal shell, toasts, document rows
+   Design source: docs/design/yomikikuan-redesign/JlptPanel.dc.html et al.
+   One shell for every overlay: ink 32% scrim + 6px blur, surface panel,
+   18px radius, tabs underlined in ink (no fills).
+---------------------------------------------------------------- */
+.jlpt-overlay, .summary-overlay, .vocab-overlay, .youtube-overlay,
+.settings-modal, .search-modal {
+  background: rgba(11,22,35,.32) !important;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.jlpt-panel, .summary-panel, .vocab-panel, .youtube-panel,
+.settings-modal-content, .search-modal-content {
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  border: 1px solid var(--ap-ink-08);
+  border-radius: var(--ap-r-xl) !important;
+  box-shadow: 0 24px 64px rgba(11,22,35,.16) !important;
+}
+.jlpt-panel-header h3, .summary-panel-header h3, .vocab-panel-header h3,
+.youtube-panel-header h3, .settings-modal-title, .inspector-title {
+  font-family: var(--ap-font-display);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.018em;
+}
+.jlpt-tab, .youtube-tab, .vocab-tab {
+  height: 40px;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: var(--ap-ink-64) !important;
+  border-bottom: 2px solid transparent !important;
+}
+.jlpt-tab.is-active, .youtube-tab.is-active, .vocab-tab[aria-selected="true"] {
+  color: var(--ap-ink) !important;
+  border-bottom-color: var(--ap-ink) !important;
+  font-weight: 600 !important;
+}
+.jlpt-close, .summary-close, .vocab-close, .youtube-close,
+.settings-modal-close, .search-modal-close {
+  width: 34px; height: 34px;
+  border-radius: var(--ap-r-sm) !important;
+  color: var(--ap-ink-64) !important;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.jlpt-close:hover, .summary-close:hover, .vocab-close:hover, .youtube-close:hover,
+.settings-modal-close:hover, .search-modal-close:hover {
+  background: var(--ap-ink-08) !important;
+  color: var(--ap-ink) !important;
+}
+.search-modal-input { font-size: 17px; color: var(--ap-ink); }
+.search-modal-input::placeholder { color: var(--ap-ink-48); }
+
+/* Update toast — ink card with a hanko-red refresh pill */
+.ap-update-toast {
+  background: var(--ap-ink) !important;
+  color: var(--ap-bg) !important;
+  border: none !important;
+  border-radius: var(--ap-r-lg) !important;
+  box-shadow: var(--ap-shadow-3) !important;
+}
+.ap-update-toast__title { color: var(--ap-bg) !important; }
+.ap-update-toast__desc  { color: var(--ap-ink-24) !important; opacity: 1; color: rgba(250,247,242,.64) !important; }
+.ap-update-toast__refresh {
+  height: 30px; padding: 0 12px;
+  border-radius: var(--ap-r-pill) !important;
+  background: var(--ap-blue) !important;
+  color: #FFFDFA !important;
+  font-size: 13px; font-weight: 600;
+  border: none !important;
+}
+.ap-update-toast__refresh:hover { background: var(--ap-blue-hover) !important; }
+.ap-update-toast__dismiss { color: rgba(250,247,242,.56) !important; background: transparent !important; border: none !important; }
+.ap-update-toast__dismiss:hover { color: var(--ap-bg) !important; }
+:root[data-theme="dark"] .ap-update-toast { background: var(--ap-surface) !important; color: var(--ap-ink) !important; border: 1px solid var(--ap-ink-08) !important; }
+:root[data-theme="dark"] .ap-update-toast__title { color: var(--ap-ink) !important; }
+:root[data-theme="dark"] .ap-update-toast__desc { color: var(--ap-ink-64) !important; }
+:root[data-theme="dark"] .ap-update-toast__dismiss { color: var(--ap-ink-48) !important; }
+
+/* Document rows — current item is a raised surface card, no left accent bar */
+.doc-item.active {
+  background: var(--ap-surface) !important;
+  border: 1px solid var(--ap-ink-04) !important;
+  border-left: 1px solid var(--ap-ink-04) !important;
+  padding-left: 10px !important;
+  box-shadow: var(--ap-shadow-1) !important;
+  font-weight: 500;
+}
+.doc-item.active .doc-item-title { color: var(--ap-ink); }
+/* Settings modal header — plain surface header, no gradient band */
+.settings-modal-header {
+  background: var(--ap-surface) !important;
+  color: var(--ap-ink) !important;
+  border-bottom: 1px solid var(--ap-ink-08);
+  padding: 18px 20px 14px 24px !important;
+}
+.settings-modal-title { color: var(--ap-ink) !important; }
+.settings-modal-title .settings-icon { fill: var(--ap-ink-64) !important; }
+.settings-modal-close { background: transparent !important; }
+.settings-modal-close svg { fill: currentColor !important; }
+.settings-modal .settings-section { background: var(--ap-surface-2) !important; border: 1px solid var(--ap-ink-04) !important; border-radius: var(--ap-r-lg) !important; }
+/* dock toggles stay on one line */
+#bilingualToggle { width: auto !important; padding: 6px 8px !important; }
+#bilingualToggle > span { white-space: nowrap; }

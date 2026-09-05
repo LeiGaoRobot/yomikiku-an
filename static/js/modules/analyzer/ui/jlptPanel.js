@@ -77,7 +77,7 @@ function injectCss() {
       font-size: 13px; color: var(--muted, #888);
       border-bottom: 2px solid transparent; margin-bottom: -1px;
     }
-    .jlpt-tab.is-active { color: var(--text, #111); border-bottom-color: #0071e3; font-weight: 600; }
+    .jlpt-tab.is-active { color: var(--text, #111); border-bottom-color: var(--ap-blue, #E63946); font-weight: 600; }
     .jlpt-tab:hover { color: var(--text, #111); }
 
     .jlpt-mode-grid {
@@ -92,8 +92,8 @@ function injectCss() {
       transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
       position: relative;
     }
-    .jlpt-mode-card:hover { background: rgba(0,113,227,.06); border-color: rgba(0,113,227,.28); transform: translateY(-1px); }
-    .jlpt-mode-card.is-selected { background: rgba(0,113,227,.10); border-color: rgba(0,113,227,.45); }
+    .jlpt-mode-card:hover { background: rgba(var(--ap-accent-rgb, 230,57,70),.06); border-color: rgba(var(--ap-accent-rgb, 230,57,70),.28); transform: translateY(-1px); }
+    .jlpt-mode-card.is-selected { background: rgba(var(--ap-accent-rgb, 230,57,70),.10); border-color: rgba(var(--ap-accent-rgb, 230,57,70),.45); }
     .jlpt-mode-card .icon { font-size: 22px; line-height: 1; }
     .jlpt-mode-card .title { font-weight: 600; font-size: 14px; letter-spacing: -0.01em; }
     .jlpt-mode-card .sub { font-size: 11px; color: var(--muted, #888); margin-top: 2px; line-height: 1.4; }
@@ -117,15 +117,15 @@ function injectCss() {
     }
     .jlpt-go {
       padding: 6px 14px; border-radius: 8px; border: none;
-      background: var(--accent, #0071e3); color: #fff; font-weight: 500;
+      background: var(--ap-blue, #E63946); color: #fff; font-weight: 500;
       cursor: pointer; font-size: 13px;
     }
     .jlpt-go:disabled { opacity: 0.5; cursor: wait; }
-    .jlpt-go.secondary { background: transparent; color: var(--accent, #0071e3); border: 1px solid var(--accent, #0071e3); }
+    .jlpt-go.secondary { background: transparent; color: var(--ap-blue, #E63946); border: 1px solid var(--ap-blue, #E63946); }
     .jlpt-status { font-size: 12px; color: var(--muted, #888); }
     .jlpt-recommendation {
       padding: 8px 20px; border-bottom: 1px solid var(--border, rgba(0,0,0,0.06));
-      font-size: 12px; color: var(--muted, #666); background: rgba(0,113,227,0.05);
+      font-size: 12px; color: var(--muted, #666); background: rgba(var(--ap-accent-rgb, 230,57,70),0.05);
     }
     .jlpt-list {
       padding: 16px 20px 24px; overflow-y: auto; flex: 1;
@@ -149,7 +149,7 @@ function injectCss() {
 
     :root[data-theme="dark"] .jlpt-panel { background: #1c1c1e; color: #f2f2f7; }
     :root[data-theme="dark"] .jlpt-mode-card { background: rgba(255,255,255,.05); }
-    :root[data-theme="dark"] .jlpt-mode-card.is-selected { background: rgba(41,151,255,.16); border-color: rgba(41,151,255,.5); }
+    :root[data-theme="dark"] .jlpt-mode-card.is-selected { background: rgba(255,107,117,.16); border-color: rgba(255,107,117,.5); }
     :root[data-theme="dark"] .jlpt-controls select { background: rgba(255,255,255,0.08); }
   `;
   const style = document.createElement('style');
@@ -218,13 +218,13 @@ export function mountPanel(doc) {
   root.innerHTML = `
     <div class="jlpt-panel" role="dialog" aria-label="JLPT 聴解">
       <header class="jlpt-panel-header">
-        <h3>🎧 JLPT 聴解练习</h3>
+        <h3>JLPT 聴解练习</h3>
         <button class="jlpt-close" type="button" aria-label="关闭">×</button>
       </header>
       <nav class="jlpt-tabs">
-        <button class="jlpt-tab is-active" data-tab="practice">🎯 单题练习</button>
-        <button class="jlpt-tab" data-tab="exam">📝 模拟考试</button>
-        <button class="jlpt-tab" data-tab="history">📊 成绩记录</button>
+        <button class="jlpt-tab is-active" data-tab="practice">单题练习</button>
+        <button class="jlpt-tab" data-tab="exam">模拟考试</button>
+        <button class="jlpt-tab" data-tab="history">成绩记录</button>
       </nav>
       <div class="jlpt-controls">
         <label>等级

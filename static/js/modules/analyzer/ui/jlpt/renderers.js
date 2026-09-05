@@ -30,7 +30,7 @@ export function injectCss() {
     .jlpt-q-level {
       font-size: 10px; font-weight: 700;
       padding: 1px 6px; border-radius: 4px;
-      background: rgba(0,113,227,.10); color: #0071e3; letter-spacing: .02em;
+      background: rgba(var(--ap-accent-rgb, 230,57,70),.10); color: var(--ap-blue, #E63946); letter-spacing: .02em;
     }
     .jlpt-play-group {
       display: inline-flex; gap: 4px; padding: 2px; border-radius: 10px;
@@ -42,7 +42,7 @@ export function injectCss() {
     }
     .jlpt-play-group button:hover { background: var(--elevated, rgba(0,0,0,0.04)); }
     .jlpt-q-situation {
-      font-size: 13px; color: var(--muted, #555); background: rgba(0,113,227,.04);
+      font-size: 13px; color: var(--muted, #555); background: rgba(var(--ap-accent-rgb, 230,57,70),.04);
       padding: 8px 10px; border-radius: 8px; margin-bottom: 10px; line-height: 1.5;
     }
     .jlpt-q-stem { font-size: 15px; line-height: 1.6; margin: 8px 0 10px; font-weight: 500; }
@@ -69,7 +69,7 @@ export function injectCss() {
     .jlpt-transcript-toolbar button:hover { background: var(--elevated, rgba(0,0,0,.04)); }
     .jlpt-stage-badge {
       display: inline-block; font-size: 10px; font-weight: 700;
-      padding: 1px 7px; border-radius: 10px; background: rgba(0,113,227,.14); color: #0071e3;
+      padding: 1px 7px; border-radius: 10px; background: rgba(var(--ap-accent-rgb, 230,57,70),.14); color: var(--ap-blue, #E63946);
       letter-spacing: .02em;
     }
     .jlpt-stage-badge[data-stage="slow"] { background: rgba(255,149,0,.18); color: #cc7a00; }
@@ -85,7 +85,7 @@ export function injectCss() {
       display: inline-flex; align-items:center; justify-content:center;
       font-size: 11px; font-weight: 700; color: #fff;
     }
-    .jlpt-line .sp[data-speaker="A"], .jlpt-line .sp[data-speaker="男"] { background: #0071e3; }
+    .jlpt-line .sp[data-speaker="A"], .jlpt-line .sp[data-speaker="男"] { background: var(--ap-blue, #E63946); }
     .jlpt-line .sp[data-speaker="B"], .jlpt-line .sp[data-speaker="女"] { background: #af52de; }
     .jlpt-line .sp[data-speaker="N"], .jlpt-line .sp[data-speaker="narrator"] { background: #8e8e93; }
     .jlpt-line .tx { flex: 1 1 auto; }
@@ -123,8 +123,8 @@ export function injectCss() {
 
     .jlpt-depth { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
     .jlpt-depth-section {
-      border-left: 3px solid var(--ap-blue, #0071e3);
-      padding: 6px 10px; background: rgba(0,113,227,.04);
+      border-left: 3px solid var(--ap-blue, #E63946);
+      padding: 6px 10px; background: rgba(var(--ap-accent-rgb, 230,57,70),.04);
       border-radius: 0 6px 6px 0;
     }
     .jlpt-depth-section[data-k="grammar"] { border-left-color: #af52de; background: rgba(175,82,222,.05); }
@@ -172,7 +172,7 @@ export function injectCss() {
     :root[data-theme="dark"] .jlpt-q-opt.is-correct { background: rgba(52,199,89,.16); }
     :root[data-theme="dark"] .jlpt-q-opt.is-wrong { background: rgba(255,59,48,.14); }
     :root[data-theme="dark"] .jlpt-q-reveal { background: rgba(255,255,255,.06); }
-    :root[data-theme="dark"] .jlpt-depth-section { background: rgba(0,113,227,.10); }
+    :root[data-theme="dark"] .jlpt-depth-section { background: rgba(var(--ap-accent-rgb, 230,57,70),.10); }
     :root[data-theme="dark"] .jlpt-play-group { background: rgba(255,255,255,.06); }
   `;
   document.head.appendChild(style);
@@ -859,7 +859,7 @@ export function renderScorecard(container, report, ctx = {}) {
   reviewBtn.addEventListener('click', () => ctx.onReview && ctx.onReview());
   const retakeBtn = document.createElement('button');
   retakeBtn.type = 'button';
-  retakeBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--accent,#0071e3);color:#fff;cursor:pointer;font-size:13px;';
+  retakeBtn.style.cssText = 'padding:6px 14px;border-radius:8px;border:none;background:var(--ap-blue, #E63946);color:#fff;cursor:pointer;font-size:13px;';
   retakeBtn.textContent = '🔁 再来一套';
   retakeBtn.addEventListener('click', () => ctx.onRetake && ctx.onRetake());
   actions.append(reviewBtn, retakeBtn);
