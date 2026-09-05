@@ -155,7 +155,7 @@ function render() {
       <span>连续 <span class="val">${s}</span> 天</span>
     </div>
     <div class="pr-rings">
-      ${ringSvg(docsP, '#0071e3', '阅读', today.docs?.length || 0, GOALS.docs)}
+      ${ringSvg(docsP, '#E63946', '阅读', today.docs?.length || 0, GOALS.docs)}
       ${ringSvg(minP,  '#34c759', '听音频', today.minutes || 0, GOALS.minutes)}
       ${ringSvg(vocP,  '#af52de', '新词',   today.vocabAdded || 0, GOALS.vocab)}
     </div>

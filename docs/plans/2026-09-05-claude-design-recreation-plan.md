@@ -80,7 +80,7 @@
 
 ## 状态（2026-09-05）
 
-全部 21 张板已完成并做过一轮截图校对：桌面 5（阅读 / Inspector / 编辑 / 沉浸阅读 / 墨夜）、面板 8、手机 3、登录、Components、Tokens、备选方向 2。画布：https://claude.ai/code/artifact/0b1da224-6654-4981-84ec-bca444a1829d 。源文件 `docs/design/yomikikuan-redesign/*.dc.html` + `canvas.json`。回写已完成（同日）：`theme-apple.css` 换成纸/墨/朱印 token（含墨夜暗色），阅读行改明朝体，emoji 图标换 SVG，播放条改为底部固定 dock，五个 AI 入口移到右侧 `.ai-rail`（手机端变为底部 tab 条），`CACHE_VERSION` v76→v77。42 个测试页 1132 例全部通过。未回写：登录页（login.html 仍为 Apple 冷灰）、Components 板上的 toast 样式。
+全部 21 张板已完成并做过一轮截图校对：桌面 5（阅读 / Inspector / 编辑 / 沉浸阅读 / 墨夜）、面板 8、手机 3、登录、Components、Tokens、备选方向 2。画布：https://claude.ai/code/artifact/0b1da224-6654-4981-84ec-bca444a1829d 。源文件 `docs/design/yomikikuan-redesign/*.dc.html` + `canvas.json`。回写已完成（同日）：`theme-apple.css` 换成纸/墨/朱印 token（含墨夜暗色），阅读行改明朝体，emoji 图标换 SVG，播放条改为底部固定 dock，五个 AI 入口移到右侧 `.ai-rail`（手机端变为底部 tab 条），`CACHE_VERSION` v76→v77。42 个测试页 1132 例全部通过。第二轮（同日）补齐：`login.html` 改为纸墨 token + 左侧墨色品牌区（三语文案）；全部面板共用一套外壳（墨色 32% 遮罩、18px 圆角、墨色下划线 Tab）；设置弹窗去掉渐变色带；更新提示 toast 改为墨底朱红「刷新」；文档列表当前项去掉左侧色条；面板标题和 Tab 去掉 emoji；12 个模块里的 CSS-in-JS 硬编码 Apple 蓝全部换成 `--ap-blue` / `--ap-accent-rgb`；移除 inspector.js 隐藏四个 AI 按钮的注入规则。`CACHE_VERSION` v78。画布对应项全部落地。
 
 ## 6. 需要决定的点
 

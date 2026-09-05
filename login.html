@@ -109,37 +109,40 @@
 
   <style>
     /* ============================================================
-       Login page — Apple-inspired design system (source: DESIGN.md)
+       Login page — 「和纸书斋」 (design: docs/design/yomikikuan-redesign/Login.dc.html)
        Standalone stylesheet. Mirrors tokens from theme-apple.css.
-       No full-screen hero: centered card on a solid neutral field.
+       ≥900px: ink hero panel left + paper field with the card right; below: card only.
        ============================================================ */
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --ap-bg:              #fbfbfd;
-      --ap-surface:         #ffffff;
-      --ap-surface-2:       #f5f5f7;
-      --ap-surface-3:       #ededf0;
-      --ap-ink:             #1d1d1f;
-      --ap-ink-80:          rgba(29,29,31,.80);
-      --ap-ink-64:          rgba(29,29,31,.64);
-      --ap-ink-48:          rgba(29,29,31,.48);
-      --ap-ink-24:          rgba(29,29,31,.24);
-      --ap-ink-08:          rgba(29,29,31,.08);
-      --ap-ink-04:          rgba(29,29,31,.04);
+      /* 「和纸书斋」 tokens — mirrors static/theme-apple.css §1 */
+      --ap-bg:              #FAF7F2;
+      --ap-surface:         #FFFDFA;
+      --ap-surface-2:       #F3EEE6;
+      --ap-surface-3:       #EBE4D9;
+      --ap-ink:             #0B1623;
+      --ap-ink-80:          rgba(11,22,35,.80);
+      --ap-ink-64:          rgba(11,22,35,.64);
+      --ap-ink-48:          rgba(11,22,35,.48);
+      --ap-ink-24:          rgba(11,22,35,.24);
+      --ap-ink-08:          rgba(11,22,35,.08);
+      --ap-ink-04:          rgba(11,22,35,.04);
 
-      --ap-blue:            #0071e3;
-      --ap-blue-hover:      #0077ed;
-      --ap-blue-press:      #006edb;
-      --ap-link:            #0066cc;
-      --ap-link-dark:       #2997ff;
+      --ap-blue:            #E63946;
+      --ap-blue-hover:      #D62F3C;
+      --ap-blue-press:      #C42834;
+      --ap-link:            #B3232F;
+      --ap-link-dark:       #FF6B75;
       --ap-error:           #ff3b30;
+      --ap-hero-bg:         #0B1623;
+      --ap-hero-ink:        #FAF7F2;
 
-      --ap-shadow-1:        0 1px 2px rgba(0,0,0,.04);
-      --ap-shadow-2:        0 4px 16px rgba(0,0,0,.06);
-      --ap-shadow-3:        0 12px 40px rgba(0,0,0,.10);
-      --ap-shadow-card:     3px 5px 30px 0px rgba(0,0,0,.22);
+      --ap-shadow-1:        0 1px 2px rgba(11,22,35,.04);
+      --ap-shadow-2:        0 4px 16px rgba(11,22,35,.06);
+      --ap-shadow-3:        0 12px 40px rgba(11,22,35,.10);
+      --ap-shadow-card:     0 24px 64px rgba(11,22,35,.10);
 
       --ap-r-xs:   5px;
       --ap-r-sm:   8px;
@@ -155,27 +158,30 @@
       --ap-dur: 200ms;
       --ap-dur-slow: 320ms;
 
-      --ap-font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont,
-        "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
-        "Yu Gothic", "Meiryo", sans-serif;
-      --ap-font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont,
-        "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Hiragino Sans",
-        "Yu Gothic", "Meiryo", sans-serif;
+      --ap-font-display: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+        "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+      --ap-font-text: -apple-system, BlinkMacSystemFont, "Hiragino Sans",
+        "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", "Meiryo", sans-serif;
+      --ap-font-read: "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Noto Serif JP",
+        "Yu Mincho", "MS PMincho", serif;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --ap-bg:         #000000;
-        --ap-surface:    #1d1d1f;
-        --ap-surface-2:  #161618;
-        --ap-surface-3:  #28282a;
-        --ap-ink:        #f5f5f7;
-        --ap-ink-80:     rgba(245,245,247,.80);
-        --ap-ink-64:     rgba(245,245,247,.64);
-        --ap-ink-48:     rgba(245,245,247,.48);
-        --ap-ink-24:     rgba(245,245,247,.24);
-        --ap-ink-08:     rgba(245,245,247,.08);
-        --ap-ink-04:     rgba(245,245,247,.04);
+        --ap-bg:         #121417;
+        --ap-surface:    #1C1F26;
+        --ap-surface-2:  #17191E;
+        --ap-surface-3:  #22262E;
+        --ap-ink:        #F2EDE4;
+        --ap-ink-80:     rgba(242,237,228,.80);
+        --ap-ink-64:     rgba(242,237,228,.64);
+        --ap-ink-48:     rgba(242,237,228,.48);
+        --ap-ink-24:     rgba(242,237,228,.24);
+        --ap-ink-08:     rgba(242,237,228,.08);
+        --ap-ink-04:     rgba(242,237,228,.04);
+        --ap-blue:       #FF6B75;
+        --ap-blue-hover: #FF8A92;
+        --ap-hero-bg:    #0B1623;
         --ap-shadow-card: 0 12px 40px rgba(0,0,0,.48);
       }
     }
@@ -198,6 +204,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 24px;
       padding: 32px 20px;
       position: relative;
     }
@@ -210,7 +217,7 @@
       z-index: 1000;
     }
     .lang-dropdown-toggle {
-      background: rgba(255,255,255,.72);
+      background: rgba(255,253,250,.72);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
       backdrop-filter: saturate(180%) blur(20px);
       border: 1px solid var(--ap-ink-08);
@@ -233,8 +240,8 @@
       border-color: var(--ap-ink-24);
     }
     @media (prefers-color-scheme: dark) {
-      .lang-dropdown-toggle { background: rgba(29,29,31,.72); color: var(--ap-ink); }
-      .lang-dropdown-toggle:hover { background: rgba(29,29,31,.96); }
+      .lang-dropdown-toggle { background: rgba(28,31,38,.72); color: var(--ap-ink); }
+      .lang-dropdown-toggle:hover { background: rgba(28,31,38,.96); }
     }
     .lang-current {
       display: inline-flex;
@@ -291,12 +298,12 @@
     }
     .lang-option:hover { background: var(--ap-ink-04); }
     .lang-option.active {
-      background: rgba(0,113,227,.08);
+      background: rgba(230,57,70,.08);
       color: var(--ap-blue);
     }
     @media (prefers-color-scheme: dark) {
       .lang-option.active {
-        background: rgba(41,151,255,.16);
+        background: rgba(255,107,117,.16);
         color: var(--ap-link-dark);
       }
     }
@@ -309,6 +316,51 @@
       flex-shrink: 0;
     }
     .language-switcher #currentLangName { display: none; }
+
+
+    /* Hero panel (≥900px) */
+    .login-hero { display: none; }
+    @media (min-width: 900px) {
+      body {
+        display: grid;
+        grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
+        align-items: stretch;
+        padding: 0;
+      }
+      .login-hero {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 48px 64px;
+        background: var(--ap-hero-bg);
+        color: var(--ap-hero-ink);
+        position: relative;
+        overflow: hidden;
+      }
+      .login-hero::before, .login-hero::after {
+        content: ""; position: absolute; top: 50%; border-radius: 50%;
+        border: 1px solid rgba(250,247,242,.08); transform: translateY(-50%);
+      }
+      .login-hero::before { right: -80px; width: 320px; height: 320px; }
+      .login-hero::after  { right: 20px;  width: 120px; height: 120px; }
+      .login-container { justify-self: center; align-self: center; padding: 48px 40px; }
+    }
+    .hero-brand { display: flex; align-items: center; gap: 10px; font-family: var(--ap-font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.018em; }
+    .hero-brand img { width: 28px; height: 28px; border-radius: 8px; }
+    .hero-copy { display: flex; flex-direction: column; gap: 22px; max-width: 520px; }
+    .hero-tagline {
+      font-family: var(--ap-font-read);
+      font-size: clamp(40px, 4vw, 56px);
+      line-height: 1.25;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      white-space: pre-line;
+    }
+    .hero-tagline em { font-style: normal; color: var(--ap-link-dark); }
+    .hero-desc { font-size: 17px; line-height: 1.6; color: rgba(250,247,242,.64); }
+    .hero-foot { display: flex; gap: 24px; font-size: 13px; color: rgba(250,247,242,.5); }
+    .hero-foot a { color: inherit; text-decoration: none; }
+    .hero-foot a:hover { color: var(--ap-hero-ink); }
 
     /* Login container */
     .login-container {
@@ -324,8 +376,8 @@
       background: var(--ap-surface);
       border: 1px solid var(--ap-ink-08);
       border-radius: var(--ap-r-2xl);
-      padding: 48px 40px 40px;
-      text-align: center;
+      padding: 40px 36px 36px;
+      text-align: left;
       box-shadow: var(--ap-shadow-card);
       animation: apCardIn 520ms var(--ap-ease-spring) both;
     }
@@ -334,7 +386,8 @@
       to   { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    .logo-container { margin-bottom: 28px; }
+    .logo-container { margin-bottom: 22px; }
+    @media (min-width: 900px) { .logo-container .logo { display: none; } }
     .logo {
       width: 56px;
       height: 56px;
@@ -349,7 +402,7 @@
 
     .login-title {
       font-family: var(--ap-font-display);
-      font-size: 32px;
+      font-size: 24px;
       font-weight: 600;
       line-height: 1.1;
       letter-spacing: -0.022em;
@@ -359,12 +412,12 @@
 
     .login-subtitle {
       font-family: var(--ap-font-text);
-      font-size: 17px;
+      font-size: 14px;
       font-weight: 400;
-      line-height: 1.47;
-      letter-spacing: -0.022em;
+      line-height: 1.5;
+      letter-spacing: -0.01em;
       color: var(--ap-ink-64);
-      margin-bottom: 36px;
+      margin-bottom: 28px;
     }
 
     /* Google login button — Apple 8px-radius secondary button */
@@ -373,7 +426,7 @@
       padding: 12px 20px;
       background: var(--ap-surface);
       border: 1px solid var(--ap-ink-08);
-      border-radius: var(--ap-r-sm);
+      border-radius: var(--ap-r-pill);
       font-family: var(--ap-font-text);
       font-size: 15px;
       font-weight: 500;
@@ -506,7 +559,7 @@
       width: 48px;
       height: 48px;
       border-radius: 50%;
-      background: rgba(0,113,227,.10);
+      background: rgba(230,57,70,.10);
       color: var(--ap-blue);
       display: inline-flex;
       align-items: center;
@@ -527,9 +580,9 @@
       letter-spacing: -0.008em;
     }
 
-    ::selection { background: rgba(0,113,227,.20); color: inherit; }
+    ::selection { background: rgba(230,57,70,.20); color: inherit; }
     @media (prefers-color-scheme: dark) {
-      ::selection { background: rgba(41,151,255,.28); }
+      ::selection { background: rgba(255,107,117,.28); }
     }
     :focus-visible {
       outline: 2px solid var(--ap-blue);
@@ -595,6 +648,18 @@
       </button>
     </div>
   </div>
+
+  <!-- 品牌区（≥900px 显示） -->
+  <aside class="login-hero" aria-hidden="true">
+    <div class="hero-brand"><img src="static/logo.png" alt=""><span>読み聞く庵</span></div>
+    <div class="hero-copy">
+      <div class="hero-tagline">読んで、
+聞いて、
+<em>確かめる。</em></div>
+      <p class="hero-desc" data-i18n="heroDesc">日语阅读与听力练习。逐词注音、逐句朗读、当场查词，Gemini 帮你解析与出题。</p>
+    </div>
+    <div class="hero-foot"><span>© YomiKiku-an</span><a href="https://github.com/LeiGaoRobot/yomikiku-an" target="_blank" rel="noreferrer noopener">GitHub</a><span data-i18n="heroPwa">离线可用 · PWA</span></div>
+  </aside>
 
   <!-- 登录容器 -->
   <main class="login-container" role="main">
@@ -672,7 +737,9 @@
         loginClick: 'Google 登录被点击',
         oauthNotice: 'Google 登录功能需要配置 OAuth。点击确定查看控制台。',
         loginError: '登录失败，请重试',
-        pageTitle: '登录 - 読み聞く庵'
+        pageTitle: '登录 - 読み聞く庵',
+        heroDesc: '日语阅读与听力练习。逐词注音、逐句朗读、当场查词，Gemini 帮你解析与出题。',
+        heroPwa: '离线可用 · PWA'
       },
       ja: {
         title: '読み聞く庵 へようこそ',
@@ -688,7 +755,9 @@
         loginClick: 'Google ログインがクリックされました',
         oauthNotice: 'Google ログイン機能には OAuth の設定が必要です。OK をクリックしてコンソールを確認してください。',
         loginError: 'ログインに失敗しました。もう一度お試しください',
-        pageTitle: 'ログイン - 読み聞く庵'
+        pageTitle: 'ログイン - 読み聞く庵',
+        heroDesc: '日本語の読解とリスニング練習。語ごとのふりがな、文ごとの音読、その場で辞書、Gemini が解析と出題を手伝います。',
+        heroPwa: 'オフライン対応 · PWA'
       },
       en: {
         title: 'Welcome to YomiKiku-an',
@@ -704,7 +773,9 @@
         loginClick: 'Google login clicked',
         oauthNotice: 'Google login requires OAuth configuration. Click OK to check the console.',
         loginError: 'Login failed, please try again',
-        pageTitle: 'Login - YomiKiku-an'
+        pageTitle: 'Login - YomiKiku-an',
+        heroDesc: 'Japanese reading and listening practice. Furigana per word, read-aloud per sentence, dictionary on tap, Gemini for analysis and quizzes.',
+        heroPwa: 'Works offline · PWA'
       }
     };
 
