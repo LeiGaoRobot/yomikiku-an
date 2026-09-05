@@ -78,6 +78,10 @@
 - **CSS-in-JS 面板**：值散在 JS 字符串里，抄写时容易漏 hover / dark 分支；每张面板板要同时核对 `:root[data-theme="dark"]` 规则。
 - **画布保存**：多人同时编辑会冲突（后保存者被重载），设计迭代期建议单人编辑。
 
+## 状态（2026-09-05）
+
+全部 21 张板已完成并做过一轮截图校对：桌面 5（阅读 / Inspector / 编辑 / 沉浸阅读 / 墨夜）、面板 8、手机 3、登录、Components、Tokens、备选方向 2。画布：https://claude.ai/code/artifact/0b1da224-6654-4981-84ec-bca444a1829d 。源文件 `docs/design/yomikikuan-redesign/*.dc.html` + `canvas.json`。下一步是回写：`theme-apple.css` 换成纸/墨 token，播放条改底部 dock，AI 入口改右侧竖栏，emoji 图标换 SVG；改动缓存资产时 bump `CACHE_VERSION`。
+
 ## 6. 需要决定的点
 
 1. ~~1:1 复刻还是重设计~~ → **已定：重设计**（2026-09-05）。方向 A「和纸书斋」：取色自 favicon.svg（纸 #FAF7F2 / 墨 #0B1623 / 朱印 #E63946），阅读列限宽 720px 明朝体，播放条改为底部 dock，AI 入口移到右侧竖栏。画布源文件在 `docs/design/yomikikuan-redesign/`。

@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; text-decoration: none; } a:hover { color: #8F1A24; }
+    svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .ibtn { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); }
+    .ibtn:hover { background: rgba(11,22,35,.06); color: #0B1623; }
+    .chip { height: 28px; padding: 0 10px; border-radius: 980px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: rgba(11,22,35,.72); border: 1px solid rgba(11,22,35,.14); }
+    .chip.on { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .btn { height: 36px; padding: 0 16px; border-radius: 980px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(11,22,35,.14); color: #0B1623; }
+    .btn.primary { background: #E63946; color: #FFFDFA; border-color: #E63946; }
+    .btn.ink { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .read { font-family: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif; letter-spacing: 0.02em; }
+    ruby { ruby-align: center; ruby-position: over; }
+    rt { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 0.42em; font-weight: 400; color: rgba(11,22,35,.56); letter-spacing: 0; line-height: 1; }
+    .lv { height: 20px; padding: 0 8px; border-radius: 980px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+    .lv.n5 { background: #30d158; color: #0b3d1a; } .lv.n4 { background: #a6d94f; color: #2b3a12; } .lv.n3 { background: #ffcc00; color: #3a2d00; } .lv.n2 { background: #ff9f0a; color: #3a1f00; } .lv.n1 { background: #ff453a; color: #3d0d0a; }
+    .panel { background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); border-radius: 18px; box-shadow: 0 24px 64px rgba(11,22,35,.16); display: flex; flex-direction: column; overflow: hidden; }
+    .panel-h { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px 24px; }
+    .panel-h .ttl { font-size: 17px; font-weight: 600; letter-spacing: -0.018em; }
+    .panel-h .sub { font-size: 13px; color: rgba(11,22,35,.56); }
+    .tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid rgba(11,22,35,.08); }
+    .tab { height: 40px; padding: 0 12px; font-size: 14px; font-weight: 500; color: rgba(11,22,35,.56); display: inline-flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.on { color: #0B1623; border-bottom-color: #0B1623; }
+    .card { background: #FAF7F2; border: 1px solid rgba(11,22,35,.06); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .h6 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: rgba(11,22,35,.56); }
+    .muted { color: rgba(11,22,35,.56); }
+    .field { height: 36px; padding: 0 12px; border-radius: 8px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.12); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .toggle { width: 40px; height: 24px; border-radius: 12px; background: rgba(11,22,35,.14); position: relative; flex: none; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.2); }
+    .toggle.on { background: #0B1623; } .toggle.on::after { left: 18px; }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .menu-item { height: 40px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: #0B1623; }
+    .menu-item:hover { background: rgba(11,22,35,.06); }
+    .menu-item .kv { margin-left: auto; font-size: 13px; color: rgba(11,22,35,.4); }
+  </style>
+</helmet>
+<div style="width: 900px; height: 600px; background: #FAF7F2; display: flex; flex-direction: column; overflow: hidden;">
+  <header style="height: 56px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid rgba(11,22,35,.06);">
+    <div style="font-size: 17px; font-weight: 600; letter-spacing: -0.018em;">静かな庵で読む</div><span class="lv n3">N3</span>
+    <div style="margin-left: auto;" class="row"><div class="chip">ふりがな</div><div class="chip">ア</div><div class="chip on">中/日</div></div>
+  </header>
+  <section style="flex: 1; display: flex; justify-content: center; padding: 32px 48px; overflow: hidden;">
+    <article style="width: 100%; max-width: 720px; display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 0 12px; border-bottom: 1px solid rgba(11,22,35,.06);">
+        <div class="read" style="font-size: 22px; line-height: 1.8;">静かな庵で、日本語の文章を声に出して読む。</div>
+        <div style="font-size: 14px; line-height: 1.6; color: rgba(11,22,35,.56);">在安静的小屋里，把日语文章读出声来。</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 16px 12px; margin: 0 -16px; background: rgba(230,57,70,.05); border-radius: 10px; position: relative;">
+        <span style="position: absolute; left: 2px; top: 22px; width: 6px; height: 6px; border-radius: 50%; background: #E63946;"></span>
+        <div class="read" style="font-size: 22px; line-height: 1.8;">分からない言葉があれば、<span style="background: rgba(230,57,70,.14); color: #B3232F; border-radius: 3px;">その場で</span>辞書を引ける。</div>
+        <div style="font-size: 14px; line-height: 1.6; color: rgba(11,22,35,.72);">遇到不懂的词，可以<span style="color: #B3232F;">当场</span>查词典。</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 0 12px; border-bottom: 1px solid rgba(11,22,35,.06);">
+        <div class="read" style="font-size: 22px; line-height: 1.8;">読み終わったら、耳で聞いて確かめる。</div>
+        <div style="font-size: 14px; line-height: 1.6; color: rgba(11,22,35,.56);">读完之后，再用耳朵听一遍来确认。</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 2px; padding: 8px 0 12px; border-bottom: 1px solid rgba(11,22,35,.06);">
+        <div class="read" style="font-size: 22px; line-height: 1.8;">少しずつ、毎日続けることが一番の近道だ。</div>
+        <div style="font-size: 14px; line-height: 1.6; color: rgba(11,22,35,.4); display: flex; align-items: center; gap: 8px;"><span style="width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(11,22,35,.2); border-top-color: #0B1623;"></span>翻译中…</div>
+      </div>
+    </article>
+  </section>
+</div>
+</x-dc>
+</body>
+</html>

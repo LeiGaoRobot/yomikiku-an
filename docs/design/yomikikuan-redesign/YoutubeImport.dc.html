@@ -1,0 +1,68 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; text-decoration: none; } a:hover { color: #8F1A24; }
+    svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .ibtn { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); }
+    .ibtn:hover { background: rgba(11,22,35,.06); color: #0B1623; }
+    .chip { height: 28px; padding: 0 10px; border-radius: 980px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: rgba(11,22,35,.72); border: 1px solid rgba(11,22,35,.14); }
+    .chip.on { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .btn { height: 36px; padding: 0 16px; border-radius: 980px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(11,22,35,.14); color: #0B1623; }
+    .btn.primary { background: #E63946; color: #FFFDFA; border-color: #E63946; }
+    .btn.ink { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .read { font-family: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif; letter-spacing: 0.02em; }
+    ruby { ruby-align: center; ruby-position: over; }
+    rt { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 0.42em; font-weight: 400; color: rgba(11,22,35,.56); letter-spacing: 0; line-height: 1; }
+    .lv { height: 20px; padding: 0 8px; border-radius: 980px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+    .lv.n5 { background: #30d158; color: #0b3d1a; } .lv.n4 { background: #a6d94f; color: #2b3a12; } .lv.n3 { background: #ffcc00; color: #3a2d00; } .lv.n2 { background: #ff9f0a; color: #3a1f00; } .lv.n1 { background: #ff453a; color: #3d0d0a; }
+    .panel { background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); border-radius: 18px; box-shadow: 0 24px 64px rgba(11,22,35,.16); display: flex; flex-direction: column; overflow: hidden; }
+    .panel-h { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px 24px; }
+    .panel-h .ttl { font-size: 17px; font-weight: 600; letter-spacing: -0.018em; }
+    .panel-h .sub { font-size: 13px; color: rgba(11,22,35,.56); }
+    .tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid rgba(11,22,35,.08); }
+    .tab { height: 40px; padding: 0 12px; font-size: 14px; font-weight: 500; color: rgba(11,22,35,.56); display: inline-flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.on { color: #0B1623; border-bottom-color: #0B1623; }
+    .card { background: #FAF7F2; border: 1px solid rgba(11,22,35,.06); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .h6 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: rgba(11,22,35,.56); }
+    .muted { color: rgba(11,22,35,.56); }
+    .field { height: 36px; padding: 0 12px; border-radius: 8px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.12); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .toggle { width: 40px; height: 24px; border-radius: 12px; background: rgba(11,22,35,.14); position: relative; flex: none; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.2); }
+    .toggle.on { background: #0B1623; } .toggle.on::after { left: 18px; }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .menu-item { height: 40px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: #0B1623; }
+    .menu-item:hover { background: rgba(11,22,35,.06); }
+    .menu-item .kv { margin-left: auto; font-size: 13px; color: rgba(11,22,35,.4); }
+  </style>
+</helmet>
+<div style="width: 1100px; height: 760px; background: #FAF7F2; position: relative; overflow: hidden;"><div style="position: absolute; inset: 0; display: flex;"><div style="width: 200px; background: #F3EEE6; border-right: 1px solid rgba(11,22,35,.06);"></div><div style="flex: 1; padding: 60px 80px;" class="read"><div style="font-size: 20px; line-height: 2.2; color: rgba(11,22,35,.5);">静かな庵で、日本語の文章を声に出して読む。<br>分からない言葉があれば、その場で辞書を引ける。<br>読み終わったら、耳で聞いて確かめる。</div></div><div style="width: 56px; background: #F3EEE6; border-left: 1px solid rgba(11,22,35,.06);"></div></div><div style="position: absolute; inset: 0; background: rgba(11,22,35,.32); backdrop-filter: blur(6px);"></div>
+<div class="panel" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 640px;">
+  <div class="panel-h"><div style="display: flex; flex-direction: column; gap: 2px;"><div class="ttl">从 YouTube 导入</div><div class="sub">粘贴链接，取字幕 · 10 分钟以内</div></div><div class="ibtn" style="margin-left: auto;"><svg class="ic" viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"></path></svg></div></div>
+  <div style="display: flex; flex-direction: column; gap: 16px; padding: 4px 24px 24px;">
+    <div class="field" style="height: 44px; border-color: #0B1623; box-shadow: 0 0 0 3px rgba(11,22,35,.06); font-size: 15px;"><svg class="ic" viewBox="0 0 20 20" style="color: rgba(11,22,35,.4);"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-1 1"></path><path d="M11.5 8.5a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l1-1"></path></svg>https://www.youtube.com/watch?v=kyoto-asaichi<div class="chip" style="margin-left: auto; height: 26px;">粘贴</div></div>
+    <div class="card" style="flex-direction: row; gap: 14px; align-items: center;">
+      <div style="width: 120px; height: 68px; border-radius: 8px; background: #0B1623; display: flex; align-items: center; justify-content: center; color: #FAF7F2; flex: none;"><svg class="ic" viewBox="0 0 20 20" style="width: 26px; height: 26px; fill: currentColor; stroke: none;"><path d="M7 4.5v11l9-5.5z"></path></svg></div>
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;"><div style="font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">京都の朝市を歩く｜錦市場の一日</div><div class="muted" style="font-size: 13px;">Kyoto Walks · 8:42 · 日本語字幕 ✓</div></div>
+    </div>
+    <div class="h6">导入方式</div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+      <div class="card" style="gap: 8px; border-color: #0B1623; box-shadow: 0 0 0 3px rgba(11,22,35,.06);"><div style="width: 32px; height: 32px; border-radius: 8px; background: #0B1623; color: #FAF7F2; display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 20 20" style="width: 18px; height: 18px;"><path d="M4 5h12M4 9h8M4 13h12M4 17h6"></path></svg></div><div style="font-size: 14px; font-weight: 600;">A · 字幕导入</div><div class="muted" style="font-size: 12px; line-height: 1.5;">转成文档，逐句阅读 + 朗读</div></div>
+      <div class="card" style="gap: 8px;"><div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(11,22,35,.08); display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 20 20" style="width: 18px; height: 18px;"><rect x="2.5" y="4.5" width="15" height="11" rx="3"></rect><path d="M8.5 7.5v5l4-2.5z"></path></svg></div><div style="font-size: 14px; font-weight: 600;">B · 视频伴读</div><div class="muted" style="font-size: 12px; line-height: 1.5;">边看边跟字幕高亮，可点词查</div></div>
+      <div class="card" style="gap: 8px;"><div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(11,22,35,.08); display: flex; align-items: center; justify-content: center;"><svg class="ic" viewBox="0 0 20 20" style="width: 18px; height: 18px;"><path d="M4 11v-1a6 6 0 0 1 12 0v1"></path><rect x="3" y="11" width="4" height="5" rx="1.5"></rect><rect x="13" y="11" width="4" height="5" rx="1.5"></rect></svg></div><div style="font-size: 14px; font-weight: 600;">C · 听力题</div><div class="muted" style="font-size: 12px; line-height: 1.5;">按视频内容生成 JLPT 题</div></div>
+    </div>
+    <div class="row" style="justify-content: flex-end; gap: 10px; padding-top: 4px;"><div class="btn">取消</div><div class="btn primary">导入为文档</div></div>
+  </div>
+</div>
+</div>
+</x-dc>
+</body>
+</html>

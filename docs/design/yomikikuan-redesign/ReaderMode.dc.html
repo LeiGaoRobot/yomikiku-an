@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; text-decoration: none; } a:hover { color: #8F1A24; }
+    svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .ibtn { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); }
+    .ibtn:hover { background: rgba(11,22,35,.06); color: #0B1623; }
+    .chip { height: 28px; padding: 0 10px; border-radius: 980px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: rgba(11,22,35,.72); border: 1px solid rgba(11,22,35,.14); }
+    .chip.on { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .btn { height: 36px; padding: 0 16px; border-radius: 980px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(11,22,35,.14); color: #0B1623; }
+    .btn.primary { background: #E63946; color: #FFFDFA; border-color: #E63946; }
+    .btn.ink { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .read { font-family: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif; letter-spacing: 0.02em; }
+    ruby { ruby-align: center; ruby-position: over; }
+    rt { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 0.42em; font-weight: 400; color: rgba(11,22,35,.56); letter-spacing: 0; line-height: 1; }
+    .lv { height: 20px; padding: 0 8px; border-radius: 980px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+    .lv.n5 { background: #30d158; color: #0b3d1a; } .lv.n4 { background: #a6d94f; color: #2b3a12; } .lv.n3 { background: #ffcc00; color: #3a2d00; } .lv.n2 { background: #ff9f0a; color: #3a1f00; } .lv.n1 { background: #ff453a; color: #3d0d0a; }
+    .panel { background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); border-radius: 18px; box-shadow: 0 24px 64px rgba(11,22,35,.16); display: flex; flex-direction: column; overflow: hidden; }
+    .panel-h { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px 24px; }
+    .panel-h .ttl { font-size: 17px; font-weight: 600; letter-spacing: -0.018em; }
+    .panel-h .sub { font-size: 13px; color: rgba(11,22,35,.56); }
+    .tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid rgba(11,22,35,.08); }
+    .tab { height: 40px; padding: 0 12px; font-size: 14px; font-weight: 500; color: rgba(11,22,35,.56); display: inline-flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.on { color: #0B1623; border-bottom-color: #0B1623; }
+    .card { background: #FAF7F2; border: 1px solid rgba(11,22,35,.06); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .h6 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: rgba(11,22,35,.56); }
+    .muted { color: rgba(11,22,35,.56); }
+    .field { height: 36px; padding: 0 12px; border-radius: 8px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.12); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .toggle { width: 40px; height: 24px; border-radius: 12px; background: rgba(11,22,35,.14); position: relative; flex: none; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.2); }
+    .toggle.on { background: #0B1623; } .toggle.on::after { left: 18px; }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .menu-item { height: 40px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: #0B1623; }
+    .menu-item:hover { background: rgba(11,22,35,.06); }
+    .menu-item .kv { margin-left: auto; font-size: 13px; color: rgba(11,22,35,.4); }
+  </style>
+</helmet>
+<div style="width: 1440px; height: 900px; background: #F3EEE6; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+  <div style="position: absolute; top: 20px; left: 24px; right: 24px; display: flex; align-items: center; gap: 12px; opacity: .8;">
+    <div class="ibtn"><svg class="ic" viewBox="0 0 20 20"><path d="M12 4L6 10l6 6"></path></svg></div>
+    <div class="muted" style="font-size: 13px;">阅读模式 · R 退出</div>
+    <div style="margin-left: auto;" class="row"><div class="chip on">ふりがな</div><div class="chip">中/日</div><div class="chip">Aa</div></div>
+  </div>
+  <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 80px 0;">
+    <div style="width: 760px; background: #FFFDFA; border-radius: 22px; box-shadow: 0 24px 64px rgba(11,22,35,.10); padding: 56px 64px; display: flex; flex-direction: column; gap: 10px;">
+      <div class="read" style="font-size: 24px; line-height: 2.2; color: rgba(11,22,35,.4);"><ruby>静<rt>しず</rt></ruby>かな<ruby>庵<rt>いおり</rt></ruby>で、<ruby>日本語<rt>にほんご</rt></ruby>の<ruby>文章<rt>ぶんしょう</rt></ruby>を<ruby>声<rt>こえ</rt></ruby>に<ruby>出<rt>だ</rt></ruby>して<ruby>読<rt>よ</rt></ruby>む。</div>
+      <div class="read" style="font-size: 24px; line-height: 2.2; color: #0B1623; position: relative; padding-left: 0;"><ruby>分<rt>わ</rt></ruby>からない<ruby>言葉<rt>ことば</rt></ruby>があれば、<span style="background: rgba(230,57,70,.14); color: #B3232F; border-radius: 3px;">その<ruby>場<rt>ば</rt></ruby>で</span><ruby>辞書<rt>じしょ</rt></ruby>を<ruby>引<rt>ひ</rt></ruby>ける。<span style="position: absolute; left: -28px; top: 26px; width: 6px; height: 6px; border-radius: 50%; background: #E63946;"></span></div>
+      <div class="read" style="font-size: 24px; line-height: 2.2; color: rgba(11,22,35,.4);"><ruby>読<rt>よ</rt></ruby>み<ruby>終<rt>お</rt></ruby>わったら、<ruby>耳<rt>みみ</rt></ruby>で<ruby>聞<rt>き</rt></ruby>いて<ruby>確<rt>たし</rt></ruby>かめる。</div>
+      <div class="read" style="font-size: 24px; line-height: 2.2; color: rgba(11,22,35,.4);"><ruby>少<rt>すこ</rt></ruby>しずつ、<ruby>毎日<rt>まいにち</rt></ruby><ruby>続<rt>つづ</rt></ruby>けることが<ruby>一番<rt>いちばん</rt></ruby>の<ruby>近道<rt>ちかみち</rt></ruby>だ。</div>
+    </div>
+  </div>
+  <div style="position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); display: flex; align-items: center; gap: 16px;">
+    <div class="ibtn" style="width: 44px; height: 44px;"><svg class="ic" viewBox="0 0 20 20"><path d="M14 4.5v11L6 10z"></path><path d="M5 4.5v11"></path></svg></div>
+    <div style="width: 56px; height: 56px; border-radius: 50%; background: #E63946; color: #FFFDFA; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(230,57,70,.30);"><svg viewBox="0 0 20 20" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6.5 4v12M11.5 4v12"></path></svg></div>
+    <div class="ibtn" style="width: 44px; height: 44px;"><svg class="ic" viewBox="0 0 20 20"><path d="M6 4.5v11l8-5.5z"></path><path d="M15 4.5v11"></path></svg></div>
+  </div>
+  <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(11,22,35,.06);"><div style="width: 36%; height: 3px; background: #E63946;"></div></div>
+</div>
+</x-dc>
+</body>
+</html>
