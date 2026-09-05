@@ -87,7 +87,7 @@ function injectCss() {
       cursor: pointer; font-size: 12px;
     }
     .vocab-filter button[aria-pressed="true"] {
-      background: var(--ap-blue, #E63946); color: #fff;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff);
       border-color: var(--ap-blue, #E63946);
     }
     .vocab-filter .count { margin-left: auto; color: var(--muted, #888); }
@@ -217,7 +217,7 @@ export async function mountPanel() {
           <option value="created"></option>
           <option value="random"></option>
         </select>
-        <button type="button" data-role="review" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:none;background:var(--ap-blue, #E63946);color:#fff;cursor:pointer;"></button>
+        <button type="button" data-role="review" style="margin-left:10px;padding:4px 14px;border-radius:6px;border:none;background:var(--ap-blue, #E63946);color:var(--ap-on-accent, #fff);cursor:pointer;"></button>
         <span class="count" data-role="count"></span>
       </div>
       <div class="vocab-list" data-role="list"></div>

@@ -129,7 +129,7 @@ function injectCss() {
     .reader-floater button:active { transform: scale(.95); }
     .reader-floater .play-main {
       width: 44px; height: 44px;
-      background: var(--ap-blue, #E63946); color: #fff !important;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff) !important;
       font-size: 16px;
     }
     .reader-floater .play-main:hover { background: var(--ap-blue-hover, #D62F3C); }
