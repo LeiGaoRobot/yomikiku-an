@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased] — 1.1.0
+
+### Fixed
+- **JLPT panel i18n**: mode descriptions (previously Chinese-only
+  `MODE_META.nameZh`) now route through `panel.jlpt.modeDesc.*` keys in
+  ja/en/zh across the mode grid, generation-status header, and
+  weak-point coach banner.
+- **YouTube import**: explicit clip ranges (`?start=&end=`) over the
+  10-minute cap are rejected before any Gemini call (the free oEmbed
+  endpoint exposes no duration, so this is the one enforceable check).
+- **TTS seek**: the J/K 10-second seek shortcut was dead code — it now
+  drives a real `Audio` accessor behind the playback boundary.
+- **TTS voice/volume restore**: preferences were read through
+  `window.LS`, but the classic script only sets `window.YomikikuanLS`,
+  so saved voice/volume were silently ignored on reload.
+- **PWA download**: restored the missing `#headerDownloadBtn` and share
+  `deferredPrompt` globally so the install button works again.
+- **Analyzer vocab save**: fixed silently-broken vocab-save in the JLPT
+  depth panel and article summary.
+- Assorted i18n gaps, `pwa-assets.json` manifest entries, mobile CSS,
+  theme drift, and dead code.
+
 ## [1.0.0] - 2026-07-01
 
 First tagged release. YomiKiku-an is a browser-based, zero-build Japanese

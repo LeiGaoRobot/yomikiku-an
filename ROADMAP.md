@@ -6,8 +6,8 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 
 ## Goal
 
-- **`main-js.js` < 5000 lines** (currently 6960, was 8835 at the start
-  of the cumulative effort; **−1875 net**). *(A full header-refactor
+- **`main-js.js` < 5000 lines** (currently 6999, was 8835 at the start
+  of the cumulative effort; **−1836 net**). *(A full header-refactor
   dead-code sweep is now complete — header-scroll −156, quick-search −56,
   mobile lang-dropdown −57, nav lang-flags −12, sidebar i18n labels −70,
   dead lang/theme `<select>` −110, dead sidebar controls −215, last
@@ -22,10 +22,10 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
   remaining `sidebar*` token is `toggleBtn`/`sidebarToggle` in the live
   doc-list collapse function — guarded, possibly conditionally-present,
   left as-is.)*
-- **Test coverage growing in lockstep** with each extraction (currently 46
-  `*.test.html` files on disk; **42 run headlessly** via the `TESTS` array
+- **Test coverage growing in lockstep** with each extraction (currently 47
+  `*.test.html` files on disk; **43 run headlessly** via the `TESTS` array
   in `scripts/test.sh` — the other 4 are visual/console.assert pages
-  excluded by design; **1132 cases, all green** per the latest
+  excluded by design; **1147 cases, all green** per the latest
   `npm test` run; plus a 4-scenario Playwright E2E smoke suite via
   `npm run e2e`).
 
@@ -33,6 +33,14 @@ modules land. The plain-language goal: keep cutting `main-js.js` toward
 > working tree. Headline numbers, the Done inventory, and the next-wave
 > list below now reflect actual code. Earlier revisions had drifted
 > (claimed 7949 lines / 26 test pages / 754 cases).
+
+> **Sync note (2026-10-18)**: headline numbers re-audited again after the
+> post-1.0.0 hardening pass (8 commits: JLPT/YouTube i18n, TTS seek &
+> voice-restore fixes, PWA download button, analyzer vocab-save). Current
+> tree: `main-js.js` **6999** lines, **86** ESM modules, **47**
+> `*.test.html` on disk of which **43** run headlessly in **1147** cases,
+> SW `CACHE_VERSION` **v84**. Extraction is at a plateau — the next wave
+> is the `和纸书斋` redesign PR, not more LOC grinding.
 
 > **Honest reality check (2026-05-04)**: under the project's current
 > "Phase-2 dedup must keep an inline fallback for boot-race safety"

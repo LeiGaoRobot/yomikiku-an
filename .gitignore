@@ -20,4 +20,4 @@ node_modules/
 
 # Claude Code 本地状态（rules/ 保留入库）
 .claude/settings.local.json
-.claude/worktrees/
+.claude/worktrees/.claude/launch.json
