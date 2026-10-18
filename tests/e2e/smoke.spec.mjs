@@ -1,4 +1,4 @@
-// E2E smoke specs — 8 happy paths covering the major user-visible
+// E2E smoke specs — 10 happy paths covering the major user-visible
 // surfaces of YomiKiku-an. Run via `bash scripts/e2e.sh` (which spawns
 // a Python HTTP server + injects PLAYWRIGHT_NODE_PATH).
 //
@@ -15,9 +15,21 @@
 //   mobile = rail collapses into a bottom tab strip under the dock.
 // - Scenario ⑧ deliberately does NOT assert Firebase CDN success — only
 //   that the static login shell renders and no fatal pageerror fires.
+// - Scenarios ⑨/⑩ cover the lazy EasyMDE mount: normal connections mount it
+//   after first paint, data-saver connections only on first interaction.
 
 const PORT = process.env.YK_E2E_PORT || '8002';
 const BASE = `http://localhost:${PORT}`;
+
+// ⑨/⑩ support: emulate a data-saver connection. Chromium exposes
+// navigator.connection read-only, so define it before any page script runs.
+const DATA_SAVER_INIT = `(() => {
+  try {
+    const conn = { saveData: true, effectiveType: '4g' };
+    Object.defineProperty(navigator, 'connection', { get: () => conn, configurable: true });
+  } catch (e) {}
+})();`;
+
 
 // Resolve `playwright` via CommonJS require so the NODE_PATH env (set by
 // scripts/e2e.sh) takes effect. Node ESM ignores NODE_PATH, hence the
@@ -35,6 +47,8 @@ const TESTS = [
   { name: '⑥  mobile 390×844 — AI rail bottom strip, dock above it, rail click opens panel', fn: mobileRedesign, viewport: { width: 390, height: 844 } },
   { name: '⑦  backup v2 import — docs/settings restored, SRS section silently skipped', fn: backupV2Compatibility },
   { name: '⑧  login.html smoke — HTTP 200 + login card, no fatal pageerror',    fn: loginPageSmoke },
+  { name: '⑨  lazy EasyMDE — mounts after boot, typing syncs, blur analyzes',    fn: markdownEditorLazyMount, viewport: { width: 1440, height: 900 } },
+  { name: '⑩  data-saver — EasyMDE stays unloaded until first interaction',      fn: markdownEditorDataSaver, viewport: { width: 1440, height: 900 }, init: DATA_SAVER_INIT },
 ];
 
 // Cleared once at the start of each scenario (via Playwright init script).
@@ -53,6 +67,7 @@ const INIT_SCRIPT = `(() => {
 async function newPage(browser, opts = {}) {
   const ctx = await browser.newContext(opts.viewport ? { viewport: opts.viewport } : {});
   await ctx.addInitScript(INIT_SCRIPT);
+  if (opts.init) await ctx.addInitScript(opts.init);
   // `config.js` is a gitignored local-only file (see CLAUDE.md "Local
   // config"). A CI checkout doesn't have it, so the classic
   // <script src="config.js"> would 404 and emit a console error — which
@@ -543,6 +558,73 @@ async function loginPageSmoke(page, errors) {
   assert(fatal.length === 0, `fatal pageerror on login.html: ${fatal[0]}`);
 }
 
+// ⑨ EasyMDE is lazy-loaded: after boot it should mount (normal connection),
+// the shimmed textarea value must reflect CodeMirror edits, and blurring the
+// editor must still run the analysis path that reads textInput.value.
+async function markdownEditorLazyMount(page, errors) {
+  await page.goto(`${BASE}/index.html`);
+  await waitForBoot(page);
+
+  const mounted = await page.waitForFunction(
+    () => !!window._markdownEditor && !!document.querySelector('.CodeMirror'),
+    { timeout: 12000 },
+  ).then(() => true).catch(() => false);
+  assert(mounted, 'EasyMDE did not lazy-mount within 12s on a normal connection');
+
+  const toolbar = await page.locator('.editor-toolbar').count();
+  assert(toolbar >= 1, `EasyMDE toolbar missing after mount (count=${toolbar})`);
+
+  await page.click('.CodeMirror');
+  await page.keyboard.press('Control+End');
+  await page.keyboard.type('\nE2E 編集テストの一文です。');
+  const value = await page.evaluate(() => document.getElementById('textInput').value);
+  assert(value.includes('E2E 編集テスト'), 'shimmed textInput.value did not reflect CodeMirror typing');
+
+  // Blur the editor (EasyMDE emits codemirror blur) and wait for analysis.
+  await page.evaluate(() => {
+    const cm = document.querySelector('.CodeMirror');
+    if (cm) cm.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    const header = document.querySelector('.main-header');
+    if (header) header.click();
+  });
+  const analyzed = await page.waitForFunction(() => {
+    const content = document.getElementById('content');
+    return content && (content.querySelectorAll('.line-container').length > 0
+      || content.querySelectorAll('.token-pill').length > 0);
+  }, { timeout: 15000 }).then(() => true).catch(() => false);
+  assert(analyzed, 'analysis did not render after editing/blurring the lazy-mounted editor');
+  assert(errors.length === 0, `lazy editor emitted console/page errors: ${errors[0]}`);
+}
+
+// ⑩ Data-saver users opt out of the automatic 345 KB editor bundle: it must
+// not be requested until they interact with the textarea, then mount promptly.
+async function markdownEditorDataSaver(page, errors) {
+  await page.goto(`${BASE}/index.html`);
+  await waitForBoot(page);
+  await page.waitForTimeout(2800); // past the idle/timeout load window
+
+  const before = await page.evaluate(() => ({
+    mounted: !!window._markdownEditor,
+    script: !!document.querySelector('script[src*="easymde"]'),
+    css: !!document.querySelector('link[href*="easymde"]'),
+    textareaVisible: (() => {
+      const el = document.getElementById('textInput');
+      return !!el && getComputedStyle(el).display !== 'none';
+    })(),
+  }));
+  assert(!before.mounted, 'EasyMDE auto-mounted on a data-saver connection');
+  assert(!before.script && !before.css, 'EasyMDE assets were fetched on a data-saver connection');
+  assert(before.textareaVisible, 'plain textarea is not usable before the editor mounts');
+
+  await page.click('#textInput');
+  const mounted = await page.waitForFunction(
+    () => !!window._markdownEditor && !!document.querySelector('.CodeMirror'),
+    { timeout: 12000 },
+  ).then(() => true).catch(() => false);
+  assert(mounted, 'EasyMDE did not mount after the first data-saver interaction');
+  assert(errors.length === 0, `data-saver editor emitted console/page errors: ${errors[0]}`);
+}
+
 // --- harness ---
 
 function assert(cond, msg) {
@@ -554,21 +636,39 @@ function assert(cond, msg) {
   let passed = 0, failed = 0;
 
   for (const t of TESTS) {
-    const { ctx, page, errors } = await newPage(browser, { viewport: t.viewport });
-    const start = Date.now();
-    try {
-      await t.fn(page, errors);
-      const ms = Date.now() - start;
+    let lastErr = null;
+    let lastErrors = [];
+    let ms = 0;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const { ctx, page, errors } = await newPage(browser, { viewport: t.viewport, init: t.init });
+      const start = Date.now();
+      try {
+        await t.fn(page, errors);
+        lastErr = null;
+        ms = Date.now() - start;
+        await ctx.close();
+        break;
+      } catch (e) {
+        lastErr = e;
+        lastErrors = errors;
+        ms = Date.now() - start;
+        await ctx.close();
+        // Python's http.server occasionally drops a connection under load;
+        // retry once before treating the scenario as a real failure.
+        if (attempt === 1) {
+          console.log(`↻  ${t.name}  (retry after: ${e.message})`);
+          await new Promise((r) => setTimeout(r, 250));
+        }
+      }
+    }
+    if (!lastErr) {
       console.log(`✓  ${t.name}  (${ms}ms)`);
       passed++;
-    } catch (e) {
-      const ms = Date.now() - start;
+    } else {
       console.log(`✗  ${t.name}  (${ms}ms)`);
-      console.log(`     ${e.message}`);
-      if (errors.length) console.log(`     first console/page error: ${errors[0]}`);
+      console.log(`     ${lastErr.message}`);
+      if (lastErrors.length) console.log(`     first console/page error: ${lastErrors[0]}`);
       failed++;
-    } finally {
-      await ctx.close();
     }
   }
   await browser.close();

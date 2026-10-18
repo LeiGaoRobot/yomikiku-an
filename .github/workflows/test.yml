@@ -25,7 +25,7 @@ jobs:
       - name: Run test suite (49 *.test.html pages, 1356 cases)
         run: npm test 2>&1 | tee test-output.log
 
-      - name: Run E2E smoke suite (8 Playwright scenarios)
+      - name: Run E2E smoke suite (10 Playwright scenarios)
         run: npm run e2e 2>&1 | tee e2e-output.log
 
       - name: Upload test output on failure
