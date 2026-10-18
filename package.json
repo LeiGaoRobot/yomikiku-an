@@ -1,6 +1,6 @@
 {
   "name": "yomikiku-an",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "YomiKiku-an（読み聞く庵）— 日语阅读与听力练习工具",
   "main": "index.html",
   "scripts": {

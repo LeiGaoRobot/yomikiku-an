@@ -2,7 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased] — 1.1.0
+## [1.1.0] - 2026-10-18
+
+### Added
+- **「和纸书斋」 redesign**: paper/ink/hanko-red token system built from
+  `static/favicon.svg` (paper `#FAF7F2` / surface `#FFFDFA` / ink
+  `#0B1623` / accent `#E63946`, dark theme inverts paper/ink and lifts
+  the accent to `#FF6B75`), applied across the app and `login.html`.
+- **Right-hand AI rail**: the five AI entry points (`#inspectorToggleBtn`,
+  `#vocabBtn`, `#articleSummaryBtn`, `#jlptBtn`, `#youtubeBtn`) moved out
+  of the header into a vertical rail; on ≤768px the rail becomes a bottom
+  tab strip above the safe-area inset.
+- **Player dock**: the playback bar is now a fixed bottom dock; the
+  ふりがな / かな and 中/日 toggles stay visible in it.
+- **Shared overlay shell**: JLPT, summary, vocab, YouTube, settings and
+  search panels share one ink-scrim / surface-panel shell.
+- **Design source canvas**: 21 artboards under
+  `docs/design/yomikikuan-redesign/` plus
+  `docs/plans/2026-09-05-claude-design-recreation-plan.md`.
+- SVG stroke icons replace header/rail emoji; emoji were stripped from
+  panel titles and tabs (ja/en/zh).
+
+### Changed
+- `CACHE_VERSION` v84 → v85 for the redesign deploy.
+- Docs re-synced with the tree: `main-js.js` 6999 lines, 47 test pages
+  (43 headless, 1147 cases), README test counts updated.
 
 ### Fixed
 - **JLPT panel i18n**: mode descriptions (previously Chinese-only
