@@ -1,4 +1,4 @@
-// E2E smoke specs — 11 happy paths covering the major user-visible
+// E2E smoke specs — 12 happy paths covering the major user-visible
 // surfaces of YomiKiku-an. Run via `bash scripts/e2e.sh` (which spawns
 // a Python HTTP server + injects PLAYWRIGHT_NODE_PATH).
 //
@@ -18,6 +18,10 @@
 // - Scenarios ⑨/⑩ cover the lazy EasyMDE mount: normal connections mount it
 //   after first paint, data-saver connections only on first interaction.
 // - Scenario ⑪ covers the boot-analysis A/B switch in 'manual' mode.
+// - Scenario ⑫ covers cloud-sync Option A (explicit Push/Pull + conflict
+//   prompt) against an in-memory mock of the documented
+//   `window.__yomikikuanCloudBridge` contract. The app ships NO Firebase
+//   SDK — the mock is the reference adapter for a future real one.
 
 const PORT = process.env.YK_E2E_PORT || '8002';
 const BASE = `http://localhost:${PORT}`;
@@ -44,6 +48,26 @@ const BOOT_MANUAL_INIT = `(() => {
   try { localStorage.setItem('yomikikuan_boot_analysis', 'manual'); } catch (e) {}
 })();`;
 
+// ⑫ support: in-memory mock of the documented cloud bridge contract.
+//   window.__yomikikuanCloudBridge = { get(): {payload, updatedAt}|null; set(payload, updatedAt) }
+// The mock state is exposed so the scenario can simulate a changed cloud copy
+// (conflict branch) without any network / Firebase SDK.
+const CLOUD_SYNC_MOCK_INIT = `(() => {
+  try { localStorage.setItem('lang', 'ja'); } catch (e) {}
+  window.__yomikikuanCloudMockState = { payload: null, updatedAt: 0 };
+  window.__yomikikuanCloudBridge = {
+    async get() {
+      const state = window.__yomikikuanCloudMockState;
+      return state.payload ? { payload: state.payload, updatedAt: state.updatedAt } : null;
+    },
+    async set(payload, updatedAt) {
+      const state = window.__yomikikuanCloudMockState;
+      state.payload = payload;
+      state.updatedAt = updatedAt;
+    },
+  };
+})();`;
+
 const TESTS = [
   { name: '①  app boots — title + #textInput + 4 panel buttons present',          fn: bootSmoke },
   { name: '②  analyze → vocab — addVocab via window hook renders in vocabPanel', fn: analyzeToVocab },
@@ -56,6 +80,7 @@ const TESTS = [
   { name: '⑨  lazy EasyMDE — mounts after boot, typing syncs, blur analyzes',    fn: markdownEditorLazyMount, viewport: { width: 1440, height: 900 } },
   { name: '⑩  data-saver — EasyMDE stays unloaded until first interaction',      fn: markdownEditorDataSaver, viewport: { width: 1440, height: 900 }, init: DATA_SAVER_INIT },
   { name: '⑪  boot-analysis switch — manual mode waits for the Analyze button',  fn: bootAnalysisManual, init: BOOT_MANUAL_INIT },
+  { name: '⑫  cloud sync Option A — mock bridge: push, pull, conflict prompt, missing bridge', fn: cloudSyncOptionA, init: CLOUD_SYNC_MOCK_INIT },
 ];
 
 // Cleared once at the start of each scenario (via Playwright init script).
@@ -655,6 +680,321 @@ async function bootAnalysisManual(page, errors) {
   ).then(() => true).catch(() => false);
   assert(rendered, 'analysis did not run after clicking the manual-mode Analyze button');
   assert(errors.length === 0, `manual boot-analysis emitted console/page errors: ${errors[0]}`);
+}
+
+// ⑫ Cloud sync Option A — explicit Push / Pull against the in-memory mock
+// bridge installed by CLOUD_SYNC_MOCK_INIT. Covers:
+//   1. push  → local backup v3 payload reaches bridge.set, meta recorded
+//   2. pull  → cloud payload applied through applyBackup, meta recorded
+//   3. conflict → window.confirm; accept = local wins (push overwrites cloud)
+//      (Playwright dialog API)
+//   4. conflict → dismiss = cancel = pull the cloud copy instead
+//   5. missing bridge → graceful error toast, no pageerror, state untouched
+//   6. legacy #syncDataBtn delegates to the new push entry point while the
+//      old (dead) window.performDataSync Firestore path is left intact.
+async function cloudSyncOptionA(page, errors) {
+  await page.goto(`${BASE}/index.html`);
+  await waitForBoot(page);
+
+  // The user menu is the guest-profile UI seeded by index.html; initUserProfile
+  // wires the buttons even without Firebase. #showSuccessToast is assigned at
+  // the end of that wiring function, so it doubles as a "wired" signal.
+  await page.waitForFunction(
+    () => !!document.getElementById('cloudPushBtn')
+       && !!document.getElementById('cloudPullBtn')
+       && typeof window.showSuccessToast === 'function',
+    { timeout: 8000 },
+  );
+
+  const getText = (key) => page.evaluate((k) => window.YomikikuanGetText(k), key);
+  const toastText = (selector) => page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    return el ? el.textContent : '';
+  }, selector);
+  const waitForToast = (selector, expected, timeout = 6000) => page.waitForFunction(
+    ({ sel, msg }) => {
+      const el = document.querySelector(sel);
+      return !!el && el.textContent === msg;
+    },
+    { sel: selector, msg: expected },
+    { timeout },
+  );
+
+  // ---- 1. Push: local documents → mock cloud ----
+  await page.evaluate(() => {
+    const dm = window.documentManager;
+    const docs = dm.getAllDocuments();
+    docs.push({
+      id: 'e2e-cloud-local',
+      title: 'Cloud sync local doc',
+      content: 'クラウド同期のローカル文書。',
+      createdAt: 1000,
+      updatedAt: 1000,
+      locked: false,
+      folder: null,
+      folderId: null,
+      favorite: false,
+    });
+    dm.saveAllDocuments(docs);
+    dm.setActiveId('e2e-cloud-local');
+  });
+
+  const pushOkText = await getText('cloudSyncPushSuccess');
+  await page.evaluate(() => document.getElementById('cloudPushBtn').click());
+  await page.waitForFunction(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const meta = JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta') || 'null');
+    return !!state.payload && !!meta && meta.lastSyncedAt === state.updatedAt;
+  }, { timeout: 8000 });
+  await waitForToast('#syncProgressText', pushOkText);
+
+  const pushed = await page.evaluate(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const meta = JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta') || 'null');
+    return {
+      version: state.payload.version,
+      app: state.payload.app,
+      hasLocalDoc: state.payload.data.documents.some((d) => d.id === 'e2e-cloud-local'),
+      updatedAt: state.updatedAt,
+      meta: meta && meta.lastSyncedAt,
+    };
+  });
+  assert(pushed.version === 3, `push wrote schema v${pushed.version}, expected v3`);
+  assert(pushed.app === 'YomiKiku-an', `push payload app="${pushed.app}"`);
+  assert(pushed.hasLocalDoc, 'push payload is missing the local document');
+  assert(pushed.updatedAt > 0, `bridge.set received updatedAt=${pushed.updatedAt}`);
+  assert(pushed.meta === pushed.updatedAt,
+    `meta.lastSyncedAt (${pushed.meta}) != bridge updatedAt (${pushed.updatedAt})`);
+
+  // ---- 2. Pull: mock cloud → local documents ----
+  const pullOkText = await getText('cloudSyncPullSuccess');
+  await page.evaluate(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const base = JSON.parse(JSON.stringify(state.payload));
+    base.data.documents = [{
+      id: 'e2e-cloud-pull',
+      title: 'Cloud pull doc',
+      content: 'クラウドから復元した文書。',
+      createdAt: 2000,
+      updatedAt: 2000,
+      locked: false,
+      folder: null,
+      folderId: null,
+      favorite: false,
+    }];
+    base.data.activeId = 'e2e-cloud-pull';
+    base.data.settings = {};
+    base.data.srs = { vocab: [], mistakes: [] };
+    state.payload = base;
+    // Cloud-only change since the push → no conflict (local docs are older).
+    state.updatedAt += 1;
+  });
+  await page.evaluate(() => document.getElementById('cloudPullBtn').click());
+  await page.waitForFunction(() => {
+    const docs = JSON.parse(localStorage.getItem('texts') || '[]');
+    return docs.some((d) => d.id === 'e2e-cloud-pull');
+  }, { timeout: 8000 });
+  await waitForToast('#syncProgressText', pullOkText);
+
+  const pulled = await page.evaluate(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const meta = JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta') || 'null');
+    const docs = window.documentManager.getAllDocuments();
+    return {
+      hasPullDoc: docs.some((d) => d.id === 'e2e-cloud-pull'),
+      activeId: localStorage.getItem('activeId'),
+      meta: meta && meta.lastSyncedAt,
+      cloudUpdatedAt: state.updatedAt,
+    };
+  });
+  assert(pulled.hasPullDoc, 'pull did not apply the cloud payload to documentManager');
+  assert(pulled.activeId === 'e2e-cloud-pull',
+    `pull activeId="${pulled.activeId}", expected "e2e-cloud-pull"`);
+  assert(pulled.meta === pulled.cloudUpdatedAt,
+    `pull meta.lastSyncedAt (${pulled.meta}) != cloud.updatedAt (${pulled.cloudUpdatedAt})`);
+
+  // Helper: make BOTH sides change since lastSyncedAt (→ conflict prompt).
+  const setupConflict = () => page.evaluate(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const meta = JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta'));
+    const dm = window.documentManager;
+    const docs = dm.getAllDocuments();
+    docs.forEach((d) => { d.updatedAt = meta.lastSyncedAt + 2000; });
+    dm.saveAllDocuments(docs);
+    const base = JSON.parse(JSON.stringify(state.payload));
+    base.data.documents = [{
+      id: 'e2e-cloud-conflict',
+      title: 'Conflicting cloud doc',
+      content: '雲側の衝突文書。',
+      createdAt: 3000,
+      updatedAt: meta.lastSyncedAt + 5000,
+      locked: false,
+      folder: null,
+      folderId: null,
+      favorite: false,
+    }];
+    base.data.activeId = 'e2e-cloud-conflict';
+    state.payload = base;
+    state.updatedAt = meta.lastSyncedAt + 3000;
+    return { baseline: meta.lastSyncedAt };
+  });
+
+  // ---- 3. Conflict → confirm = local wins (push overwrites the cloud) ----
+  const pushConflictText = await getText('cloudSyncPushConflictConfirm');
+  const conflict1 = await setupConflict();
+  let dialogMessage1 = null;
+  page.once('dialog', async (dialog) => {
+    dialogMessage1 = dialog.message();
+    await dialog.accept();
+  });
+  await page.evaluate(() => document.getElementById('cloudPushBtn').click());
+  await page.waitForFunction(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const payload = state.payload;
+    return !!payload
+      && payload.data.documents.some((d) => d.id === 'e2e-cloud-pull')
+      && !payload.data.documents.some((d) => d.id === 'e2e-cloud-conflict');
+  }, { timeout: 8000 });
+
+  const afterConflict1 = await page.evaluate(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const meta = JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta'));
+    const docs = JSON.parse(localStorage.getItem('texts') || '[]');
+    return {
+      meta: meta.lastSyncedAt,
+      mockUpdatedAt: state.updatedAt,
+      localDocs: docs.map((d) => d.id),
+    };
+  });
+  assert(dialogMessage1 === pushConflictText,
+    `push-conflict prompt mismatch: "${dialogMessage1}" vs "${pushConflictText}"`);
+  assert(afterConflict1.meta === afterConflict1.mockUpdatedAt
+    && afterConflict1.meta !== conflict1.baseline,
+    `push-conflict accept did not record a new sync time (meta=${afterConflict1.meta})`);
+  assert(afterConflict1.localDocs.includes('e2e-cloud-pull'),
+    `push-conflict accept disturbed local docs: ${JSON.stringify(afterConflict1.localDocs)}`);
+
+  // ---- 4. Conflict → dismiss = cancel = pull the cloud copy ----
+  const conflict2 = await setupConflict();
+  let dialogMessage2 = null;
+  page.once('dialog', async (dialog) => {
+    dialogMessage2 = dialog.message();
+    await dialog.dismiss();
+  });
+  await page.evaluate(() => document.getElementById('cloudPushBtn').click());
+  await page.waitForFunction(() => {
+    const docs = JSON.parse(localStorage.getItem('texts') || '[]');
+    return docs.some((d) => d.id === 'e2e-cloud-conflict');
+  }, { timeout: 8000 });
+
+  const afterConflict2 = await page.evaluate(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const meta = JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta'));
+    const docs = JSON.parse(localStorage.getItem('texts') || '[]');
+    return {
+      meta: meta.lastSyncedAt,
+      mockUpdatedAt: state.updatedAt,
+      cloudDocStill: state.payload.data.documents.some((d) => d.id === 'e2e-cloud-conflict'),
+      localPulled: docs.some((d) => d.id === 'e2e-cloud-conflict'),
+    };
+  });
+  assert(dialogMessage2 === pushConflictText,
+    `push-conflict dismiss prompt mismatch: "${dialogMessage2}"`);
+  assert(afterConflict2.cloudDocStill,
+    'cancel path overwrote the cloud copy — it must pull from the cloud instead');
+  assert(afterConflict2.meta === afterConflict2.mockUpdatedAt
+    && afterConflict2.meta !== conflict2.baseline,
+    `push-conflict cancel did not record the pulled sync time (meta=${afterConflict2.meta})`);
+  assert(afterConflict2.localPulled, 'cancel path did not restore the cloud copy locally');
+
+  // ---- 5. Missing bridge → graceful toast, no throw, state untouched ----
+  const beforeMissing = await page.evaluate(() => ({
+    meta: localStorage.getItem('yomikikuan_cloud_sync_meta'),
+    docs: localStorage.getItem('texts'),
+  }));
+  await page.evaluate(() => { delete window.__yomikikuanCloudBridge; });
+  const notConfiguredText = await getText('cloudSyncNotConfigured');
+
+  await page.evaluate(() => document.getElementById('cloudPullBtn').click());
+  await waitForToast('#errorText', notConfiguredText);
+  await page.evaluate(() => document.getElementById('cloudPushBtn').click());
+  await page.waitForTimeout(200);
+  await waitForToast('#errorText', notConfiguredText);
+
+  const afterMissing = await page.evaluate(() => ({
+    bridge: typeof window.__yomikikuanCloudBridge,
+    meta: localStorage.getItem('yomikikuan_cloud_sync_meta'),
+    docs: localStorage.getItem('texts'),
+    pushDisabled: document.getElementById('cloudPushBtn').disabled,
+    pullDisabled: document.getElementById('cloudPullBtn').disabled,
+  }));
+  assert(afterMissing.bridge === 'undefined',
+    `mock bridge was not removed (typeof = "${afterMissing.bridge}")`);
+  assert(afterMissing.meta === beforeMissing.meta,
+    'missing-bridge push/pull modified the sync meta');
+  assert(afterMissing.docs === beforeMissing.docs,
+    'missing-bridge push/pull modified the documents');
+  assert(!afterMissing.pushDisabled && !afterMissing.pullDisabled,
+    'cloud buttons stayed disabled after the graceful failure');
+
+  // ---- 6. Legacy #syncDataBtn delegates to push; Firestore path retained ----
+  await page.evaluate(() => {
+    window.__yomikikuanCloudBridge = {
+      async get() {
+        const state = window.__yomikikuanCloudMockState;
+        return state.payload ? { payload: state.payload, updatedAt: state.updatedAt } : null;
+      },
+      async set(payload, updatedAt) {
+        const state = window.__yomikikuanCloudMockState;
+        state.payload = payload;
+        state.updatedAt = updatedAt;
+      },
+    };
+    // A fresh local doc proves the legacy button really ran the push path
+    // (the dismiss branch above left the mock cloud copy unchanged).
+    const dm = window.documentManager;
+    const docs = dm.getAllDocuments();
+    docs.push({
+      id: 'e2e-cloud-legacy',
+      title: 'Legacy sync button doc',
+      content: '旧同期ボタンのテスト。',
+      createdAt: 4000,
+      updatedAt: 4000,
+      locked: false,
+      folder: null,
+      folderId: null,
+      favorite: false,
+    });
+    dm.saveAllDocuments(docs);
+  });
+  const beforeLegacy = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta')).lastSyncedAt);
+  await page.evaluate(() => document.getElementById('syncDataBtn').click());
+  await page.waitForFunction(() => {
+    const state = window.__yomikikuanCloudMockState;
+    const meta = JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta') || 'null');
+    return !!meta
+      && meta.lastSyncedAt === state.updatedAt
+      && !!state.payload
+      && state.payload.data.documents.some((d) => d.id === 'e2e-cloud-legacy');
+  }, { timeout: 8000 });
+
+  const legacy = await page.evaluate(() => ({
+    meta: JSON.parse(localStorage.getItem('yomikikuan_cloud_sync_meta')).lastSyncedAt,
+    mockUpdatedAt: window.__yomikikuanCloudMockState.updatedAt,
+    hasLegacyDoc: window.__yomikikuanCloudMockState.payload.data.documents
+      .some((d) => d.id === 'e2e-cloud-legacy'),
+    performDataSync: typeof window.performDataSync,
+  }));
+  assert(legacy.meta === legacy.mockUpdatedAt && legacy.meta !== beforeLegacy,
+    '#syncDataBtn did not delegate to the cloud-sync push entry point');
+  assert(legacy.hasLegacyDoc,
+    '#syncDataBtn push did not write the local backup payload to the bridge');
+  assert(legacy.performDataSync === 'function',
+    'the old (dead) window.performDataSync Firestore path must be retained this round');
+
+  const fatal = errors.filter((entry) => entry.startsWith('pageerror:'));
+  assert(fatal.length === 0, `cloud sync emitted page errors: ${fatal[0]}`);
 }
 
 // --- harness ---

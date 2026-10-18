@@ -5805,6 +5805,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     const userDisplayName = document.getElementById('userDisplayName');
     const userEmail = document.getElementById('userEmail');
     const syncDataBtn = document.getElementById('syncDataBtn');
+    // 云同步（方案 A）用户菜单入口 — 见 modules/cloud-sync/index.js。
+    const cloudPushBtn = document.getElementById('cloudPushBtn');
+    const cloudPullBtn = document.getElementById('cloudPullBtn');
     const userSettingsBtn = document.getElementById('userSettingsBtn');
     const userDownloadBtn = document.getElementById('userDownloadBtn');
     const switchAccountBtn = document.getElementById('switchAccountBtn');
@@ -6263,15 +6266,63 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     }
 
     // 数据同步功能（用户菜单按钮）
-    syncDataBtn.addEventListener('click', async () => {
+    // 方案 A：显式 Push / Pull。真实 Firebase SDK 已从 index.html 移除，
+    // 因此 window.__yomikikuanCloudBridge 目前不会被安装 —— 模块会优雅地
+    // 提示「云同步未配置（Firebase SDK 已禁用）」且不抛错。
+    // 旧的 window.performDataSync / initUserProfile 内的 Firestore 代码
+    // 保留原样（下一轮再决定去留），只是不再由用户菜单按钮触发。
+    async function runCloudSyncAction(direction, triggerBtn) {
+      const btn = triggerBtn || (direction === 'pull' ? cloudPullBtn : cloudPushBtn);
       userProfileContainer.classList.remove('open');
-      syncDataBtn.disabled = true;
-      try {
-        await window.performDataSync();
-      } finally {
-        syncDataBtn.disabled = false;
+      if (btn) {
+        if (btn.disabled) return;
+        btn.disabled = true;
       }
-    });
+      try {
+        const mod = await import('/static/js/modules/cloud-sync/index.js');
+        const action = direction === 'pull' ? mod.pullFromCloud : mod.pushToCloud;
+        await action({
+          notify: {
+            success: (message) => showSuccessToast(message),
+            info: (message) => showInfoToast(message),
+            error: (message) => showErrorToast(message),
+          },
+          // 拉取后刷新 UI，与用户菜单「导入」的 afterApply 行为一致。
+          afterApply: ({ activeId, settings } = {}) => {
+            if (window.documentManager) {
+              window.documentManager.render();
+              window.documentManager.setActiveId(activeId);
+            }
+            if (settings && settings['yomikikuan_theme'] && window.setThemePreference) {
+              window.setThemePreference(settings['yomikikuan_theme']);
+            }
+            if (settings && settings['yomikikuan_lang'] && window.setLanguage) {
+              window.setLanguage(settings['yomikikuan_lang']);
+            }
+            try {
+              if (typeof window.applyI18n === 'function') window.applyI18n();
+            } catch (_) {}
+          },
+        });
+      } catch (error) {
+        // 模块自身已把所有失败转成 toast；这里只兜底 import 失败等意外。
+        console.error('Cloud sync action failed:', error);
+        showErrorToast(typeof window.t === 'function' ? window.t('cloudSyncError') : 'Cloud sync failed.');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // 旧 #syncDataBtn 现在委托 push（行为与 #cloudPushBtn 一致）。
+    if (syncDataBtn) {
+      syncDataBtn.addEventListener('click', () => runCloudSyncAction('push', syncDataBtn));
+    }
+    if (cloudPushBtn) {
+      cloudPushBtn.addEventListener('click', () => runCloudSyncAction('push', cloudPushBtn));
+    }
+    if (cloudPullBtn) {
+      cloudPullBtn.addEventListener('click', () => runCloudSyncAction('pull', cloudPullBtn));
+    }
 
     // 设置功能
     userSettingsBtn.addEventListener('click', () => {

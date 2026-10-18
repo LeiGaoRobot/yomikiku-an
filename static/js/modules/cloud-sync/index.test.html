@@ -1,0 +1,904 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>cloud-sync/index.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .note { color: #666; font-size: 12.5px; margin: 4px 0 12px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; word-break: break-word; }
+  </style>
+  <!-- The canonical i18n dictionary is a classic script (same as index.html). -->
+  <script src="../../i18n.js"></script>
+</head>
+<body>
+  <h1>cloud-sync/index.js tests</h1>
+  <div class="note">
+    Pure helpers (conflict decision, meta read/write, error classification) plus the
+    Push / Pull orchestration against an in-memory mock bridge. No network, no real
+    Firebase, no localStorage writes (every test injects a fake storage + bridge).
+  </div>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      CLOUD_SYNC_META_KEY,
+      CLOUD_SYNC_ERRORS,
+      normalizeTimestamp,
+      isValidBridge,
+      getBridgeFrom,
+      readCloudMeta,
+      writeCloudMeta,
+      newestLocalUpdatedAt,
+      hasChangedSince,
+      evaluateConflict,
+      isBackupPayload,
+      classifyCloudError,
+      errorMessageKey,
+      resolveCloudSyncDeps,
+      pushToCloud,
+      pullFromCloud,
+    } from './index.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail == null ? '' : String(detail) });
+    const jsonEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+    const NOW = 1700000000000;
+    const translate = (key) => `T:${key}`;
+
+    // ---- test doubles -------------------------------------------------------
+    function makeStorage(initial = {}) {
+      const map = new Map(Object.entries(initial));
+      let reads = 0;
+      let writes = 0;
+      return {
+        get reads() { return reads; },
+        get writes() { return writes; },
+        getItem(key) { reads++; return map.has(key) ? map.get(key) : null; },
+        setItem(key, value) { writes++; map.set(key, String(value)); },
+        removeItem(key) { map.delete(key); },
+        raw() { return Object.fromEntries(map); },
+      };
+    }
+
+    function makeBridge(options = {}) {
+      const state = {
+        payload: options.payload || null,
+        updatedAt: options.updatedAt == null ? null : options.updatedAt,
+        getCalls: 0,
+        setCalls: [],
+      };
+      return {
+        state,
+        async get() {
+          state.getCalls += 1;
+          if (options.getError) throw options.getError;
+          if (!state.payload) return null;
+          return { payload: state.payload, updatedAt: state.updatedAt };
+        },
+        async set(payload, updatedAt) {
+          state.setCalls.push({ payload, updatedAt });
+          if (options.setError) throw options.setError;
+          state.payload = payload;
+          state.updatedAt = updatedAt;
+        },
+      };
+    }
+
+    function makeNotify() {
+      const notes = [];
+      return {
+        notes,
+        notify: {
+          success: (m) => notes.push({ level: 'success', message: m }),
+          error: (m) => notes.push({ level: 'error', message: m }),
+          info: (m) => notes.push({ level: 'info', message: m }),
+        },
+      };
+    }
+
+    function makeDoc(id, updatedAt, extra = {}) {
+      return { id, title: id, content: 'テスト', createdAt: updatedAt, updatedAt, ...extra };
+    }
+
+    function makePayload(documents = [], activeId = '') {
+      return {
+        app: 'YomiKiku-an',
+        version: 3,
+        createdAt: '1970-01-01T00:00:00.000Z',
+        data: {
+          documents,
+          activeId: activeId || (documents[0] ? documents[0].id : ''),
+          settings: {},
+          srs: { vocab: [], mistakes: [] },
+        },
+      };
+    }
+
+    // =========================================================================
+    // 1. Bridge shape
+    // =========================================================================
+    check('isValidBridge(null) → false', isValidBridge(null) === false);
+    check('isValidBridge(undefined) → false', isValidBridge(undefined) === false);
+    check('isValidBridge({}) → false', isValidBridge({}) === false);
+    check('isValidBridge({ get }) → false', isValidBridge({ get() {} }) === false);
+    check('isValidBridge({ set }) → false', isValidBridge({ set() {} }) === false);
+    check('isValidBridge({ get, set }) → true', isValidBridge({ get() {}, set() {} }) === true);
+    check('isValidBridge(() => {}) → false', isValidBridge(() => {}) === false);
+
+    check('getBridgeFrom(null) → null', getBridgeFrom(null) === null);
+    check('getBridgeFrom({}) → null', getBridgeFrom({}) === null);
+    {
+      const bridge = { get() {}, set() {} };
+      check('getBridgeFrom reads window.__yomikikuanCloudBridge',
+        getBridgeFrom({ __yomikikuanCloudBridge: bridge }) === bridge);
+    }
+    {
+      const bridge = { get() {}, set() {} };
+      check('getBridgeFrom rejects a partial bridge',
+        getBridgeFrom({ __yomikikuanCloudBridge: { get: bridge.get } }) === null);
+    }
+    {
+      const bridge = { get() {}, set() {} };
+      const deps = resolveCloudSyncDeps({ win: { __yomikikuanCloudBridge: bridge } });
+      check('resolveCloudSyncDeps default getBridge reads the window global',
+        deps.getBridge() === bridge);
+    }
+    {
+      const bridge = { get() {}, set() {} };
+      const deps = resolveCloudSyncDeps({ getBridge: () => bridge });
+      check('resolveCloudSyncDeps honours an injected getBridge',
+        deps.getBridge() === bridge);
+    }
+
+    // =========================================================================
+    // 2. normalizeTimestamp
+    // =========================================================================
+    check('normalizeTimestamp(number) → same', normalizeTimestamp(1700000000123) === 1700000000123);
+    check('normalizeTimestamp(numeric string) → number', normalizeTimestamp('1700000000123') === 1700000000123);
+    check('normalizeTimestamp(ISO string) → epoch ms',
+      normalizeTimestamp('2024-01-02T03:04:05.000Z') === Date.parse('2024-01-02T03:04:05.000Z'));
+    {
+      const date = new Date(1700000000123);
+      check('normalizeTimestamp(Date) → getTime', normalizeTimestamp(date) === 1700000000123);
+    }
+    check('normalizeTimestamp({ toMillis }) → millis',
+      normalizeTimestamp({ toMillis: () => 1700000000123 }) === 1700000000123);
+    check('normalizeTimestamp({ seconds }) → millis',
+      normalizeTimestamp({ seconds: 1700000000 }) === 1700000000000);
+    for (const bad of [null, undefined, 0, -5, NaN, '', '   ', 'not-a-date', {}, { toMillis: () => NaN }]) {
+      check(`normalizeTimestamp(${JSON.stringify(bad) ?? 'undefined'}) → null`,
+        normalizeTimestamp(bad) === null);
+    }
+
+    // =========================================================================
+    // 3. Meta read / write
+    // =========================================================================
+    check('meta key is the documented localStorage key',
+      CLOUD_SYNC_META_KEY === 'yomikikuan_cloud_sync_meta');
+
+    check('readCloudMeta(missing) → { lastSyncedAt: null }',
+      jsonEq(readCloudMeta(makeStorage()), { lastSyncedAt: null }));
+    check('readCloudMeta(no storage) → empty meta',
+      jsonEq(readCloudMeta(null), { lastSyncedAt: null }));
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{"lastSyncedAt":1700000000123}' });
+      check('readCloudMeta(valid) → normalised lastSyncedAt',
+        readCloudMeta(storage).lastSyncedAt === 1700000000123);
+    }
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{not json' });
+      check('readCloudMeta(malformed JSON) → null baseline, no throw',
+        readCloudMeta(storage).lastSyncedAt === null);
+    }
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '42' });
+      check('readCloudMeta(non-object JSON) → null baseline',
+        readCloudMeta(storage).lastSyncedAt === null);
+    }
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{"lastSyncedAt":"nope"}' });
+      check('readCloudMeta(invalid lastSyncedAt) → null baseline',
+        readCloudMeta(storage).lastSyncedAt === null);
+    }
+    {
+      const storage = makeStorage({
+        yomikikuan_cloud_sync_meta: '{"lastSyncedAt":123,"junk":true,"uid":"x"}',
+      });
+      check('readCloudMeta drops unknown fields',
+        jsonEq(readCloudMeta(storage), { lastSyncedAt: 123 }));
+    }
+    {
+      const throwing = { getItem() { throw new Error('denied'); } };
+      check('readCloudMeta(throwing storage) → empty meta, no throw',
+        jsonEq(readCloudMeta(throwing), { lastSyncedAt: null }));
+    }
+    {
+      const storage = makeStorage();
+      const written = writeCloudMeta(storage, { lastSyncedAt: 1700000000123 });
+      check('writeCloudMeta returns the normalised meta',
+        jsonEq(written, { lastSyncedAt: 1700000000123 }));
+      check('writeCloudMeta writes JSON under CLOUD_SYNC_META_KEY',
+        storage.raw()[CLOUD_SYNC_META_KEY] === '{"lastSyncedAt":1700000000123}');
+    }
+    {
+      const storage = makeStorage();
+      writeCloudMeta(storage, { lastSyncedAt: '2024-01-02T03:04:05.000Z', extra: 1 });
+      check('writeCloudMeta normalises ISO strings + drops extra fields',
+        storage.raw()[CLOUD_SYNC_META_KEY]
+          === `{"lastSyncedAt":${Date.parse('2024-01-02T03:04:05.000Z')}}`);
+    }
+    {
+      const throwing = { setItem() { throw new Error('quota'); } };
+      let threw = false;
+      try { writeCloudMeta(throwing, { lastSyncedAt: 5 }); } catch (_) { threw = true; }
+      check('writeCloudMeta(throwing storage) does not throw', threw === false);
+    }
+    {
+      const storage = makeStorage();
+      writeCloudMeta(storage, { lastSyncedAt: 1700000000123 });
+      check('writeCloudMeta → readCloudMeta roundtrip',
+        readCloudMeta(storage).lastSyncedAt === 1700000000123);
+    }
+    check('writeCloudMeta(invalid) persists null, not garbage',
+      writeCloudMeta(makeStorage(), { lastSyncedAt: 'garbage' }).lastSyncedAt === null);
+
+    // =========================================================================
+    // 4. Local-change detection
+    // =========================================================================
+    check('newestLocalUpdatedAt([]) → 0', newestLocalUpdatedAt([]) === 0);
+    check('newestLocalUpdatedAt(null) → 0', newestLocalUpdatedAt(null) === 0);
+    check('newestLocalUpdatedAt picks the max updatedAt',
+      newestLocalUpdatedAt([makeDoc('a', 1000), makeDoc('b', 3000), makeDoc('c', 2000)]) === 3000);
+    check('newestLocalUpdatedAt falls back to createdAt',
+      newestLocalUpdatedAt([{ id: 'a', createdAt: 777 }]) === 777);
+    check('newestLocalUpdatedAt ignores invalid docs',
+      newestLocalUpdatedAt([null, 'x', {}, { updatedAt: 'nope' }, makeDoc('ok', 42)]) === 42);
+
+    check('hasChangedSince(2000, 1000) → true', hasChangedSince(2000, 1000) === true);
+    check('hasChangedSince(1000, 1000) → false (not strictly newer)', hasChangedSince(1000, 1000) === false);
+    check('hasChangedSince(500, 1000) → false', hasChangedSince(500, 1000) === false);
+    check('hasChangedSince(1000, null) → true (never synced)', hasChangedSince(1000, null) === true);
+    check('hasChangedSince(0, null) → false', hasChangedSince(0, null) === false);
+    check('hasChangedSince(invalid, null) → false', hasChangedSince('nope', null) === false);
+    check('hasChangedSince(1000, invalid) → true (treated as never synced)',
+      hasChangedSince(1000, 'nope') === true);
+
+    // =========================================================================
+    // 5. Conflict decision
+    // =========================================================================
+    {
+      const decision = evaluateConflict({ cloud: null, localDocuments: [makeDoc('a', 9999)], meta: { lastSyncedAt: 1000 } });
+      check('no cloud copy → no conflict', decision.conflict === false);
+      check('no cloud copy → cloudChanged false', decision.cloudChanged === false);
+    }
+    {
+      const decision = evaluateConflict({
+        cloud: { payload: {}, updatedAt: 3000 },
+        localDocuments: [makeDoc('a', 1000)],
+        meta: { lastSyncedAt: 1000 },
+      });
+      check('only cloud changed → no conflict',
+        decision.conflict === false && decision.cloudChanged === true && decision.localChanged === false);
+    }
+    {
+      const decision = evaluateConflict({
+        cloud: { payload: {}, updatedAt: 1000 },
+        localDocuments: [makeDoc('a', 3000)],
+        meta: { lastSyncedAt: 1000 },
+      });
+      check('only local changed → no conflict',
+        decision.conflict === false && decision.cloudChanged === false && decision.localChanged === true);
+    }
+    {
+      const decision = evaluateConflict({
+        cloud: { payload: {}, updatedAt: 3000 },
+        localDocuments: [makeDoc('a', 2000)],
+        meta: { lastSyncedAt: 1000 },
+      });
+      check('both changed since lastSyncedAt → conflict',
+        decision.conflict === true && decision.cloudChanged === true && decision.localChanged === true);
+    }
+    {
+      const decision = evaluateConflict({
+        cloud: { payload: {}, updatedAt: 3000 },
+        localDocuments: [makeDoc('a', 2000)],
+        meta: null,
+      });
+      check('never synced + cloud & local data → conflict (documented first-sync guard)',
+        decision.conflict === true);
+    }
+    {
+      const decision = evaluateConflict({
+        cloud: { payload: {}, updatedAt: 3000 },
+        localDocuments: [],
+        meta: null,
+      });
+      check('never synced + empty local → no conflict', decision.conflict === false);
+    }
+    {
+      const decision = evaluateConflict({
+        direction: 'pull',
+        cloud: { payload: {}, updatedAt: 3000 },
+        localDocuments: [makeDoc('a', 2000)],
+        meta: { lastSyncedAt: 1000 },
+      });
+      check('direction is echoed back', decision.direction === 'pull');
+    }
+    {
+      const decision = evaluateConflict({
+        cloud: { payload: {}, updatedAt: 3000 },
+        localDocuments: [makeDoc('a', 2000)],
+        meta: { lastSyncedAt: 1000 },
+      });
+      check('decision exposes normalised timestamps',
+        decision.cloudUpdatedAt === 3000
+        && decision.localUpdatedAt === 2000
+        && decision.lastSyncedAt === 1000);
+    }
+
+    // =========================================================================
+    // 6. Payload validation + error classification
+    // =========================================================================
+    check('isBackupPayload(null) → false', isBackupPayload(null) === false);
+    check('isBackupPayload({}) → false', isBackupPayload({}) === false);
+    check('isBackupPayload({ data: [] }) → false', isBackupPayload({ data: [] }) === false);
+    check('isBackupPayload(v3 payload) → true', isBackupPayload(makePayload()) === true);
+
+    check('classifyCloudError(null) → unknown',
+      classifyCloudError(null) === CLOUD_SYNC_ERRORS.UNKNOWN);
+    check('classifyCloudError(code no-bridge) → no-bridge',
+      classifyCloudError({ code: 'no-bridge' }) === CLOUD_SYNC_ERRORS.NO_BRIDGE);
+    check('classifyCloudError("Firebase SDK not configured") → no-bridge',
+      classifyCloudError(new Error('Firebase SDK not configured')) === CLOUD_SYNC_ERRORS.NO_BRIDGE);
+    check('classifyCloudError("permission denied") → auth',
+      classifyCloudError(new Error('permission denied')) === CLOUD_SYNC_ERRORS.AUTH);
+    check('classifyCloudError("401") → auth',
+      classifyCloudError(new Error('401 Unauthorized')) === CLOUD_SYNC_ERRORS.AUTH);
+    check('classifyCloudError(TypeError "Failed to fetch") → network',
+      classifyCloudError(new TypeError('Failed to fetch')) === CLOUD_SYNC_ERRORS.NETWORK);
+    check('classifyCloudError("network timeout") → network',
+      classifyCloudError(new Error('network timeout')) === CLOUD_SYNC_ERRORS.NETWORK);
+    check('classifyCloudError("invalid backup") → invalid-payload',
+      classifyCloudError(new Error('invalid backup')) === CLOUD_SYNC_ERRORS.INVALID_PAYLOAD);
+    check('classifyCloudError("payload corrupt") → invalid-payload',
+      classifyCloudError(new Error('payload corrupt')) === CLOUD_SYNC_ERRORS.INVALID_PAYLOAD);
+    check('classifyCloudError("boom") → unknown',
+      classifyCloudError(new Error('boom')) === CLOUD_SYNC_ERRORS.UNKNOWN);
+    check('classifyCloudError(string) → classified',
+      classifyCloudError('permission denied') === CLOUD_SYNC_ERRORS.AUTH);
+
+    const ERROR_KEY_CASES = [
+      ['no-bridge', 'cloudSyncNotConfigured'],
+      ['no-cloud-data', 'cloudSyncNoCloudData'],
+      ['invalid-payload', 'cloudSyncInvalidPayload'],
+      ['network', 'cloudSyncNetworkError'],
+      ['auth', 'cloudSyncAuthError'],
+      ['unknown', 'cloudSyncError'],
+      ['some-new-code', 'cloudSyncError'],
+    ];
+    for (const [code, key] of ERROR_KEY_CASES) {
+      check(`errorMessageKey(${code}) → ${key}`, errorMessageKey(code) === key);
+    }
+
+    // Every key this module can surface must exist (non-empty) in ja/en/zh.
+    const MODULE_KEYS = [
+      'cloudSyncNotConfigured',
+      'cloudSyncNoCloudData',
+      'cloudSyncInvalidPayload',
+      'cloudSyncNetworkError',
+      'cloudSyncAuthError',
+      'cloudSyncError',
+      'cloudSyncPushSuccess',
+      'cloudSyncPullSuccess',
+      'cloudSyncPushConflictConfirm',
+      'cloudSyncPullConflictConfirm',
+      'cloudSyncPullCancelled',
+      'cloudSyncPush',
+      'cloudSyncPull',
+    ];
+    {
+      const dict = (typeof window !== 'undefined' && window.I18N) ? window.I18N : null;
+      const missing = [];
+      for (const key of MODULE_KEYS) {
+        for (const lang of ['ja', 'en', 'zh']) {
+          const value = dict && dict[lang] && dict[lang][key];
+          if (typeof value !== 'string' || value === '') missing.push(`${lang}:${key}`);
+        }
+      }
+      check('all cloud-sync i18n keys exist in ja/en/zh', missing.length === 0, missing.slice(0, 10).join(', '));
+    }
+
+    // =========================================================================
+    // 7. Push orchestration
+    // =========================================================================
+
+    // 7a. Missing bridge → graceful error toast, no throw.
+    {
+      const { notes, notify } = makeNotify();
+      let threw = null;
+      let res = null;
+      try {
+        res = await pushToCloud({ win: {}, storage: makeStorage(), notify, translate });
+      } catch (e) { threw = e; }
+      check('push without bridge → no throw', threw === null);
+      check('push without bridge → { ok:false, reason:no-bridge }',
+        !!res && res.ok === false && res.reason === 'no-bridge');
+      check('push without bridge → error toast with cloudSyncNotConfigured',
+        notes.length === 1 && notes[0].level === 'error'
+        && notes[0].message === translate('cloudSyncNotConfigured'));
+    }
+
+    // 7b. Happy path: collect DI → bridge.set → meta bump → success toast.
+    {
+      const storage = makeStorage();
+      const bridge = makeBridge();
+      const { notes, notify } = makeNotify();
+      const pushedDoc = makeDoc('local-doc', 1000);
+      const payload = makePayload([pushedDoc]);
+      let collectCtx = null;
+      const res = await pushToCloud({
+        win: {},
+        storage,
+        getBridge: () => bridge,
+        notify,
+        translate,
+        now: () => NOW,
+        getDocuments: () => [pushedDoc],
+        getActiveId: () => 'local-doc',
+        getSettings: () => ({ yomikikuan_theme: 'paper' }),
+        collectBackupPayload: async (ctx) => { collectCtx = ctx; return payload; },
+      });
+      check('push success → { ok:true, action:push }',
+        res.ok === true && res.action === 'push' && res.updatedAt === NOW);
+      check('push passes the backup DI bundle to collectBackupPayload',
+        !!collectCtx
+        && typeof collectCtx.getDocuments === 'function'
+        && collectCtx.getDocuments()[0].id === 'local-doc'
+        && collectCtx.getActiveId() === 'local-doc'
+        && collectCtx.getSettings().yomikikuan_theme === 'paper');
+      check('push hands the v3 payload + timestamp to bridge.set',
+        bridge.state.setCalls.length === 1
+        && bridge.state.setCalls[0].payload === payload
+        && bridge.state.setCalls[0].updatedAt === NOW);
+      check('push records meta.lastSyncedAt = updatedAt',
+        readCloudMeta(storage).lastSyncedAt === NOW);
+      check('push toasts cloudSyncPushSuccess',
+        notes.some((n) => n.level === 'success' && n.message === translate('cloudSyncPushSuccess')));
+    }
+
+    // 7c. bridge.get fails during push → network error, no write.
+    {
+      const storage = makeStorage();
+      const bridge = makeBridge({ getError: new TypeError('Failed to fetch') });
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win: {}, storage, getBridge: () => bridge, notify, translate, now: () => NOW,
+        getDocuments: () => [], collectBackupPayload: async () => makePayload(),
+      });
+      check('push bridge.get network failure → reason network',
+        res.ok === false && res.reason === 'network');
+      check('push bridge.get failure → bridge.set not called',
+        bridge.state.setCalls.length === 0);
+      check('push bridge.get failure → error toast cloudSyncNetworkError',
+        notes.some((n) => n.level === 'error' && n.message === translate('cloudSyncNetworkError')));
+      check('push bridge.get failure → meta untouched',
+        readCloudMeta(storage).lastSyncedAt === null);
+    }
+
+    // 7d. bridge.set fails → error toast, meta untouched.
+    {
+      const storage = makeStorage();
+      const bridge = makeBridge({ setError: new Error('permission denied') });
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win: {}, storage, getBridge: () => bridge, notify, translate, now: () => NOW,
+        getDocuments: () => [], getActiveId: () => '', getSettings: () => ({}),
+        collectBackupPayload: async () => makePayload(),
+      });
+      check('push bridge.set auth failure → reason auth',
+        res.ok === false && res.reason === 'auth');
+      check('push bridge.set failure → meta untouched',
+        readCloudMeta(storage).lastSyncedAt === null);
+      check('push bridge.set failure → error toast cloudSyncAuthError',
+        notes.some((n) => n.level === 'error' && n.message === translate('cloudSyncAuthError')));
+    }
+
+    // 7e. collectBackupPayload throws / returns junk.
+    {
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win: {}, storage: makeStorage(), getBridge: () => makeBridge(), notify, translate,
+        getDocuments: () => [],
+        collectBackupPayload: async () => { throw new Error('invalid backup'); },
+      });
+      check('push collect failure → invalid-payload',
+        res.ok === false && res.reason === 'invalid-payload');
+      check('push collect failure → error toast',
+        notes.some((n) => n.level === 'error' && n.message === translate('cloudSyncInvalidPayload')));
+    }
+    {
+      const bridge = makeBridge();
+      const res = await pushToCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, translate,
+        getDocuments: () => [], collectBackupPayload: async () => null,
+      });
+      check('push non-payload collect result → invalid-payload; no bridge.set',
+        res.ok === false && res.reason === 'invalid-payload' && bridge.state.setCalls.length === 0);
+    }
+
+    // 7f. Conflict → confirm true = local wins (push).
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{"lastSyncedAt":1000}' });
+      const bridge = makeBridge({ payload: makePayload([makeDoc('cloud-doc', 3000)]), updatedAt: 3000 });
+      const { notes, notify } = makeNotify();
+      const confirms = [];
+      const localDoc = makeDoc('local-doc', 2000);
+      const res = await pushToCloud({
+        win: {}, storage, getBridge: () => bridge, notify, translate, now: () => NOW,
+        getDocuments: () => [localDoc],
+        getActiveId: () => 'local-doc',
+        getSettings: () => ({}),
+        collectBackupPayload: async () => makePayload([localDoc]),
+        confirm: (message) => { confirms.push(message); return true; },
+      });
+      check('push conflict → prompts once with cloudSyncPushConflictConfirm',
+        confirms.length === 1 && confirms[0] === translate('cloudSyncPushConflictConfirm'));
+      check('push conflict confirm → bridge.set overwrites cloud (local wins)',
+        bridge.state.setCalls.length === 1 && bridge.state.updatedAt === NOW);
+      check('push conflict confirm → conflict flag surfaced',
+        res.ok === true && res.action === 'push' && res.conflict === true);
+      check('push conflict confirm → push success toast',
+        notes.some((n) => n.level === 'success' && n.message === translate('cloudSyncPushSuccess')));
+    }
+
+    // 7g. Conflict → confirm false = cancel = pull cloud.
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{"lastSyncedAt":1000}' });
+      const cloudPayload = makePayload([makeDoc('cloud-doc', 3000)]);
+      const bridge = makeBridge({ payload: cloudPayload, updatedAt: 3000 });
+      const { notes, notify } = makeNotify();
+      const applied = [];
+      const res = await pushToCloud({
+        win: {}, storage, getBridge: () => bridge, notify, translate, now: () => NOW,
+        getDocuments: () => [makeDoc('local-doc', 2000)],
+        getActiveId: () => 'local-doc',
+        getSettings: () => ({}),
+        collectBackupPayload: async () => makePayload([makeDoc('local-doc', 2000)]),
+        applyBackup: async (payload, ctx) => { applied.push({ payload, ctx }); },
+        confirm: () => false,
+      });
+      check('push conflict cancel → no bridge.set', bridge.state.setCalls.length === 0);
+      check('push conflict cancel → cloud payload applied locally',
+        applied.length === 1 && applied[0].payload === cloudPayload);
+      check('push conflict cancel → meta = cloud.updatedAt',
+        readCloudMeta(storage).lastSyncedAt === 3000);
+      check('push conflict cancel → pull success toast',
+        notes.some((n) => n.level === 'success' && n.message === translate('cloudSyncPullSuccess')));
+      check('push conflict cancel → res reports a pull',
+        res.ok === true && res.action === 'pull' && res.conflict === true);
+    }
+
+    // 7h. First push with an existing cloud copy prompts (documented guard).
+    {
+      const bridge = makeBridge({ payload: makePayload([makeDoc('cloud-doc', 3000)]), updatedAt: 3000 });
+      let confirms = 0;
+      await pushToCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, translate, now: () => NOW,
+        getDocuments: () => [makeDoc('local-doc', 2000)],
+        getActiveId: () => 'local-doc', getSettings: () => ({}),
+        collectBackupPayload: async () => makePayload([makeDoc('local-doc', 2000)]),
+        confirm: () => { confirms += 1; return true; },
+      });
+      check('first push against an existing cloud copy prompts (never synced)',
+        confirms === 1);
+    }
+
+    // 7i. Default document DI mirrors the user-menu backup filter.
+    {
+      const storage = makeStorage({
+        activeId: 'active-1',
+        yomikikuan_theme: 'sakura',
+        yomikikuan_lang: 'zh',
+        yomikikuan_fontSize: '18',
+      });
+      const win = {
+        documentManager: {
+          getAllDocuments: () => [
+            makeDoc('user-doc', 1000),
+            makeDoc('sample-doc', 9999, { folder: 'samples' }),
+            makeDoc('locked-doc', 9999, { locked: true }),
+          ],
+        },
+      };
+      let seen = null;
+      await pushToCloud({
+        win, storage, getBridge: () => makeBridge(), translate, now: () => NOW,
+        collectBackupPayload: async (ctx) => {
+          seen = {
+            ids: ctx.getDocuments().map((d) => d.id),
+            activeId: ctx.getActiveId(),
+            settings: ctx.getSettings(),
+          };
+          return makePayload(ctx.getDocuments());
+        },
+      });
+      check('default getDocuments excludes samples + locked docs',
+        jsonEq(seen.ids, ['user-doc']), JSON.stringify(seen.ids));
+      check('default getActiveId reads the live `activeId` key',
+        seen.activeId === 'active-1');
+      check('default getSettings reads the three backup settings keys',
+        jsonEq(seen.settings, {
+          yomikikuan_theme: 'sakura',
+          yomikikuan_lang: 'zh',
+          yomikikuan_fontSize: '18',
+        }), JSON.stringify(seen.settings));
+    }
+
+    // 7i-2. documentManager / legacy-key fallbacks in the default DI.
+    {
+      const storage = makeStorage({
+        activeId: 'stale-active',
+        texts: '[]',
+      });
+      const win = {
+        documentManager: {
+          getAllDocuments: () => [makeDoc('dm-doc', 1000)],
+          getActiveId: () => 'dm-active',
+        },
+      };
+      let seen = null;
+      await pushToCloud({
+        win, storage, getBridge: () => makeBridge(), translate, now: () => NOW,
+        collectBackupPayload: async (ctx) => { seen = ctx; return makePayload(); },
+      });
+      check('default getActiveId prefers documentManager.getActiveId()',
+        seen.getActiveId() === 'dm-active');
+      check('default getDocuments prefers documentManager.getAllDocuments()',
+        seen.getDocuments().length === 1 && seen.getDocuments()[0].id === 'dm-doc');
+    }
+    {
+      // No documentManager → read the live `texts` key (main-js LS.texts).
+      const storage = makeStorage({ texts: JSON.stringify([makeDoc('ls-doc', 500)]) });
+      let seen = null;
+      await pushToCloud({
+        win: {}, storage, getBridge: () => makeBridge(), translate, now: () => NOW,
+        collectBackupPayload: async (ctx) => { seen = ctx; return makePayload(); },
+      });
+      check('default getDocuments falls back to the live `texts` key',
+        seen.getDocuments().length === 1 && seen.getDocuments()[0].id === 'ls-doc');
+    }
+    {
+      // Legacy prefixed alias only → still picked up for activeId.
+      const storage = makeStorage({ yomikikuan_activeId: 'legacy-active' });
+      let seen = null;
+      await pushToCloud({
+        win: {}, storage, getBridge: () => makeBridge(), translate, now: () => NOW,
+        collectBackupPayload: async (ctx) => { seen = ctx; return makePayload(); },
+      });
+      check('default getActiveId falls back to the prefixed alias',
+        seen.getActiveId() === 'legacy-active');
+    }
+    {
+      // Pull LS keys are overridable for future storage migrations.
+      const applied = [];
+      const bridge = makeBridge({ payload: makePayload([makeDoc('cloud-doc', 2000)]), updatedAt: 5000 });
+      await pullFromCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, translate, now: () => NOW,
+        getDocuments: () => [],
+        ls: { texts: 'custom_texts', activeId: 'custom_active' },
+        applyBackup: async (payload, ctx) => { applied.push(ctx); },
+      });
+      check('pull LS keys are DI-overridable',
+        jsonEq(applied[0].LS, { texts: 'custom_texts', activeId: 'custom_active' }));
+    }
+
+    // 7j. No bridge installed → no window error, mock notify untouched otherwise.
+    {
+      const res = await pushToCloud({ win: {}, storage: makeStorage() });
+      check('push with zero deps returns a result object (never undefined)',
+        !!res && typeof res === 'object');
+    }
+
+    // =========================================================================
+    // 8. Pull orchestration
+    // =========================================================================
+
+    // 8a. Missing bridge.
+    {
+      const { notes, notify } = makeNotify();
+      let threw = null;
+      let res = null;
+      try {
+        res = await pullFromCloud({ win: {}, storage: makeStorage(), notify, translate });
+      } catch (e) { threw = e; }
+      check('pull without bridge → no throw', threw === null);
+      check('pull without bridge → reason no-bridge',
+        !!res && res.ok === false && res.reason === 'no-bridge');
+      check('pull without bridge → error toast with cloudSyncNotConfigured',
+        notes.length === 1 && notes[0].level === 'error'
+        && notes[0].message === translate('cloudSyncNotConfigured'));
+    }
+
+    // 8b. Empty cloud → info toast, no import.
+    {
+      const bridge = makeBridge();
+      const { notes, notify } = makeNotify();
+      let applied = 0;
+      const res = await pullFromCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, notify, translate,
+        getDocuments: () => [], applyBackup: async () => { applied += 1; },
+      });
+      check('pull with empty cloud → reason no-cloud-data',
+        res.ok === false && res.reason === 'no-cloud-data');
+      check('pull with empty cloud → info toast cloudSyncNoCloudData',
+        notes.some((n) => n.level === 'info' && n.message === translate('cloudSyncNoCloudData')));
+      check('pull with empty cloud → applyBackup not called', applied === 0);
+    }
+
+    // 8c. Happy path: applyBackup(payload, { LS, afterApply }) + meta = cloud.updatedAt.
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{"lastSyncedAt":1000}' });
+      const cloudPayload = makePayload([makeDoc('cloud-doc', 2000)]);
+      const bridge = makeBridge({ payload: cloudPayload, updatedAt: 5000 });
+      const { notes, notify } = makeNotify();
+      const applied = [];
+      const afterApply = () => {};
+      const res = await pullFromCloud({
+        win: {}, storage, getBridge: () => bridge, notify, translate, now: () => NOW,
+        getDocuments: () => [makeDoc('local-doc', 1000)],
+        applyBackup: async (payload, ctx) => { applied.push({ payload, ctx }); },
+        afterApply,
+      });
+      check('pull success → { ok:true, action:pull }',
+        res.ok === true && res.action === 'pull' && res.updatedAt === 5000);
+      check('pull passes the cloud payload to applyBackup',
+        applied.length === 1 && applied[0].payload === cloudPayload);
+      check('pull passes the live document LS keys to applyBackup',
+        jsonEq(applied[0].ctx.LS, { texts: 'texts', activeId: 'activeId' }),
+        JSON.stringify(applied[0].ctx.LS));
+      check('pull forwards afterApply to applyBackup', applied[0].ctx.afterApply === afterApply);
+      check('pull sets meta = cloud.updatedAt',
+        readCloudMeta(storage).lastSyncedAt === 5000);
+      check('pull toasts cloudSyncPullSuccess',
+        notes.some((n) => n.level === 'success' && n.message === translate('cloudSyncPullSuccess')));
+    }
+
+    // 8d. Cloud updatedAt missing → fall back to now().
+    {
+      const storage = makeStorage();
+      const bridge = makeBridge({ payload: makePayload([makeDoc('cloud-doc', 2000)]), updatedAt: undefined });
+      const res = await pullFromCloud({
+        win: {}, storage, getBridge: () => bridge, translate, now: () => NOW,
+        getDocuments: () => [], applyBackup: async () => {},
+      });
+      check('pull without cloud.updatedAt → meta = now()',
+        res.ok === true && readCloudMeta(storage).lastSyncedAt === NOW);
+    }
+
+    // 8e. Conflict → prompt; cancel keeps local.
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{"lastSyncedAt":1000}' });
+      const bridge = makeBridge({ payload: makePayload([makeDoc('cloud-doc', 3000)]), updatedAt: 3000 });
+      const { notes, notify } = makeNotify();
+      const confirms = [];
+      let applied = 0;
+      const res = await pullFromCloud({
+        win: {}, storage, getBridge: () => bridge, notify, translate,
+        getDocuments: () => [makeDoc('local-doc', 2000)],
+        applyBackup: async () => { applied += 1; },
+        confirm: (message) => { confirms.push(message); return false; },
+      });
+      check('pull conflict → prompts once with cloudSyncPullConflictConfirm',
+        confirms.length === 1 && confirms[0] === translate('cloudSyncPullConflictConfirm'));
+      check('pull conflict cancel → applyBackup not called', applied === 0);
+      check('pull conflict cancel → reason cancelled',
+        res.ok === false && res.reason === 'cancelled' && res.conflict === true);
+      check('pull conflict cancel → info toast cloudSyncPullCancelled',
+        notes.some((n) => n.level === 'info' && n.message === translate('cloudSyncPullCancelled')));
+      check('pull conflict cancel → meta untouched',
+        readCloudMeta(storage).lastSyncedAt === 1000);
+    }
+
+    // 8f. Conflict → confirm applies the cloud copy (cloud wins).
+    {
+      const storage = makeStorage({ yomikikuan_cloud_sync_meta: '{"lastSyncedAt":1000}' });
+      const cloudPayload = makePayload([makeDoc('cloud-doc', 3000)]);
+      const bridge = makeBridge({ payload: cloudPayload, updatedAt: 3000 });
+      let applied = 0;
+      const res = await pullFromCloud({
+        win: {}, storage, getBridge: () => bridge, translate, now: () => NOW,
+        getDocuments: () => [makeDoc('local-doc', 2000)],
+        applyBackup: async () => { applied += 1; },
+        confirm: () => true,
+      });
+      check('pull conflict confirm → applyBackup called (cloud wins)',
+        applied === 1 && res.ok === true && res.conflict === true);
+      check('pull conflict confirm → meta = cloud.updatedAt',
+        readCloudMeta(storage).lastSyncedAt === 3000);
+    }
+
+    // 8g. Invalid cloud payload.
+    {
+      const bridge = makeBridge({ payload: { version: 3 }, updatedAt: 5000 });
+      const { notes, notify } = makeNotify();
+      let applied = 0;
+      const res = await pullFromCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, notify, translate,
+        getDocuments: () => [], applyBackup: async () => { applied += 1; },
+      });
+      check('pull invalid cloud payload → invalid-payload; no applyBackup',
+        res.ok === false && res.reason === 'invalid-payload' && applied === 0);
+      check('pull invalid cloud payload → error toast',
+        notes.some((n) => n.level === 'error' && n.message === translate('cloudSyncInvalidPayload')));
+    }
+
+    // 8h. bridge.get throws during pull.
+    {
+      const bridge = makeBridge({ getError: new Error('permission denied') });
+      const { notes, notify } = makeNotify();
+      const res = await pullFromCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, notify, translate,
+        getDocuments: () => [],
+      });
+      check('pull bridge.get auth failure → reason auth',
+        res.ok === false && res.reason === 'auth');
+      check('pull bridge.get failure → error toast cloudSyncAuthError',
+        notes.some((n) => n.level === 'error' && n.message === translate('cloudSyncAuthError')));
+    }
+
+    // 8i. applyBackup throws.
+    {
+      const bridge = makeBridge({ payload: makePayload([makeDoc('cloud-doc', 2000)]), updatedAt: 5000 });
+      const { notes, notify } = makeNotify();
+      const res = await pullFromCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, notify, translate,
+        getDocuments: () => [],
+        applyBackup: async () => { throw new Error('invalid'); },
+      });
+      check('pull applyBackup failure → invalid-payload',
+        res.ok === false && res.reason === 'invalid-payload');
+      check('pull applyBackup failure → error toast',
+        notes.some((n) => n.level === 'error' && n.message === translate('cloudSyncInvalidPayload')));
+    }
+
+    // 8j. Never-synced pull against a cloud + local data pair prompts too.
+    {
+      const bridge = makeBridge({ payload: makePayload([makeDoc('cloud-doc', 3000)]), updatedAt: 3000 });
+      let confirms = 0;
+      await pullFromCloud({
+        win: {}, storage: makeStorage(), getBridge: () => bridge, translate,
+        getDocuments: () => [makeDoc('local-doc', 2000)],
+        applyBackup: async () => {},
+        confirm: () => { confirms += 1; return false; },
+      });
+      check('first pull with existing local data prompts (never synced)', confirms === 1);
+    }
+
+    // =========================================================================
+    // render harness
+    // =========================================================================
+    const pass = results.filter((r) => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail === 0 ? '#1d7d3f' : '#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

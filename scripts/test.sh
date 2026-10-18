@@ -81,6 +81,7 @@ const TESTS = [
   'static/js/modules/settings/font.test.html',
   'static/js/modules/settings/display.test.html',
   'static/js/modules/analysis/render.test.html',
+  'static/js/modules/cloud-sync/index.test.html',
   'static/js/modules/youtube/duration.test.html',
   'static/js/modules/reading/kana.test.html',
   'static/js/modules/reading/reading.test.html',
