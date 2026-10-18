@@ -115,6 +115,8 @@
     "static/flags/ja.svg",
     "static/flags/en.svg",
     "static/flags/zh.svg",
-    "static/js/modules/youtube/duration.js"
+    "static/js/modules/youtube/duration.js",
+    "static/libs/easymde/easymde.min.js",
+    "static/libs/easymde/easymde.min.css"
   ]
 }

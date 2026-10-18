@@ -14,8 +14,8 @@ explicitly boundary-locked with its blockers written down.
 > clarity instead of raw LOC.
 
 - **`main-js.js` stays ≤ 7,500 lines** — a ceiling, not a target. Current:
-  **6,655** (after the 2026-10-18 technical-debt pass); was 8,835 at the
-  start of the cumulative effort (**−2,180 net**).
+  **6,727** (after the 2026-10-18 second pass); was 8,835 at the
+  start of the cumulative effort (**−2,108 net**).
 - **Acceptance checklist** (re-verify each pass):
   1. `wc -l static/main-js.js` ≤ 7,500.
   2. Every `init*` / stateful concern still in `main-js.js` is either
@@ -36,7 +36,7 @@ explicitly boundary-locked with its blockers written down.
   fixtures that don't use the runner's `#summary` harness (visual tables:
   `difficulty`, `syntax`; `console.assert` page: `idb`; non-standard
   harness: `backup/index`). Plus the Playwright E2E smoke suite via
-  `npm run e2e` (8 scenarios, all green).)
+  `npm run e2e` (10 scenarios, all green).)
 
 <details><summary>Header-refactor dead-code sweep history (2026-06/07)</summary>
 
@@ -67,7 +67,7 @@ guarded, possibly conditionally-present, left as-is.
 > after the technical-debt pass below. Current tree: `main-js.js`
 > **6,655** lines, **87** ESM modules, **53** `*.test.html` on disk of
 > which **49** run headlessly in **1,356** cases, plus the Playwright E2E
-> suite (8 scenarios). *(The old number in this note — 6999 / 86 / 47 /
+> suite (10 scenarios). *(The old number in this note — 6999 / 86 / 47 /
 > v85 / 1147 — was correct before this pass; the Lead bumped `CACHE_VERSION`
 > to v86 in the integration commit.)*
 
@@ -86,12 +86,24 @@ guarded, possibly conditionally-present, left as-is.
 >
 > **Integration note (2026-10-18, same wave):** alongside the debt pass the
 > Lead integrated the other three workstreams — i18n completion (46 keys ×
-> ja/en/zh + `i18n/coverage.test.html`), CI now runs the 8-scenario E2E
+> ja/en/zh + `i18n/coverage.test.html`), CI now runs the 10-scenario E2E
 > suite (redesign layout, backup-v2 import, login smoke) with four new
 > sibling unit pages (169 cases), and a YouTube whole-video duration probe
 > (`youtube/duration.js`, fail-open) plus the logo re-encode (1.19 MB → 20.8
-> KB). Final wave state: 49 headless pages / 1,356 cases, 8 E2E scenarios,
-> `CACHE_VERSION` **v86**.
+> KB). Final wave state: 49 headless pages / 1,356 cases, 10 E2E scenarios,
+> `CACHE_VERSION` **v87**.
+
+> **Second pass (2026-10-18, same day):** removed the orphaned `#appDrawer`
+> DOM (−46 HTML lines) + `.app-drawer*` CSS (−228 CSS lines) + its i18n
+> label pass after `initAppDrawer` was proven dead; deferred the boot
+> `analyzeText()` to post-load idle (skipped entirely on data-saver/2G);
+> lazy-loaded EasyMDE (~345 KB) behind value/focus/addEventListener shims
+> so the native textarea works until the editor mounts, with data-saver
+> users loading it only on first interaction; E2E grown to 10 scenarios
+> (lazy-editor mount, data-saver path) with a one-shot retry for transient
+> local-server flakes. `main-js.js` is 6,727 lines — the lazy-editor loader
+> and analysis scheduler added ~150 lines while the drawer cleanup took
+> ~7; the ≤7,500 ceiling still holds.
 
 
 > **✅ Retargeted 2026-10-18**: the analysis below still stands, so the
@@ -587,7 +599,7 @@ Per CLAUDE.md "Playback pipeline boundary":
   Chromium through the 49 pages in the `TESTS` array (**1,356 cases**).
   Resolves `playwright` from project node_modules, `@playwright/mcp`'s
   nested install, or `$PLAYWRIGHT_NODE_PATH`. E2E: `npm run e2e` →
-  `bash scripts/e2e.sh` → Playwright spec in `tests/e2e/` (8 scenarios,
+  `bash scripts/e2e.sh` → Playwright spec in `tests/e2e/` (10 scenarios,
   includes the redesign layout assertions + login.html smoke). Override
   ports with `YK_TEST_PORT` / `YK_E2E_PORT` when running in parallel.
 

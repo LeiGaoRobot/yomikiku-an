@@ -4,6 +4,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **EasyMDE is lazy-loaded**: the ~345 KB editor bundle is no longer part
+  of the first paint. The plain textarea stays fully functional until the
+  editor mounts; `textInput.value` / `focus` / `addEventListener` are
+  shimmed so boot-time callers behave identically. On normal connections it
+  mounts after the load event via idle callback; data-saver/2G users only
+  load it on first interaction. Offline installs still precache it.
+- **Boot analysis scheduling**: the initial `analyzeText()` now waits for
+  the load event + idle instead of firing at +100 ms, so the shell paints
+  before the ~11.5 MB kuromoji dictionary download starts. Data-saver/2G
+  connections skip the automatic run entirely (blur / Ctrl+Enter / 解析
+  still trigger it).
+- **Removed the orphaned app-drawer UI**: `initAppDrawer` was deleted last
+  pass as dead code (`#appIcon` never existed); this pass removes its
+  matching `#appDrawer` markup (−46 lines), `.app-drawer*` / `.app-item*` /
+  `.logout-btn` CSS (−228 lines) and the now-unused
+  `applications`/`closeApplicationList` i18n keys.
+- `main-js.js` 6,655 → 6,727 (the lazy-editor loader + analysis scheduler
+  add ~150 lines; the drawer label pass removes ~7). Ceiling ≤7,500 holds.
+- `CACHE_VERSION` v86 → v87; EasyMDE assets added to `pwa-assets.json` for
+  explicit offline installs.
+
 ### Added
 - **YouTube whole-video duration cap**: `youtube/duration.js` probes
   `getDuration()` through a hidden IFrame player at parse time (the keyless
@@ -11,7 +33,7 @@ All notable changes to this project are documented in this file.
   any tab can call Gemini. Fail-open: a blocked/offline probe resolves
   `null` and falls back to the old `?start=&end=` clip-range check. Sibling
   test: `youtube/duration.test.html`.
-- **CI now runs the Playwright E2E suite** (8 scenarios) after the unit
+- **CI now runs the Playwright E2E suite** (10 scenarios) after the unit
   suite, with failure artifacts. New guards: desktop 1440×900 redesign
   layout (AI rail, fixed dock, paper canvas), mobile 390×844 rail/dock
   geometry, backup **v2 → v3** import compatibility, and a `login.html`
@@ -19,6 +41,10 @@ All notable changes to this project are documented in this file.
 - **i18n coverage test**: `i18n/coverage.test.html` asserts ja/en/zh key
   sets are identical and that every literal `t/tr/trFmt/format('…')` key in
   21 module sources resolves in all three languages.
+- **E2E growth**: lazy-EasyMDE mount/typing/blur-analysis and a
+  data-saver path (editor stays unloaded until interaction) — 10 scenarios
+  total; the runner now retries a scenario once on transient local-server
+  flakiness.
 - **Sibling unit tests** for `settings/theme.js`, `settings/font.js`,
   `settings/display.js` and `analysis/render.js` (+169 cases).
 - `docs/plans/2026-10-18-post-1.1.0-product-decisions.md` — measured
