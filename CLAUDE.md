@@ -53,7 +53,7 @@ Bulk of logic still in `main-js.js`. When adding features, prefer extracting the
 
 All keys prefixed `yomikikuan_`. Don't wipe them during cache resets. If you rename any, add the old→new pair to `static/js/migrate-legacy-keys.js`.
 
-**Known localStorage keys**: `yomikikuan_texts` (documents), `yomikikuan_activeId`, `yomikikuan_theme`, `yomikikuan_lang`, `yomikikuan_fontSize`, `yomikikuan_gemini_api_key`, `yomikikuan_gemini_style`, `yomikikuan_ruby_mode` (`'true'` or absent), `yomikikuan_bilingual_mode` (`'true'` or absent), `yomikikuan_analyzer_autoplay_preanalyze`, `yomikikuan_boot_analysis` (`immediate`/`idle`/`manual`), `yomikikuan_cloud_sync_meta` (`{ lastSyncedAt }`, epoch ms), TTS engine/voice prefs, user profile. Plus the backward-compat short keys (`text`, `voiceURI`, `rate`, `volume`, `activeId`, …) still used by main-js.js's `LS` constant — `migrate-legacy-keys.js` maps them.
+**Known localStorage keys**: `texts` / `activeId` (the **live** document store that `documentManager` reads/writes — backup import and cloud-sync pull must write these short keys, not the legacy aliases), `yomikikuan_texts` / `yomikikuan_activeId` (legacy aliases, only read by fallbacks), `yomikikuan_theme`, `yomikikuan_lang`, `yomikikuan_fontSize`, `yomikikuan_gemini_api_key`, `yomikikuan_gemini_style`, `yomikikuan_ruby_mode` (`'true'` or absent), `yomikikuan_bilingual_mode` (`'true'` or absent), `yomikikuan_analyzer_autoplay_preanalyze`, `yomikikuan_boot_analysis` (`immediate`/`idle`/`manual`), `yomikikuan_cloud_sync_meta` (`{ lastSyncedAt }`, epoch ms), TTS engine/voice prefs, user profile. Plus the backward-compat short keys (`text`, `voiceURI`, `rate`, `volume`, `activeId`, …) still used by main-js.js's `LS` constant — `migrate-legacy-keys.js` maps them.
 
 **sessionStorage**: `yomikikuan_logging_out`, `yomikikuan_sw_reloading` (one-shot flag breaking SW controllerchange reload loop).
 
@@ -122,7 +122,7 @@ The playback state machine lives **only** in `main-js.js` — local `playSegment
 
 `service-worker.js` deliberately does NOT call `self.skipWaiting()` in `install`. A new worker waits until the page posts `{ type: 'SKIP_WAITING' }`. `main-js.js` registers the SW on every load, shows an `.ap-update-toast` (right-bottom blue `刷新` button) when a new version reaches `installed` state while a current worker is still in control, then posts `SKIP_WAITING` and reloads on `controllerchange`.
 
-**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v89`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
+**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v90`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
 
 Fetch strategy:
 - Navigation → `networkFirst` (fallback to cached `index.html` offline)

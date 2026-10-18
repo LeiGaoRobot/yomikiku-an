@@ -81,6 +81,13 @@ All notable changes to this project are documented in this file.
   cases.
 
 ### Fixed
+- **Backup import wrote the wrong storage keys**: the user-menu import path
+  wrote the legacy `yomikikuan_texts` / `yomikikuan_activeId` aliases, but the
+  live document store (`documentManager`) reads the short `texts` /
+  `activeId` keys — so imported documents never appeared in the UI. Import now
+  writes the live keys (matching the cloud-sync pull path), and the backup
+  round-trip E2E drives the real `#userImportFile` path and asserts against
+  `documentManager` instead of the aliases.
 - **Reading-mode state divergence**: the global Esc handler used to flip
   only main-js.js's legacy boolean while the ESM module stayed "active".
   Removing the duplicate state makes divergence structurally impossible.

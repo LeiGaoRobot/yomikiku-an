@@ -279,26 +279,38 @@ async function backupRoundtrip(page) {
   });
   assert(!cleared.hasSeedDoc, 'seed doc still present after wipe');
 
-  // Restore from snapshot.
-  await page.evaluate(async (p) => {
-    const m = await import('/static/js/modules/backup/index.js');
-    await m.applyBackup(p, { LS: {} });
-  }, payload);
+  // Restore through the REAL user-menu import path (#userImportFile → main-js
+  // applyBackup). Calling applyBackup directly would bypass the wiring that
+  // passes the live `texts`/`activeId` keys — exactly what used to hide an
+  // import bug where the prefixed aliases were written.
+  await page.setInputFiles('#userImportFile', {
+    name: 'e2e-backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(payload)),
+  });
+  await page.waitForFunction(
+    () => window.documentManager.getAllDocuments().some((d) => d.id === 'e2e-doc-1'),
+    { timeout: 12000 },
+  );
 
-  // Verify restoration.
+  // Verify restoration through the app's real document store (documentManager
+  // reads the short `texts`/`activeId` keys), NOT the legacy prefixed aliases.
   const restored = await page.evaluate(async () => {
-    const docs = JSON.parse(localStorage.getItem('yomikikuan_texts') || '[]');
+    const dm = window.documentManager;
+    const docs = dm.getAllDocuments();
     const srsModule = await import('/static/js/modules/srs/store.js');
     const vocab = await srsModule.listVocab({ bucket: 'all', sort: 'created' });
     return {
       docCount: docs.length,
       hasSeedDoc: docs.some((d) => d.id === 'e2e-doc-1'),
+      activeId: dm.getActiveId(),
       vocabCount: vocab.length,
       hasSeedVocab: vocab.some((v) => v.word === '散歩'),
     };
   });
   assert(restored.docCount >= 1, `expected docs restored, got ${restored.docCount}`);
-  assert(restored.hasSeedDoc, 'seed doc not restored');
+  assert(restored.hasSeedDoc, 'seed doc not visible to documentManager after import');
+  assert(restored.activeId === 'e2e-doc-1', `activeId not applied after import, got "${restored.activeId}"`);
   assert(restored.hasSeedVocab, 'seed vocab not restored');
 }
 

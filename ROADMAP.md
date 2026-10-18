@@ -14,8 +14,8 @@ explicitly boundary-locked with its blockers written down.
 > clarity instead of raw LOC.
 
 - **`main-js.js` stays ≤ 7,500 lines** — a ceiling, not a target. Current:
-  **6,804** (after the 2026-10-18 third pass); was 8,835 at the
-  start of the cumulative effort (**−2,031 net**).
+  **6,807** (after the 2026-10-18 third pass); was 8,835 at the
+  start of the cumulative effort (**−2,028 net**).
 - **Acceptance checklist** (re-verify each pass):
   1. `wc -l static/main-js.js` ≤ 7,500.
   2. Every `init*` / stateful concern still in `main-js.js` is either
@@ -118,7 +118,12 @@ guarded, possibly conditionally-present, left as-is.
 > module fails gracefully ("cloud sync not configured") and the ~450-line
 > dead Firestore code in `initUserProfile` remains a separate decision.
 > E2E scenario ⑫ covers push/pull/conflict/no-bridge with a mock bridge.
-> `main-js.js` is 6,804 lines (+51 wiring).
+> **Bonus fix found while integrating:** the user-menu backup import wrote the
+> legacy `yomikikuan_texts`/`yomikikuan_activeId` aliases while the live
+> document store reads short `texts`/`activeId`, so imported docs never showed
+> up; import now writes the live keys and E2E ③ asserts through
+> `documentManager` via the real `#userImportFile` path.
+> `main-js.js` is 6,807 lines (+54 wiring/import fix).
 
 
 > **✅ Retargeted 2026-10-18**: the analysis below still stands, so the

@@ -6528,11 +6528,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       return m.collectBackupPayload({
         getDocuments: () => {
           try {
-            const all = window.documentManager ? window.documentManager.getAllDocuments() : JSON.parse(localStorage.getItem('yomikikuan_texts') || '[]');
+            const all = window.documentManager ? window.documentManager.getAllDocuments() : JSON.parse(localStorage.getItem('texts') || localStorage.getItem('yomikikuan_texts') || '[]');
             return (Array.isArray(all) ? all : []).filter(d => d && d.folder !== 'samples' && !d.locked);
           } catch (_) { return []; }
         },
-        getActiveId: () => localStorage.getItem('yomikikuan_activeId') || '',
+        getActiveId: () => localStorage.getItem('activeId') || localStorage.getItem('yomikikuan_activeId') || '',
         getSettings: () => {
           const s = {};
           try { ['yomikikuan_theme', 'yomikikuan_lang', 'yomikikuan_fontSize'].forEach((k) => { s[k] = localStorage.getItem(k); }); } catch (_) {}
@@ -6545,8 +6545,11 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
 
     async function applyBackup(data) {
       const m = await import('/static/js/modules/backup/index.js');
+      // The live document store uses the short keys in the `LS` constant
+      // (`texts` / `activeId`), not the legacy `yomikikuan_*` aliases — writing
+      // the aliases made imported documents invisible to documentManager.
       await m.applyBackup(data, {
-        LS: { texts: 'yomikikuan_texts', activeId: 'yomikikuan_activeId' },
+        LS: { texts: 'texts', activeId: 'activeId' },
         afterApply: ({ activeId, settings }) => {
           if (window.documentManager) {
             window.documentManager.render();
