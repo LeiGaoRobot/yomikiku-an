@@ -5,6 +5,8 @@
 
 const I18N = {
   ja: {
+    bootAnalysisManualHint: '自動解析はオフです。「解析する」を押すと分析を開始します。',
+    bootAnalysisManualBtn: '解析する',
     title: '読み聞く庵',
     navAnalyze: 'テキスト解析',
     navTTS: '音声読み上げ',
@@ -406,6 +408,8 @@ const I18N = {
     ,'youtube.panel.error.videoTooLong_fmt': '選択した動画は {max} 分を超えています。短い動画を選ぶか範囲を指定してください'
   },
   en: {
+    bootAnalysisManualHint: 'Automatic analysis is off. Press "Analyze" to start.',
+    bootAnalysisManualBtn: 'Analyze',
     title: '読み聞く庵',
     navAnalyze: 'Analyze',
     navTTS: 'TTS',
@@ -806,6 +810,8 @@ const I18N = {
     ,'youtube.panel.error.videoTooLong_fmt': 'The selected video is longer than {max} minutes — choose a shorter video or specify a clip range'
   },
   zh: {
+    bootAnalysisManualHint: '自动解析已关闭。点击「解析」开始分析。',
+    bootAnalysisManualBtn: '解析',
     title: '読み聞く庵',
     navAnalyze: '文本分析',
     navTTS: '语音朗读',

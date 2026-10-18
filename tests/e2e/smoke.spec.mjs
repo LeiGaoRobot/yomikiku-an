@@ -1,4 +1,4 @@
-// E2E smoke specs — 10 happy paths covering the major user-visible
+// E2E smoke specs — 11 happy paths covering the major user-visible
 // surfaces of YomiKiku-an. Run via `bash scripts/e2e.sh` (which spawns
 // a Python HTTP server + injects PLAYWRIGHT_NODE_PATH).
 //
@@ -17,6 +17,7 @@
 //   that the static login shell renders and no fatal pageerror fires.
 // - Scenarios ⑨/⑩ cover the lazy EasyMDE mount: normal connections mount it
 //   after first paint, data-saver connections only on first interaction.
+// - Scenario ⑪ covers the boot-analysis A/B switch in 'manual' mode.
 
 const PORT = process.env.YK_E2E_PORT || '8002';
 const BASE = `http://localhost:${PORT}`;
@@ -38,6 +39,11 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
+// ⑪ support: force the boot-analysis A/B switch into 'manual' mode.
+const BOOT_MANUAL_INIT = `(() => {
+  try { localStorage.setItem('yomikikuan_boot_analysis', 'manual'); } catch (e) {}
+})();`;
+
 const TESTS = [
   { name: '①  app boots — title + #textInput + 4 panel buttons present',          fn: bootSmoke },
   { name: '②  analyze → vocab — addVocab via window hook renders in vocabPanel', fn: analyzeToVocab },
@@ -49,6 +55,7 @@ const TESTS = [
   { name: '⑧  login.html smoke — HTTP 200 + login card, no fatal pageerror',    fn: loginPageSmoke },
   { name: '⑨  lazy EasyMDE — mounts after boot, typing syncs, blur analyzes',    fn: markdownEditorLazyMount, viewport: { width: 1440, height: 900 } },
   { name: '⑩  data-saver — EasyMDE stays unloaded until first interaction',      fn: markdownEditorDataSaver, viewport: { width: 1440, height: 900 }, init: DATA_SAVER_INIT },
+  { name: '⑪  boot-analysis switch — manual mode waits for the Analyze button',  fn: bootAnalysisManual, init: BOOT_MANUAL_INIT },
 ];
 
 // Cleared once at the start of each scenario (via Playwright init script).
@@ -623,6 +630,31 @@ async function markdownEditorDataSaver(page, errors) {
   ).then(() => true).catch(() => false);
   assert(mounted, 'EasyMDE did not mount after the first data-saver interaction');
   assert(errors.length === 0, `data-saver editor emitted console/page errors: ${errors[0]}`);
+}
+
+// ⑪ Boot-analysis A/B switch: 'manual' must not auto-analyze; it shows a
+// prompt whose button runs the same analyzeText() path.
+async function bootAnalysisManual(page, errors) {
+  await page.goto(`${BASE}/index.html`);
+  await waitForBoot(page);
+
+  await page.waitForSelector('.boot-analysis-prompt', { timeout: 8000 });
+  const pre = await page.evaluate(() => ({
+    tokens: document.querySelectorAll('#content .token-pill').length,
+    hasBtn: !!document.getElementById('bootAnalysisRunBtn'),
+    hint: (document.querySelector('.boot-analysis-prompt p') || {}).textContent || '',
+  }));
+  assert(pre.tokens === 0, `manual mode auto-analyzed (${pre.tokens} token pills rendered)`);
+  assert(pre.hasBtn, 'manual-mode prompt is missing #bootAnalysisRunBtn');
+  assert(pre.hint.trim().length > 0, 'manual-mode prompt hint is empty');
+
+  await page.click('#bootAnalysisRunBtn');
+  const rendered = await page.waitForFunction(
+    () => document.querySelectorAll('#content .line-container').length > 0,
+    { timeout: 20000 },
+  ).then(() => true).catch(() => false);
+  assert(rendered, 'analysis did not run after clicking the manual-mode Analyze button');
+  assert(errors.length === 0, `manual boot-analysis emitted console/page errors: ${errors[0]}`);
 }
 
 // --- harness ---

@@ -635,6 +635,9 @@
           if (typeof cfg.geminiStyle === 'string' && cfg.geminiStyle) {
             localStorage.setItem('yomikikuan_gemini_style', cfg.geminiStyle);
           }
+          if (typeof cfg.bootAnalysisMode === 'string' && cfg.bootAnalysisMode) {
+            localStorage.setItem('yomikikuan_boot_analysis', cfg.bootAnalysisMode);
+          }
         }
       } catch (_) { /* localStorage disabled */ }
       // Key health status — exposed for Settings panel + any header indicator.

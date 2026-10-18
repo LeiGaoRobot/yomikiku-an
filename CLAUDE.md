@@ -28,7 +28,7 @@ npm start   # python3 -m http.server 8000
 ## Local config (optional)
 
 - `cp config.example.js config.js` and fill in `geminiApiKey` / `geminiStyle`.
-- `config.js` is gitignored. An inline IIFE in `index.html` copies it into `localStorage` on every load (config.js is authoritative — UI-entered keys are overwritten on reload).
+- `config.js` is gitignored. An inline IIFE in `index.html` copies it into `localStorage` on every load (config.js is authoritative — UI-entered keys are overwritten on reload). Optional `bootAnalysisMode: 'immediate' | 'idle' | 'manual'` maps to `localStorage['yomikikuan_boot_analysis']` (A/B switch for boot-time auto-analysis; default `idle`).
 - SW special-cases `/config.js` as **networkFirst** so key rotation takes effect on reload without bumping `CACHE_VERSION`.
 - **Not safe for public deploys** — any file served to the browser can be fetched by anyone who can reach the server.
 
@@ -104,7 +104,7 @@ The playback state machine lives **only** in `main-js.js` — local `playSegment
 
 `service-worker.js` deliberately does NOT call `self.skipWaiting()` in `install`. A new worker waits until the page posts `{ type: 'SKIP_WAITING' }`. `main-js.js` registers the SW on every load, shows an `.ap-update-toast` (right-bottom blue `刷新` button) when a new version reaches `installed` state while a current worker is still in control, then posts `SKIP_WAITING` and reloads on `controllerchange`.
 
-**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v87`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
+**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v88`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
 
 Fetch strategy:
 - Navigation → `networkFirst` (fallback to cached `index.html` offline)

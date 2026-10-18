@@ -13,6 +13,7 @@
 //    the rest of the app already reads from:
 //        geminiApiKey  -> localStorage['yomikikuan_gemini_api_key']
 //        geminiStyle   -> localStorage['yomikikuan_gemini_style']
+//        bootAnalysisMode -> localStorage['yomikikuan_boot_analysis']
 //    After that, all consumers (tts.js, analyzer providers, jlptPanel.js)
 //    just read localStorage as usual. No other code changes needed.
 //
@@ -45,4 +46,11 @@ window.YOMIKIKUAN_CONFIG = {
   // a reading style. See CLAUDE.md for how this gets used.
   // Example: 'Read calmly in a newscaster voice'
   geminiStyle: '',
+
+  // Boot-analysis mode (A/B switch): 'immediate' | 'idle' | 'manual'.
+  //   immediate — legacy: analyze ~100ms after boot
+  //   idle      — default: analyze after the load event, in an idle callback
+  //   manual    — never auto-analyze; show an Analyze button in the reading pane
+  // Empty string keeps the stored/local default ('idle').
+  bootAnalysisMode: '',
 };

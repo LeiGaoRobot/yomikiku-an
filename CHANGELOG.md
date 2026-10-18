@@ -11,11 +11,14 @@ All notable changes to this project are documented in this file.
   shimmed so boot-time callers behave identically. On normal connections it
   mounts after the load event via idle callback; data-saver/2G users only
   load it on first interaction. Offline installs still precache it.
-- **Boot analysis scheduling**: the initial `analyzeText()` now waits for
-  the load event + idle instead of firing at +100 ms, so the shell paints
-  before the ~11.5 MB kuromoji dictionary download starts. Data-saver/2G
-  connections skip the automatic run entirely (blur / Ctrl+Enter / 解析
-  still trigger it).
+- **Boot analysis scheduling + A/B switch**: the initial `analyzeText()`
+  now waits for the load event + idle instead of firing at +100 ms, so the
+  shell paints before the ~11.5 MB kuromoji dictionary download starts.
+  Data-saver/2G connections skip the automatic run entirely (blur /
+  Ctrl+Enter / 解析 still trigger it). A switch selects the mode:
+  `localStorage['yomikikuan_boot_analysis']` or `config.js`
+  `bootAnalysisMode` = `immediate` (legacy +100 ms) | `idle` (default) |
+  `manual` (prompt with an Analyze button, no auto-run).
 - **Removed the orphaned app-drawer UI**: `initAppDrawer` was deleted last
   pass as dead code (`#appIcon` never existed); this pass removes its
   matching `#appDrawer` markup (−46 lines), `.app-drawer*` / `.app-item*` /
@@ -33,7 +36,7 @@ All notable changes to this project are documented in this file.
   any tab can call Gemini. Fail-open: a blocked/offline probe resolves
   `null` and falls back to the old `?start=&end=` clip-range check. Sibling
   test: `youtube/duration.test.html`.
-- **CI now runs the Playwright E2E suite** (10 scenarios) after the unit
+- **CI now runs the Playwright E2E suite** (11 scenarios) after the unit
   suite, with failure artifacts. New guards: desktop 1440×900 redesign
   layout (AI rail, fixed dock, paper canvas), mobile 390×844 rail/dock
   geometry, backup **v2 → v3** import compatibility, and a `login.html`
@@ -42,9 +45,9 @@ All notable changes to this project are documented in this file.
   sets are identical and that every literal `t/tr/trFmt/format('…')` key in
   21 module sources resolves in all three languages.
 - **E2E growth**: lazy-EasyMDE mount/typing/blur-analysis and a
-  data-saver path (editor stays unloaded until interaction) — 10 scenarios
-  total; the runner now retries a scenario once on transient local-server
-  flakiness.
+  data-saver path (editor stays unloaded until interaction) and a
+  boot-analysis `manual` mode — 11 scenarios total; the runner retries a
+  scenario once on transient local-server flakiness.
 - **Sibling unit tests** for `settings/theme.js`, `settings/font.js`,
   `settings/display.js` and `analysis/render.js` (+169 cases).
 - `docs/plans/2026-10-18-post-1.1.0-product-decisions.md` — measured

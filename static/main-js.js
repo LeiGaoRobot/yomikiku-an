@@ -4756,6 +4756,27 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     showEmptyState();
   }
 
+  // Boot-analysis switch (A/B): 'immediate' | 'idle' (default) | 'manual'.
+  // Set via config.js (`bootAnalysisMode`) or localStorage directly:
+  //   localStorage.setItem('yomikikuan_boot_analysis', 'manual')
+  function getBootAnalysisMode() {
+    let mode = 'idle';
+    try { mode = (localStorage.getItem('yomikikuan_boot_analysis') || 'idle').trim().toLowerCase(); } catch (_) {}
+    return (mode === 'immediate' || mode === 'manual') ? mode : 'idle';
+  }
+
+  function showManualAnalysisPrompt() {
+    teardownLiveAnalyzerCards();
+    content.innerHTML = `
+      <div class="boot-analysis-prompt" style="text-align:center;color:#a0aec0;padding:2rem;">
+        <p style="margin-bottom:1rem;">${t('bootAnalysisManualHint')}</p>
+        <button type="button" class="btn btn-secondary" id="bootAnalysisRunBtn">${t('bootAnalysisManualBtn')}</button>
+      </div>`;
+    const btn = document.getElementById('bootAnalysisRunBtn');
+    if (btn) btn.addEventListener('click', () => analyzeText());
+    syncReadingLineAttributes(isReadingModeActive());
+  }
+
   function scheduleInitialAnalysis() {
     let started = false;
     const run = () => {
@@ -4763,10 +4784,15 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       started = true;
       try { analyzeText(); } catch (_) {}
     };
+    const mode = getBootAnalysisMode();
+    if (mode === 'manual') { showManualAnalysisPrompt(); return; }
     const conn = (typeof navigator !== 'undefined'
       && (navigator.connection || navigator.mozConnection || navigator.webkitConnection)) || {};
     const slow = conn.saveData === true || /(^|-)2g$/i.test(conn.effectiveType || '');
-    if (slow) return;
+    // Data-saver users wait for an explicit interaction unless the A/B switch
+    // forces the legacy immediate behaviour.
+    if (slow && mode !== 'immediate') return;
+    if (mode === 'immediate') { setTimeout(run, 100); return; }
     const idle = () => {
       if (started) return;
       if (typeof window.requestIdleCallback === 'function') {
