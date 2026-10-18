@@ -5,21 +5,15 @@ on:
     branches: [master]
   pull_request:
 
-# Opt actions/checkout + actions/setup-node into Node 24 ahead of GitHub's
-# 2026-06-02 Node 20 deprecation deadline. Drop this once the actions ship
-# Node-24-native v5 releases and we bump the @v4 → @v5 pins.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 8
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 'lts/*'
 
@@ -28,7 +22,7 @@ jobs:
           npm install --no-save playwright
           npx playwright install chromium --with-deps
 
-      - name: Run test suite (42 *.test.html pages, 1132 cases)
+      - name: Run test suite (43 *.test.html pages, 1147 cases)
         run: npm test 2>&1 | tee test-output.log
 
       - name: Upload test output on failure
