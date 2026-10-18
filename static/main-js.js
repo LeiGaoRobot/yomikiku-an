@@ -98,8 +98,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const newDocBtn = $('newDocBtn');
   const documentList = $('documentList');
   const folderList = $('folderList');
-  const readingModeToggle = $('readingModeToggle');
-  const editorReadingToggle = document.getElementById('editorReadingToggle');
   const editorDocDate = document.getElementById('editorDocDate');
   const editorCharCount = document.getElementById('editorCharCount');
   const editorStarToggle = document.getElementById('editorStarToggle');
@@ -732,11 +730,6 @@ const headerSpeedValue = $('headerSpeedValue');
     return coord.request(controller);
   }
 
-  let isReadingMode = false;
-  let activeReadingLine = null;
-  // Sync shim: ESM module editor/reading-mode.js calls this to keep the
-  // legacy closure bool in sync when it owns the toggle logic.
-  window.__setMainReadingMode = (v) => { isReadingMode = !!v; };
   const initialUrlSearch = (() => {
     try {
       const url = new URL(window.location.href);
@@ -1146,14 +1139,46 @@ const headerSpeedValue = $('headerSpeedValue');
     });
   }
 
+  // ====== Reading mode — state lives ONLY in modules/editor/reading-mode.js ======
+  // Single-owner consolidation (2026-10-18): this IIFE used to keep a second
+  // copy of { isReadingMode, activeReadingLine } plus a full legacy overlay
+  // implementation. That second copy silently diverged from the ESM module
+  // (e.g. the global Esc path flipped only the local bool, leaving the module
+  // still "active"). modules/editor/reading-mode.js — imported by app.js — is
+  // the canonical owner and exposes an explicit window API; the helpers below
+  // are thin shims, with no fallback copy of the state, so divergence is
+  // structurally impossible. Every caller is post-boot (async analyze render,
+  // language switch, Esc handler), by which point the deferred module has run.
+  function readingApi() {
+    return (typeof window !== 'undefined') ? window : null;
+  }
+
+  function isReadingModeActive() {
+    const w = readingApi();
+    if (w && typeof w.isReadingModeActive === 'function') {
+      try { return !!w.isReadingModeActive(); } catch (_) { return false; }
+    }
+    return false;
+  }
+
   function clearReadingLineHighlight() {
-    if (!activeReadingLine) return;
-    const previous = activeReadingLine;
-    activeReadingLine = null;
-    previous.classList.remove('reading-line-active');
-    previous.removeAttribute('aria-current');
-    if (previous.hasAttribute('aria-pressed')) {
-      previous.setAttribute('aria-pressed', 'false');
+    const w = readingApi();
+    if (w && typeof w.clearReadingLineHighlight === 'function') {
+      try { w.clearReadingLineHighlight(); } catch (_) {}
+    }
+  }
+
+  function syncReadingLineAttributes(enabled) {
+    const w = readingApi();
+    if (w && typeof w.syncReadingLineAttributes === 'function') {
+      try { w.syncReadingLineAttributes(enabled); } catch (_) {}
+    }
+  }
+
+  function updateReadingToggleLabels() {
+    const w = readingApi();
+    if (w && typeof w.updateReadingToggleLabels === 'function') {
+      try { w.updateReadingToggleLabels(); } catch (_) {}
     }
   }
 
@@ -1421,266 +1446,6 @@ const headerSpeedValue = $('headerSpeedValue');
     });
   }
 
-  // Phase-2 delegator → modules/editor/reading-mode.js (canonical owner).
-  // Inline fallback retained per playback-boundary rule (boot-race safety:
-  // 8 callers across boot/init paths must work even before the ESM module
-  // finishes loading). The module's own version queries
-  // document.getElementById('content') fresh each call; the inline
-  // fallback uses the closure-captured `content` ref captured at boot.
-  function syncReadingLineAttributes(enabled) {
-    if (typeof window !== 'undefined' && typeof window.syncReadingLineAttributes === 'function'
-        && window.syncReadingLineAttributes !== syncReadingLineAttributes) {
-      window.syncReadingLineAttributes(enabled);
-      return;
-    }
-    if (!content) return;
-    const lines = content.querySelectorAll('.line-container');
-    lines.forEach((line) => {
-      if (enabled) {
-        line.setAttribute('tabindex', '0');
-        line.setAttribute('role', 'button');
-        const isActive = line.classList.contains('reading-line-active');
-        line.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-        if (isActive) {
-          line.setAttribute('aria-current', 'true');
-        } else {
-          line.removeAttribute('aria-current');
-        }
-      } else {
-        line.setAttribute('tabindex', '-1');
-        if (line.getAttribute('role') === 'button') {
-          line.removeAttribute('role');
-        }
-        line.removeAttribute('aria-pressed');
-        line.removeAttribute('aria-current');
-      }
-    });
-  }
-
-  function setReadingLineActive(line) {
-    if (!line) return;
-    if (!isReadingMode) return;
-    if (activeReadingLine === line) {
-      clearReadingLineHighlight();
-      syncReadingLineAttributes(true);
-      return;
-    }
-
-    clearReadingLineHighlight();
-    activeReadingLine = line;
-    line.classList.add('reading-line-active');
-    line.setAttribute('aria-pressed', 'true');
-    line.setAttribute('aria-current', 'true');
-    syncReadingLineAttributes(true);
-  }
-
-  function updateReadingToggleLabels() {
-    if (window.__ESM_READING_MODE && typeof window.updateReadingToggleLabels === 'function'
-        && window.updateReadingToggleLabels !== updateReadingToggleLabels) {
-      window.updateReadingToggleLabels();
-      return;
-    }
-    const enterLabel = t('readingToggleEnter') || '阅读模式';
-    const exitLabel = t('readingToggleExit') || '退出阅读';
-    const enterTooltip = t('readingToggleTooltipEnter') || enterLabel;
-    const exitTooltip = t('readingToggleTooltipExit') || exitLabel;
-    const label = isReadingMode ? exitLabel : enterLabel;
-    const tooltip = isReadingMode ? exitTooltip : enterTooltip;
-
-    [readingModeToggle, editorReadingToggle].forEach((btn) => {
-      if (!btn) return;
-      btn.title = tooltip;
-      btn.setAttribute('aria-label', tooltip);
-      btn.setAttribute('aria-pressed', String(isReadingMode));
-      btn.classList.toggle('is-active', isReadingMode);
-    });
-  }
-
-  function setReadingMode(enabled, options = {}) {
-    if (!document.body) return;
-    const shouldEnable = Boolean(enabled);
-    const updateUrl = options.updateUrl !== false;
-
-    const sameState = shouldEnable === isReadingMode;
-    if (sameState && !options.force) {
-      if (updateUrl) {
-        try {
-          const url = new URL(window.location.href);
-          if (shouldEnable) {
-            url.searchParams.set('read', '1');
-          } else {
-            url.searchParams.delete('read');
-          }
-          window.history.replaceState({}, '', url);
-        } catch (_) {}
-      }
-      return;
-    }
-    // 进入/退出按钮动画
-    if (readingModeToggle) {
-      if (shouldEnable) {
-        readingModeToggle.classList.add('click-animation');
-        setTimeout(() => readingModeToggle.classList.remove('click-animation'), 150);
-      } else if (isReadingMode) {
-        readingModeToggle.classList.add('exit-animation');
-        setTimeout(() => readingModeToggle.classList.remove('exit-animation'), 300);
-      }
-    }
-
-    isReadingMode = shouldEnable;
-
-    const updateButtons = () => {
-      [readingModeToggle, editorReadingToggle].forEach((btn) => {
-        if (!btn) return;
-        btn.classList.toggle('is-active', shouldEnable);
-        btn.setAttribute('aria-pressed', String(shouldEnable));
-      });
-      updateReadingToggleLabels();
-    };
-
-    const createOverlay = () => {
-      // 清理旧浮层
-      const existing = document.getElementById('readingOverlay');
-      if (existing) existing.remove();
-
-      const overlay = document.createElement('div');
-      overlay.className = 'reading-overlay';
-      overlay.id = 'readingOverlay';
-      overlay.setAttribute('role', 'dialog');
-      overlay.setAttribute('aria-modal', 'true');
-      overlay.setAttribute('aria-label', t('readingToggleEnter') || '阅读模式');
-
-      const backdrop = document.createElement('div');
-      backdrop.className = 'overlay-backdrop';
-      const contentWrap = document.createElement('div');
-      contentWrap.className = 'overlay-content';
-
-      const toolbar = document.createElement('div');
-      toolbar.className = 'overlay-toolbar';
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'overlay-close';
-      closeBtn.type = 'button';
-      closeBtn.title = t('readingToggleExit') || '退出阅读';
-      closeBtn.setAttribute('aria-label', closeBtn.title);
-      closeBtn.innerHTML = '&times;';
-      toolbar.appendChild(closeBtn);
-
-      // 克隆右侧显示区内容
-      try {
-        const original = document.getElementById('content');
-        if (original) {
-          // 检查是否有日语分析内容（有 token-pill 或 analysis-section）
-          const hasAnalysisContent = original.querySelector('.token-pill, .analysis-section, .line-container');
-          
-          if (hasAnalysisContent) {
-            // 有日语分析内容，直接克隆
-            contentWrap.innerHTML = original.innerHTML;
-          } else {
-            // 没有分析内容，可能是纯文本或 Markdown
-            // 尝试获取原始输入文本
-            const inputText = textInput ? textInput.value : '';
-            
-            if (inputText && inputText.trim()) {
-              // 检测是否包含 Markdown 语法
-              const hasMarkdown = /[#*_\[\]`]/.test(inputText) || 
-                                  /^[-*+]\s/m.test(inputText) || 
-                                  /^\d+\.\s/m.test(inputText) ||
-                                  /^>\s/m.test(inputText);
-              
-              if (hasMarkdown && typeof marked !== 'undefined') {
-                // 使用 marked 渲染 Markdown
-                try {
-                  const renderedHtml = marked.parse(inputText);
-                  contentWrap.innerHTML = renderedHtml;
-                  contentWrap.classList.add('markdown-content');
-                } catch (e) {
-                  console.warn('Markdown 渲染失败:', e);
-                  contentWrap.innerHTML = original.innerHTML || '<p class="empty-state">暂无内容</p>';
-                }
-              } else {
-                // 纯文本，保留换行
-                const formattedText = inputText.split('\n').map(line => 
-                  `<p>${line || '<br>'}</p>`
-                ).join('');
-                contentWrap.innerHTML = formattedText;
-              }
-            } else {
-              // 如果没有输入文本，显示原始内容或空状态
-              contentWrap.innerHTML = original.innerHTML || '<p class="empty-state">暂无内容</p>';
-            }
-          }
-        }
-      } catch (e) {
-        console.error('创建阅读浮层内容失败:', e);
-      }
-
-      overlay.appendChild(backdrop);
-      overlay.appendChild(contentWrap);
-      overlay.appendChild(toolbar);
-      document.body.appendChild(overlay);
-
-      const dismiss = () => setReadingMode(false);
-      backdrop.addEventListener('click', dismiss);
-      closeBtn.addEventListener('click', dismiss);
-
-      // 绑定浮层内的阅读交互
-      bindReadingOverlayInteractions(contentWrap);
-    };
-
-    const removeOverlay = () => {
-      try {
-        const overlay = document.getElementById('readingOverlay');
-        if (overlay) overlay.remove();
-      } catch (_) {}
-      clearReadingLineHighlight();
-    };
-
-    // 使用 requestAnimationFrame 确保动画流畅
-    requestAnimationFrame(() => {
-      if (shouldEnable) {
-        createOverlay();
-      } else {
-        removeOverlay();
-      }
-      updateButtons();
-      syncReadingLineAttributes(shouldEnable);
-    });
-
-    if (updateUrl) {
-      try {
-        const url = new URL(window.location.href);
-        if (shouldEnable) {
-          url.searchParams.set('read', '1');
-        } else {
-          url.searchParams.delete('read');
-        }
-        window.history.replaceState({}, '', url);
-      } catch (_) {}
-    }
-  }
-
-  // 浮层中的阅读交互：点击/键盘触发高亮；ESC 关闭
-  function bindReadingOverlayInteractions(container) {
-    if (!container) return;
-    container.addEventListener('click', (event) => {
-      if (!isReadingMode) return;
-      const line = event.target.closest('.line-container');
-      if (!line) return;
-      setReadingLineActive(line);
-    });
-    container.addEventListener('keydown', (event) => {
-      if (!isReadingMode) return;
-      const line = event.target.closest('.line-container');
-      if (!line) return;
-      if ((event.key === 'Enter' || event.key === ' ') && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        event.preventDefault();
-        setReadingLineActive(line);
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        setReadingMode(false);
-      }
-    });
-  }
 
   // 播放全文按钮的动态文案
   function playAllLabel(playing) {
@@ -3748,7 +3513,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         <p>${t('emptyText')}</p>
       </div>
     `;
-    syncReadingLineAttributes(isReadingMode);
+    syncReadingLineAttributes(isReadingModeActive());
   }
 
   function showLoadingState() {
@@ -3761,7 +3526,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         <p>${t('loading')}</p>
       </div>
     `;
-    syncReadingLineAttributes(isReadingMode);
+    syncReadingLineAttributes(isReadingModeActive());
   }
 
   function showErrorState(message) {
@@ -3777,7 +3542,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
         <button class="btn btn-secondary" onclick="analyzeText()" style="margin-top: 1rem;">${t('analyzeBtn')}</button>
       </div>
     `;
-    syncReadingLineAttributes(isReadingMode);
+    syncReadingLineAttributes(isReadingModeActive());
   }
 
   function displayResults(result) {
@@ -3809,7 +3574,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     // Tear down any live analyzer cards so in-flight requests abort cleanly.
     teardownLiveAnalyzerCards();
     content.innerHTML = html;
-    syncReadingLineAttributes(isReadingMode);
+    syncReadingLineAttributes(isReadingModeActive());
   }
 
   // 播放单个词汇
@@ -5100,23 +4865,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   
   // 右侧边栏自动收缩功能已完全移除
 
-  function initReadingModeToggle() {
-    if (window.__ESM_READING_MODE) return; // owned by static/js/modules/editor/reading-mode.js
-    setReadingMode(isReadingMode, { updateUrl: false, force: true });
-    [readingModeToggle, editorReadingToggle].forEach((btn) => {
-      if (!btn) return;
-      btn.addEventListener('click', () => {
-        setReadingMode(!isReadingMode);
-      });
-    });
-    window.addEventListener('popstate', () => {
-      try {
-        const url = new URL(window.location.href);
-        setReadingMode(url.searchParams.has('read'), { updateUrl: false, force: true });
-      } catch (_) {}
-    });
-  }
-
   // 顶部编辑工具栏：implementation owned by modules/editor/editor-toolbar.js
   // (self-bootstraps via app.js → editor-toolbar.js, sets window.updateEditorToolbar).
   // This shim is hoisted so the four call sites in documentManager methods
@@ -5128,10 +4876,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     if (w && typeof w.updateEditorToolbar === 'function' && w.updateEditorToolbar !== updateEditorToolbar) {
       try { w.updateEditorToolbar(); } catch (_) {}
     }
-  }
-
-  function initReadingModeInteractions() {
-    // 主内容区不再绑定阅读模式交互，改由阅读浮层承载
   }
 
   // 创建共享工具栏内容HTML
@@ -5401,8 +5145,8 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     initSidebarToggle();
     initFolderToolbarCollapse();
     // 移动端右侧边栏初始化已移除
-    initReadingModeToggle();
-    initReadingModeInteractions();
+    // Reading mode self-bootstraps from modules/editor/reading-mode.js
+    // (imported by app.js); no boot wiring is needed here.
     setupPwaInstaller();
     // 两栏模式：读取首选项并绑定按钮
     (function initTwoPane() {
@@ -5551,114 +5295,26 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     initializeApp();
   }
   
-  // 初始化应用程序抽屉
-  initAppDrawer();
+  // initAppDrawer() was removed 2026-10-18: it always early-returned because
+  // #appIcon — its only trigger — never existed in index.html (verified via
+  // `git log --all -S appIcon -- index.html`: absent since the initial commit).
+  // The drawer DOM + open/close/backdrop/ESC handlers it would have wired are
+  // therefore inert dead code. See ROADMAP "Dead-code sweep".
 
   // 初始化搜索模态框
   initSearchModal();
 
-  // 全局键盘：在阅读模式下按 ESC 退出
+  // 全局键盘：在阅读模式下按 ESC 退出。State + overlay are owned by
+  // modules/editor/reading-mode.js; forward the key through its explicit API.
   document.addEventListener('keydown', (e) => {
-    if ((e.key === 'Escape' || e.key === 'Esc') && isReadingMode) {
-      e.preventDefault();
-      setReadingMode(false);
+    if (e.key !== 'Escape' && e.key !== 'Esc') return;
+    if (!isReadingModeActive()) return;
+    e.preventDefault();
+    const w = (typeof window !== 'undefined') ? window : null;
+    if (w && typeof w.setReadingMode === 'function') {
+      try { w.setReadingMode(false); } catch (_) {}
     }
   });
-
-  // 初始化应用程序抽屉
-  function initAppDrawer() {
-    const appIcon = document.getElementById('appIcon');
-    const appDrawer = document.getElementById('appDrawer');
-    const appDrawerClose = document.getElementById('appDrawerClose');
-    const appDrawerBackdrop = document.getElementById('appDrawerBackdrop');
-    const logoutBtn = document.getElementById('logoutBtn');
-
-    if (!appIcon || !appDrawer || !appDrawerClose) return;
-
-    // 打开抽屉
-    appIcon.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      appDrawer.classList.add('show');
-      appDrawer.setAttribute('aria-hidden', 'false');
-      if (appDrawerBackdrop) {
-        appDrawerBackdrop.setAttribute('aria-hidden', 'false');
-      }
-    });
-
-    // 关闭抽屉
-    appDrawerClose.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      appDrawer.classList.remove('show');
-      appDrawer.setAttribute('aria-hidden', 'true');
-      if (appDrawerBackdrop) {
-        appDrawerBackdrop.setAttribute('aria-hidden', 'true');
-      }
-    });
-
-    // 点击遮罩关闭抽屉
-    document.addEventListener('click', (e) => {
-      if (appDrawer.classList.contains('show') && !appDrawer.contains(e.target) && !appIcon.contains(e.target)) {
-        appDrawer.classList.remove('show');
-        appDrawer.setAttribute('aria-hidden', 'true');
-        if (appDrawerBackdrop) {
-          appDrawerBackdrop.setAttribute('aria-hidden', 'true');
-        }
-      }
-    });
-
-    // 点击遮罩关闭抽屉
-    if (appDrawerBackdrop) {
-      appDrawerBackdrop.addEventListener('click', (e) => {
-        e.preventDefault();
-        appDrawer.classList.remove('show');
-        appDrawer.setAttribute('aria-hidden', 'true');
-        appDrawerBackdrop.setAttribute('aria-hidden', 'true');
-      });
-    }
-
-    // 应用程序项点击事件
-    const appItems = appDrawer.querySelectorAll('.app-item');
-    appItems.forEach(item => {
-      item.addEventListener('click', (e) => {
-        e.preventDefault();
-        const appName = item.dataset.app;
-        console.log('点击了应用程序:', appName);
-
-        // 应用项点击：自指项为 no-op（不重新打开自身）
-        // 其他占位项保持原有行为
-
-        // 关闭抽屉
-        appDrawer.classList.remove('show');
-        appDrawer.setAttribute('aria-hidden', 'true');
-        if (appDrawerBackdrop) {
-          appDrawerBackdrop.setAttribute('aria-hidden', 'true');
-        }
-      });
-    });
-
-    // 退出按钮
-    if (logoutBtn) {
-      logoutBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        // 直接显示提示信息，移除 confirm
-        showInfoToast(t('exitInDevelopment'));
-          // 这里可以添加实际的退出逻辑
-      });
-    }
-
-    // ESC键关闭抽屉
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && appDrawer.classList.contains('show')) {
-        appDrawer.classList.remove('show');
-        appDrawer.setAttribute('aria-hidden', 'true');
-        if (appDrawerBackdrop) {
-          appDrawerBackdrop.setAttribute('aria-hidden', 'true');
-        }
-      }
-    });
-  }
 
 })();
   // 文件夹工具栏折叠（支持多个触发按钮）
