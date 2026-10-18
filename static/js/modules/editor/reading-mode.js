@@ -1,18 +1,22 @@
 // editor/reading-mode — canonical owner of reading-mode state + overlay.
 // Extracted from static/main-js.js (lines 692-693, 887-896, 1309-1552, 5774-5788).
-// Self-bootstraps on import; sets `window.__ESM_READING_MODE = true` so legacy
-// main-js.js callers can short-circuit. Also invokes window.__setMainReadingMode
-// to keep the legacy local `isReadingMode` var in sync.
+// Self-bootstraps on import and sets `window.__ESM_READING_MODE = true` so
+// legacy main-js.js callers can short-circuit. Single-owner consolidation
+// (2026-10-18): the old `window.__setMainReadingMode` reverse-sync was removed
+// when main-js.js dropped its duplicate copy of this state.
+
+import { t as i18nT } from '../i18n/index.js';
 
 let isReadingMode = false;
 let activeReadingLine = null;
 
-function t(key) {
-  try { return (window.YomikikuanGetText ? window.YomikikuanGetText(key) : key); } catch (_) { return key; }
-}
-
-function syncLegacyFlag(v) {
-  try { if (typeof window.__setMainReadingMode === 'function') window.__setMainReadingMode(v); } catch (_) {}
+function t(key, fallback) {
+  try {
+    const v = i18nT(key, fallback);
+    return (v != null) ? v : (fallback != null ? fallback : key);
+  } catch (_) {
+    return fallback != null ? fallback : key;
+  }
 }
 
 function clearReadingLineHighlight() {
@@ -63,10 +67,10 @@ function setReadingLineActive(line) {
 }
 
 function updateReadingToggleLabels() {
-  const enterLabel = t('readingToggleEnter') || '阅读模式';
-  const exitLabel  = t('readingToggleExit')  || '退出阅读';
-  const enterTip   = t('readingToggleTooltipEnter') || enterLabel;
-  const exitTip    = t('readingToggleTooltipExit')  || exitLabel;
+  const enterLabel = t('readingToggleEnter', '読書モード');
+  const exitLabel  = t('readingToggleExit', '通常表示へ');
+  const enterTip   = t('readingToggleTooltipEnter', enterLabel);
+  const exitTip    = t('readingToggleTooltipExit', exitLabel);
   const label   = isReadingMode ? exitLabel : enterLabel;
   const tooltip = isReadingMode ? exitTip   : enterTip;
   const readingModeToggle   = document.getElementById('readingModeToggle');
@@ -112,7 +116,7 @@ function createOverlay() {
   overlay.id = 'readingOverlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', t('readingToggleEnter') || '阅读模式');
+  overlay.setAttribute('aria-label', t('readingToggleEnter', '読書モード'));
 
   const backdrop = document.createElement('div');
   backdrop.className = 'overlay-backdrop';
@@ -124,7 +128,7 @@ function createOverlay() {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'overlay-close';
   closeBtn.type = 'button';
-  closeBtn.title = t('readingToggleExit') || '退出阅读';
+  closeBtn.title = t('readingToggleExit', '通常表示へ');
   closeBtn.setAttribute('aria-label', closeBtn.title);
   closeBtn.innerHTML = '&times;';
   toolbar.appendChild(closeBtn);
@@ -148,14 +152,14 @@ function createOverlay() {
               contentWrap.innerHTML = marked.parse(inputText);
               contentWrap.classList.add('markdown-content');
             } catch (_) {
-              contentWrap.innerHTML = original.innerHTML || '<p class="empty-state">暂无内容</p>';
+              contentWrap.innerHTML = original.innerHTML || `<p class="empty-state">${t('readingMode.empty', '暂无内容')}</p>`;
             }
           } else {
             contentWrap.innerHTML = inputText.split('\n')
               .map(line => `<p>${line || '<br>'}</p>`).join('');
           }
         } else {
-          contentWrap.innerHTML = original.innerHTML || '<p class="empty-state">暂无内容</p>';
+          contentWrap.innerHTML = original.innerHTML || `<p class="empty-state">${t('readingMode.empty', '暂无内容')}</p>`;
         }
       }
     }
@@ -210,7 +214,6 @@ function setReadingMode(enabled, options = {}) {
   }
 
   isReadingMode = shouldEnable;
-  syncLegacyFlag(isReadingMode);
 
   const updateButtons = () => {
     const btns = [
@@ -248,7 +251,6 @@ function initReadingModeToggle() {
     const url = new URL(window.location.href);
     if (url.searchParams.has('read')) {
       isReadingMode = true;
-      syncLegacyFlag(true);
     }
   } catch (_) {}
 

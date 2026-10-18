@@ -3,6 +3,25 @@
 // Expects window.documentManager (still provided by main-js.js classic scope).
 // Idempotent bootstrap via __ESM_EDITOR_TOOLBAR_INITED flag.
 
+import { t } from '../i18n/index.js';
+
+function tr(key, fallback) {
+  try {
+    const v = t(key, fallback);
+    return (v != null) ? v : (fallback != null ? fallback : key);
+  } catch (_) {
+    return fallback != null ? fallback : key;
+  }
+}
+
+function trFmt(key, params, fallback) {
+  let s = tr(key, fallback);
+  Object.entries(params || {}).forEach(([k, v]) => {
+    s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+  });
+  return s;
+}
+
 function showInfoToastLocal(msg, dur = 2000) {
   if (typeof window.showInfoToast === 'function') return window.showInfoToast(msg, dur);
   const toast = document.getElementById('syncProgressToast');
@@ -34,7 +53,7 @@ function updateEditorToolbar() {
     }
     if (editorCharCount) {
       const count = (textInput && textInput.value) ? textInput.value.length : 0;
-      editorCharCount.textContent = `共 ${count} 字`;
+      editorCharCount.textContent = trFmt('editor.charCount', { count }, '共 {count} 字');
     }
     if (editorStarToggle) {
       const isFav = !!(doc && doc.favorite);
@@ -80,7 +99,7 @@ function initEditorToolbar() {
         dm.setActiveId(newDoc.id);
         dm.render();
         updateEditorToolbar();
-        showInfoToastLocal('サンプル文書のコピーをお気に入りに追加しました', 2000);
+        showInfoToastLocal(tr('editor.sampleCopyToast', 'サンプル文書のコピーをお気に入りに追加しました'), 2000);
         return;
       }
 

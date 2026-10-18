@@ -11,11 +11,27 @@
 //   window.__yomikikuanOpenInspector()  — slide the drawer in
 //   window.__yomikikuanCloseInspector() — slide it out
 //   window.__yomikikuanToggleInspector() — flip state
+//
+// All user-visible copy is routed through i18n (ja/en/zh). The drawer is built
+// once, so `localizeDrawer()` re-applies the text on every open — that keeps the
+// labels in sync after a live language switch (main-js.js's setLanguage() does
+// not reload the page).
+
+import { t } from '../i18n/index.js';
 
 const OVERLAY_ID = 'inspectorOverlay';
 const DRAWER_ID = 'inspectorDrawer';
 const TRIGGER_ID = 'inspectorToggleBtn';
 const CSS_FLAG = '__yomikikuanInspectorCssInjected';
+
+function tr(key, fallback) {
+  try {
+    const v = t(key, fallback);
+    return (v != null) ? v : (fallback != null ? fallback : key);
+  } catch (_) {
+    return fallback != null ? fallback : key;
+  }
+}
 
 function injectCss() {
   if (typeof window === 'undefined' || window[CSS_FLAG]) return;
@@ -252,11 +268,16 @@ function injectCss() {
       border-color: rgba(255,159,10,.48);
     }
 
-    html.no-gemini-key .inspector-card[data-kind="jlpt"] .card-desc::after,
-    html.no-gemini-key .inspector-card[data-kind="summary"] .card-desc::after {
-      content: " · ⚠️ 需要 Gemini Key";
+    /* The no-Gemini-key suffix is a real inline span (not generated content) so
+       its text can be localized at runtime. */
+    .inspector-card .card-desc .card-nokey {
+      display: none;
       color: #ff3b30;
       font-weight: 500;
+    }
+    html.no-gemini-key .inspector-card[data-kind="jlpt"] .card-desc .card-nokey,
+    html.no-gemini-key .inspector-card[data-kind="summary"] .card-desc .card-nokey {
+      display: inline;
     }
 
     /* (The four AI buttons used to be hidden here after they were folded into
@@ -279,6 +300,44 @@ function injectCss() {
   document.head.appendChild(style);
 }
 
+// Apply every user-visible drawer string in the current UI language. Called
+// once when the drawer is built and again on each open — main-js.js's
+// setLanguage() re-renders in place (no reload), so labels must be refreshed.
+function localizeDrawer(root) {
+  const drawer = root || document.getElementById(DRAWER_ID);
+  if (!drawer) return;
+  const setText = (sel, value) => {
+    const el = drawer.querySelector(sel);
+    if (el && value != null) el.textContent = value;
+  };
+
+  const title = tr('inspector.title', 'AI Assistant');
+  drawer.setAttribute('aria-label', title);
+  setText('.inspector-subtitle', tr('inspector.subtitle', 'Inspector'));
+  setText('#inspectorTitleText', title);
+
+  const closeBtn = drawer.querySelector('#inspectorCloseBtn');
+  if (closeBtn) {
+    const label = tr('close', 'Close');
+    closeBtn.setAttribute('aria-label', label);
+    closeBtn.setAttribute('title', label);
+  }
+
+  setText('[data-kind="summary"] .card-title', tr('inspector.card.summary.title', 'Article analysis'));
+  setText('[data-kind="summary"] .card-desc-text', tr('inspector.card.summary.desc', 'Whole-article summary · Key sentences · JLPT level suggestion'));
+  setText('[data-kind="jlpt"] .card-title', tr('inspector.card.jlpt.title', 'JLPT listening practice'));
+  setText('[data-kind="jlpt"] .card-desc-text', tr('inspector.card.jlpt.desc', '6 real exam question types · Mock tests · Score history · Vocabulary / grammar / trap breakdown'));
+  setText('[data-kind="vocab"] .card-title', tr('inspector.card.vocab.title', 'Vocabulary & mistake book'));
+  setText('[data-kind="vocab"] .card-desc-text', tr('inspector.card.vocab.desc', 'SM-2 spaced repetition · Daily due cards'));
+  setText('[data-kind="bilingual"] .card-title', tr('inspector.card.bilingual.title', 'Bilingual view'));
+  setText('[data-kind="bilingual"] .card-desc-text', tr('inspector.card.bilingual.desc', 'Japanese and Chinese line by line, translated on demand'));
+  setText('[data-kind="export"] .card-title', tr('inspector.card.export.title', 'Export HTML'));
+  setText('[data-kind="export"] .card-desc-text', tr('inspector.card.export.desc', 'Standalone HTML per document · Print to PDF from the browser'));
+
+  const noKey = tr('inspector.noGeminiKey', ' · ⚠️ Gemini key required');
+  drawer.querySelectorAll('.card-nokey').forEach((el) => { el.textContent = noKey; });
+}
+
 function ensureDrawer() {
   let drawer = document.getElementById(DRAWER_ID);
   if (drawer) return drawer;
@@ -293,16 +352,16 @@ function ensureDrawer() {
   drawer.className = 'inspector-drawer';
   drawer.setAttribute('role', 'dialog');
   drawer.setAttribute('aria-modal', 'false');
-  drawer.setAttribute('aria-label', 'AI Inspector');
+  drawer.setAttribute('aria-label', tr('inspector.title', 'AI Assistant'));
   drawer.setAttribute('tabindex', '-1');
 
   drawer.innerHTML = `
     <div class="inspector-head">
       <div style="flex:1;min-width:0;">
         <span class="inspector-subtitle">Inspector</span>
-        <h2 class="inspector-title" id="inspectorTitleText">AI アシスタント</h2>
+        <h2 class="inspector-title" id="inspectorTitleText">AI Assistant</h2>
       </div>
-      <button class="inspector-close" id="inspectorCloseBtn" aria-label="关闭" title="关闭">
+      <button class="inspector-close" id="inspectorCloseBtn" aria-label="Close" title="Close">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
         </svg>
@@ -312,8 +371,8 @@ function ensureDrawer() {
       <button type="button" class="inspector-card" data-kind="summary" data-action="__yomikikuanOpenArticleSummary">
         <span class="card-icon" aria-hidden="true">📖</span>
         <span class="card-body">
-          <span class="card-title">文章解析</span>
-          <span class="card-desc">全篇摘要 · 关键句 · JLPT 等级推荐</span>
+          <span class="card-title">Article analysis</span>
+          <span class="card-desc"><span class="card-desc-text">Whole-article summary</span><span class="card-nokey"></span></span>
         </span>
         <svg class="card-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -323,8 +382,8 @@ function ensureDrawer() {
       <button type="button" class="inspector-card" data-kind="jlpt" data-action="__yomikikuanOpenJLPT">
         <span class="card-icon" aria-hidden="true">🎧</span>
         <span class="card-body">
-          <span class="card-title">JLPT 聴解练习</span>
-          <span class="card-desc">6 种真题题型 · 模拟考试 · 成绩记录 · 词汇/语法/陷阱三层解析</span>
+          <span class="card-title">JLPT listening practice</span>
+          <span class="card-desc"><span class="card-desc-text">6 exam question types</span><span class="card-nokey"></span></span>
         </span>
         <svg class="card-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -334,8 +393,8 @@ function ensureDrawer() {
       <button type="button" class="inspector-card" data-kind="vocab" data-action="__yomikikuanOpenVocab">
         <span class="card-icon" aria-hidden="true">🧠</span>
         <span class="card-body">
-          <span class="card-title">词汇本 / 错题本</span>
-          <span class="card-desc">SM-2 间隔复习 · 每日到期卡片</span>
+          <span class="card-title">Vocabulary &amp; mistake book</span>
+          <span class="card-desc"><span class="card-desc-text">SM-2 spaced repetition</span></span>
         </span>
         <svg class="card-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -345,8 +404,8 @@ function ensureDrawer() {
       <button type="button" class="inspector-card" data-kind="bilingual" data-action="__yomikikuanToggleBilingual">
         <span class="card-icon" aria-hidden="true">中</span>
         <span class="card-body">
-          <span class="card-title">双语对照</span>
-          <span class="card-desc">每行中日并排，按需延迟翻译</span>
+          <span class="card-title">Bilingual view</span>
+          <span class="card-desc"><span class="card-desc-text">Japanese and Chinese line by line</span></span>
         </span>
         <span class="card-state" id="inspectorBilingualState">OFF</span>
       </button>
@@ -354,8 +413,8 @@ function ensureDrawer() {
       <button type="button" class="inspector-card" data-kind="export" data-action="__yomikikuanExportDocAsHtml">
         <span class="card-icon" aria-hidden="true">📄</span>
         <span class="card-body">
-          <span class="card-title">导出 HTML</span>
-          <span class="card-desc">单文档独立 HTML · 可在浏览器打印为 PDF</span>
+          <span class="card-title">Export HTML</span>
+          <span class="card-desc"><span class="card-desc-text">Standalone HTML per document</span></span>
         </span>
         <svg class="card-chevron" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
           <path d="M5 3l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -366,6 +425,8 @@ function ensureDrawer() {
 
   document.body.appendChild(overlay);
   document.body.appendChild(drawer);
+
+  localizeDrawer(drawer);
 
   drawer.querySelector('#inspectorCloseBtn').addEventListener('click', closeInspector);
   drawer.querySelectorAll('.inspector-card').forEach((card) => {
@@ -438,6 +499,7 @@ export function openInspector() {
   injectCss();
   const d = ensureDrawer();
   const overlay = document.getElementById(OVERLAY_ID);
+  localizeDrawer(d);
   d.classList.add('is-open');
   if (overlay) overlay.classList.add('is-open');
   const trigger = document.getElementById(TRIGGER_ID);

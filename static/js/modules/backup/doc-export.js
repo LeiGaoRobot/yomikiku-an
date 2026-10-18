@@ -7,6 +7,30 @@
 //
 // This is different from modules/backup/index.js (full app JSON backup):
 // single-document HTML export for sharing/archiving a single reading.
+//
+// User-visible strings (placeholder, alert, default title, "created" label) are
+// localized through i18n with the original Japanese/Chinese text as fallback so
+// the standalone pure-function tests (doc-export.test.html) still pass without
+// a dictionary loaded.
+
+import { t } from '../i18n/index.js';
+
+function tr(key, fallback) {
+  try {
+    const v = t(key, fallback);
+    return (v != null) ? v : (fallback != null ? fallback : key);
+  } catch (_) {
+    return fallback != null ? fallback : key;
+  }
+}
+
+function trFmt(key, params, fallback) {
+  let s = tr(key, fallback);
+  Object.entries(params || {}).forEach(([k, v]) => {
+    s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+  });
+  return s;
+}
 
 const EXPORT_STYLE = `
   body { max-width: 720px; margin: 40px auto; padding: 0 24px;
@@ -44,8 +68,8 @@ export function escapeHtml(s) {
 
 export function buildHtml(doc) {
   const src = document.getElementById('content');
-  const bodyContent = src ? src.innerHTML : '<p><i>没有可导出的内容</i></p>';
-  const title = escapeHtml(doc?.title || 'document');
+  const bodyContent = src ? src.innerHTML : `<p><i>${tr('docExport.empty', '没有可导出的内容')}</i></p>`;
+  const title = escapeHtml(doc?.title || tr('docExport.untitled', 'document'));
   const date = fmtDate(new Date());
   const createdAt = doc?.createdAt ? new Date(doc.createdAt) : null;
   const createdStr = createdAt && !isNaN(createdAt.getTime()) ? fmtDate(createdAt) : '';
@@ -59,7 +83,7 @@ export function buildHtml(doc) {
 <body>
 <h1>${title}</h1>
 <div class="meta">
-  ${createdStr ? `作成: ${createdStr} · ` : ''}Exported from YomiKiku-an · ${date}
+  ${createdStr ? `${trFmt('docExport.createdAt', { date: createdStr }, '作成: {date}')} · ` : ''}Exported from YomiKiku-an · ${date}
 </div>
 <main>
 ${bodyContent}
@@ -77,13 +101,13 @@ export function exportDocAsHtml(doc) {
       doc = dm?.getAllDocuments?.().find(d => d && d.id === activeId);
     } catch (_) {}
   }
-  if (!doc) { alert('请先选择一个文档'); return; }
+  if (!doc) { alert(tr('docExport.noDocAlert', '请先选择一个文档')); return; }
 
   const html = buildHtml(doc);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const safeTitle = (doc.title || 'document').replace(/[^\w一-龥぀-ヿ-]+/g, '_').slice(0, 60);
+  const safeTitle = (doc.title || tr('docExport.untitled', 'document')).replace(/[^\w一-龥぀-ヿ-]+/g, '_').slice(0, 60);
   a.href = url;
   a.download = `${safeTitle}.html`;
   document.body.appendChild(a);

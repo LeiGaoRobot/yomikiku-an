@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>i18n coverage — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .note { color: #666; font-size: 12.5px; margin: 4px 0 12px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; word-break: break-word; }
+    .row .name, .row .detail { white-space: pre-wrap; }
+  </style>
+  <!-- The canonical dictionary is a classic script (same as index.html). -->
+  <script src="../../i18n.js"></script>
+</head>
+<body>
+  <h1>i18n coverage tests</h1>
+  <div class="note">
+    Asserts (1) the ja / en / zh key sets in <code>static/js/i18n.js</code> are identical, and
+    (2) every literal key used by a module (<code>t('…')</code> /
+    <code>tr('…')</code> / <code>trFmt('…')</code> / <code>format('…')</code>)
+    exists in all three languages. Template-literal / computed keys are skipped
+    — they cannot be checked statically.
+  </div>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ---- Module sources to scan. Paths are relative to this page. ----
+    // At minimum the 6 modules touched by the i18n-cleanup pass plus the
+    // analyzer / ui / youtube panels whose copy is already localized.
+    const MODULES = [
+      '../analyzer/translation-modal.js',
+      '../analyzer/ui/articleSummary.js',
+      '../analyzer/ui/badge.js',
+      '../analyzer/ui/bilingual.js',
+      '../analyzer/ui/inlineCard.js',
+      '../analyzer/ui/jlpt/coach.js',
+      '../analyzer/ui/jlpt/renderers.js',
+      '../analyzer/ui/jlpt/session.js',
+      '../analyzer/ui/jlptPanel.js',
+      '../analyzer/ui/vocabPanel.js',
+      '../backup/doc-export.js',
+      '../editor/editor-toolbar.js',
+      '../editor/reading-mode.js',
+      '../ui/inspector.js',
+      '../ui/progress-rings.js',
+      '../ui/shortcut-help.js',
+      '../ui/toolbar-content.js',
+      '../youtube/index.js',
+      '../youtube/tabs/companion.js',
+      '../youtube/tabs/import.js',
+      '../youtube/tabs/listening.js',
+    ];
+
+    // The 6 modules this pass localized — each must contribute ≥1 literal key,
+    // otherwise the extraction silently stopped working.
+    const MUST_HAVE_KEYS = [
+      '../backup/doc-export.js',
+      '../editor/editor-toolbar.js',
+      '../editor/reading-mode.js',
+      '../ui/inspector.js',
+      '../ui/progress-rings.js',
+      '../ui/shortcut-help.js',
+    ];
+
+    const LANGS = ['ja', 'en', 'zh'];
+    const dict = (typeof window !== 'undefined' && window.I18N) ? window.I18N : null;
+
+    // ---------- 1. dictionary shape ----------
+    check('window.I18N is exposed by static/js/i18n.js', !!dict);
+    for (const lang of LANGS) {
+      check(`I18N has a "${lang}" block`, !!(dict && dict[lang] && typeof dict[lang] === 'object'));
+    }
+    if (!dict || !dict.ja || !dict.en || !dict.zh) {
+      render(); // harness requires render() at the end; bail early but still show
+      throw new Error('i18n dictionary missing — aborting');
+    }
+
+    const keysOf = (lang) => Object.keys(dict[lang]);
+    const jaKeys = keysOf('ja');
+    const setOf = (lang) => new Set(keysOf(lang));
+
+    const emptyValues = [];
+    for (const lang of LANGS) {
+      for (const [k, v] of Object.entries(dict[lang])) {
+        if (typeof v !== 'string' || v === '') emptyValues.push(`${lang}:${k}`);
+      }
+    }
+    check('all translation values are non-empty strings',
+      emptyValues.length === 0,
+      emptyValues.slice(0, 12).join(', '));
+
+    // ---------- 2. ja / en / zh key sets identical ----------
+    for (const lang of LANGS) {
+      if (lang === 'ja') continue;
+      const other = setOf(lang);
+      const missing = jaKeys.filter(k => !other.has(k));
+      const extra = [...other].filter(k => !(k in dict.ja));
+      check(`"${lang}" key set matches "ja"`,
+        missing.length === 0 && extra.length === 0,
+        [
+          missing.length ? `missing ${missing.length}: ${missing.slice(0, 15).join(', ')}` : '',
+          extra.length ? `extra ${extra.length}: ${extra.slice(0, 15).join(', ')}` : '',
+        ].filter(Boolean).join(' | '));
+    }
+
+    // ---------- 3. fetch module sources + extract literal keys ----------
+    const KEY_CALL = /\b(?:trFmt|tr|format|t)\(\s*(['"])([^'"]+)\1/g;
+    const KEY_SHAPE = /^[A-Za-z][\w.-]*$/; // skip CSS selectors / selectors-ish strings
+
+    const perModule = new Map();
+    const fetchFailures = [];
+
+    for (const rel of MODULES) {
+      let text = null;
+      try {
+        const res = await fetch(new URL(rel, import.meta.url), { cache: 'no-store' });
+        if (res.ok) text = await res.text();
+        else fetchFailures.push(`${rel} → HTTP ${res.status}`);
+      } catch (err) {
+        fetchFailures.push(`${rel} → ${err && err.message ? err.message : err}`);
+      }
+      if (text == null) continue;
+
+      const keys = new Set();
+      let m;
+      while ((m = KEY_CALL.exec(text))) {
+        const key = m[2];
+        // Computed keys (template literals) never match the regex; also drop
+        // anything that does not look like a dictionary key.
+        if (KEY_SHAPE.test(key)) keys.add(key);
+      }
+      perModule.set(rel, keys);
+    }
+
+    check('all scanned module sources fetched over http',
+      fetchFailures.length === 0,
+      fetchFailures.slice(0, 8).join(' ; '));
+
+    const allKeys = new Map(); // key -> first module
+    for (const [rel, keys] of perModule) {
+      for (const k of keys) if (!allKeys.has(k)) allKeys.set(k, rel);
+    }
+
+    check('literal i18n keys were extracted from module sources',
+      allKeys.size >= 100,
+      `extracted ${allKeys.size} distinct keys from ${perModule.size} modules`);
+
+    for (const rel of MUST_HAVE_KEYS) {
+      const keys = perModule.get(rel);
+      check(`${rel.replace('../', '')} uses literal i18n keys`,
+        !!keys && keys.size >= 1,
+        keys ? `got ${keys.size}` : 'module source not fetched');
+    }
+
+    // ---------- 4. every extracted key resolves in ja / en / zh ----------
+    const missingByLang = { ja: [], en: [], zh: [] };
+    for (const key of allKeys.keys()) {
+      for (const lang of LANGS) {
+        if (!Object.prototype.hasOwnProperty.call(dict[lang], key)) {
+          missingByLang[lang].push(key);
+        }
+      }
+    }
+
+    for (const lang of LANGS) {
+      const missing = missingByLang[lang];
+      check(`every extracted key exists in "${lang}"`,
+        missing.length === 0,
+        missing.length
+          ? `${missing.length} missing: ${missing.slice(0, 20).join(', ')}`
+          : `${allKeys.size} keys checked`);
+    }
+
+    // Per-module pinpointing: only reported when that module has gaps, so a
+    // fully-green run stays compact.
+    for (const [rel, keys] of perModule) {
+      const gaps = [];
+      for (const key of keys) {
+        const langs = LANGS.filter(lang => !Object.prototype.hasOwnProperty.call(dict[lang], key));
+        if (langs.length) gaps.push(`${key} [${langs.join('/')}]`);
+      }
+      if (gaps.length) {
+        check(`${rel.replace('../', '')} — all keys present in ja/en/zh`,
+          false,
+          `${gaps.length} missing: ${gaps.slice(0, 15).join(', ')}`);
+      }
+    }
+
+    // ---------- render ----------
+    function render() {
+      const pass = results.filter(r => r.pass).length;
+      const fail = results.length - pass;
+      const summary = document.getElementById('summary');
+      summary.innerHTML = `<h3 style="color:${fail === 0 ? '#1d7d3f' : '#ff3b30'};">
+        ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+      </h3>`;
+      const root = document.getElementById('results');
+      results.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+        row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+        root.appendChild(row);
+      });
+    }
+    render();
+  </script>
+</body>
+</html>

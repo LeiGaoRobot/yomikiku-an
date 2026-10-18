@@ -1,33 +1,74 @@
 // Keyboard shortcut help overlay — invoked by pressing `?`.
+//
+// All visible copy is localized (ja/en/zh). The panel body is rebuilt on every
+// show so a live language switch is reflected without a page reload.
+
+import { t } from '../i18n/index.js';
 
 const CSS_FLAG = '__yomikikuanShortcutCssInjected';
 const OVERLAY_ID = 'shortcutHelpOverlay';
 
-const SHORTCUTS = [
-  { group: '全局', items: [
-    { keys: ['?'], desc: '显示 / 隐藏此快捷键面板' },
-    { keys: ['Esc'], desc: '关闭当前弹窗 / 阅读模式' },
-    { keys: ['⌘', 'F'], desc: '搜索文档' },
-    { keys: ['⌘', 'N'], desc: '新建文档' },
-  ]},
-  { group: '播放', items: [
-    { keys: ['Space'], desc: '播放 / 暂停（阅读模式）' },
-    { keys: ['←'], desc: '上一段' },
-    { keys: ['→'], desc: '下一段' },
-    { keys: ['↑'], desc: '加速 +0.1×' },
-    { keys: ['↓'], desc: '减速 -0.1×' },
-    { keys: ['J'], desc: '上一段' },
-    { keys: ['K'], desc: '下一段' },
-  ]},
-  { group: '阅读模式', items: [
-    { keys: ['+'], desc: '放大字体' },
-    { keys: ['-'], desc: '缩小字体' },
-  ]},
-  { group: '面板', items: [
-    { keys: ['I'], desc: '打开 / 关闭 AI Inspector' },
-    { keys: ['R'], desc: '进入阅读模式' },
-  ]},
-];
+function tr(key, fallback) {
+  try {
+    const v = t(key, fallback);
+    return (v != null) ? v : (fallback != null ? fallback : key);
+  } catch (_) {
+    return fallback != null ? fallback : key;
+  }
+}
+
+function buildShortcuts() {
+  return [
+    { group: tr('shortcut.group.global', 'Global'), items: [
+      { keys: ['?'], desc: tr('shortcut.global.togglePanel', 'Show / hide this shortcut panel') },
+      { keys: ['Esc'], desc: tr('shortcut.global.closeModal', 'Close the current dialog / reading mode') },
+      { keys: ['⌘', 'F'], desc: tr('shortcut.global.search', 'Search documents') },
+      { keys: ['⌘', 'N'], desc: tr('shortcut.global.newDoc', 'New document') },
+    ]},
+    { group: tr('shortcut.group.playback', 'Playback'), items: [
+      { keys: ['Space'], desc: tr('shortcut.playback.playPause', 'Play / pause (reading mode)') },
+      { keys: ['←'], desc: tr('shortcut.playback.prev', 'Previous segment') },
+      { keys: ['→'], desc: tr('shortcut.playback.next', 'Next segment') },
+      { keys: ['↑'], desc: tr('shortcut.playback.speedUp', 'Speed +0.1×') },
+      { keys: ['↓'], desc: tr('shortcut.playback.speedDown', 'Speed -0.1×') },
+      { keys: ['J'], desc: tr('shortcut.playback.prevAlt', 'Previous segment') },
+      { keys: ['K'], desc: tr('shortcut.playback.nextAlt', 'Next segment') },
+    ]},
+    { group: tr('shortcut.group.reading', 'Reading mode'), items: [
+      { keys: ['+'], desc: tr('shortcut.reading.fontUp', 'Increase font size') },
+      { keys: ['-'], desc: tr('shortcut.reading.fontDown', 'Decrease font size') },
+    ]},
+    { group: tr('shortcut.group.panels', 'Panels'), items: [
+      { keys: ['I'], desc: tr('shortcut.panels.inspector', 'Open / close AI Inspector') },
+      { keys: ['R'], desc: tr('shortcut.panels.readingMode', 'Enter reading mode') },
+    ]},
+  ];
+}
+
+function buildPanelHtml() {
+  const body = buildShortcuts().map(g => `
+      <div class="sk-group">
+        <h4>${g.group}</h4>
+        ${g.items.map(it => `
+          <div class="sk-row">
+            <span class="desc">${it.desc}</span>
+            <span class="keys">${it.keys.map(k => `<kbd class="sk-key">${k}</kbd>`).join('')}</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+  const title = tr('shortcut.title', 'Keyboard shortcuts');
+  return `
+      <div class="sk-panel" role="dialog" aria-label="${title}">
+        <div class="sk-head">
+          <span aria-hidden="true" style="font-size:16px;">⌨️</span>
+          <h3>${title}</h3>
+          <button class="sk-close" type="button" aria-label="${tr('close', 'Close')}">×</button>
+        </div>
+        <div class="sk-body">${body}</div>
+      </div>
+    `;
+}
 
 function injectCss() {
   if (window[CSS_FLAG]) return;
@@ -87,31 +128,13 @@ export function showShortcutHelp() {
     overlay = document.createElement('div');
     overlay.id = OVERLAY_ID;
     overlay.className = 'sk-overlay';
-    const body = SHORTCUTS.map(g => `
-      <div class="sk-group">
-        <h4>${g.group}</h4>
-        ${g.items.map(it => `
-          <div class="sk-row">
-            <span class="desc">${it.desc}</span>
-            <span class="keys">${it.keys.map(k => `<kbd class="sk-key">${k}</kbd>`).join('')}</span>
-          </div>
-        `).join('')}
-      </div>
-    `).join('');
-    overlay.innerHTML = `
-      <div class="sk-panel" role="dialog" aria-label="键盘快捷键">
-        <div class="sk-head">
-          <span aria-hidden="true" style="font-size:16px;">⌨️</span>
-          <h3>键盘快捷键</h3>
-          <button class="sk-close" type="button" aria-label="关闭">×</button>
-        </div>
-        <div class="sk-body">${body}</div>
-      </div>
-    `;
     document.body.appendChild(overlay);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) hideShortcutHelp(); });
-    overlay.querySelector('.sk-close').addEventListener('click', hideShortcutHelp);
   }
+  // Rebuild content on every show: picks up language changes, and the close
+  // button listener is re-bound to the fresh node.
+  overlay.innerHTML = buildPanelHtml();
+  overlay.querySelector('.sk-close').addEventListener('click', hideShortcutHelp);
   overlay.classList.add('is-open');
 }
 export function hideShortcutHelp() {

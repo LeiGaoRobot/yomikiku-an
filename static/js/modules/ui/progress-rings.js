@@ -6,8 +6,27 @@
 // day-level bucketing; documented inline; appropriate only for day-granular
 // data. All other timestamp-bearing code in the project remains epoch-ms.
 
+import { t } from '../i18n/index.js';
+
 const LS_KEY = 'yomikikuan_daily_log';
 const GOALS = { docs: 3, minutes: 15, vocab: 10 };
+
+function tr(key, fallback) {
+  try {
+    const v = t(key, fallback);
+    return (v != null) ? v : (fallback != null ? fallback : key);
+  } catch (_) {
+    return fallback != null ? fallback : key;
+  }
+}
+
+function trFmt(key, params, fallback) {
+  let s = tr(key, fallback);
+  Object.entries(params || {}).forEach(([k, v]) => {
+    s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v));
+  });
+  return s;
+}
 
 function todayKey() {
   const d = new Date();
@@ -150,14 +169,14 @@ function render() {
   const vocP = (today.vocabAdded || 0) / GOALS.vocab;
 
   mountEl.innerHTML = `
-    <div class="pr-streak" title="连续学习天数">
+    <div class="pr-streak" title="${tr('progress.streakTitle', 'Consecutive study days')}">
       <span class="flame">🔥</span>
-      <span>连续 <span class="val">${s}</span> 天</span>
+      <span>${trFmt('progress.streak', { n: `<span class="val">${s}</span>` }, '連続 {n} 日')}</span>
     </div>
     <div class="pr-rings">
-      ${ringSvg(docsP, 'var(--ap-blue, #E63946)', '阅读', today.docs?.length || 0, GOALS.docs)}
-      ${ringSvg(minP,  '#34c759', '听音频', today.minutes || 0, GOALS.minutes)}
-      ${ringSvg(vocP,  '#af52de', '新词',   today.vocabAdded || 0, GOALS.vocab)}
+      ${ringSvg(docsP, 'var(--ap-blue, #E63946)', tr('progress.docs', '読書'), today.docs?.length || 0, GOALS.docs)}
+      ${ringSvg(minP,  '#34c759', tr('progress.listening', '音声'), today.minutes || 0, GOALS.minutes)}
+      ${ringSvg(vocP,  '#af52de', tr('progress.vocab', '新語'),   today.vocabAdded || 0, GOALS.vocab)}
     </div>
   `;
 }
