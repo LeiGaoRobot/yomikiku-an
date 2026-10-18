@@ -6,6 +6,7 @@
 
 import { parseYoutubeUrl } from './url.js';
 import { fetchVideoMeta } from './oembed.js';
+import { exceedsMaxDuration, probeVideoDuration } from './duration.js';
 
 const CSS_FLAG = '__yomikikuanYoutubeCssInjected';
 
@@ -120,6 +121,10 @@ async function onParseClick() {
     return;
   }
   currentParsed = parsed;
+  const parseBtn = overlayEl.querySelector('#ytParseBtn');
+  const parseLabel = parseBtn.textContent;
+  parseBtn.disabled = true;
+  parseBtn.textContent = '…';
   try {
     const meta = await fetchVideoMeta(parsed.videoId);
     currentMeta = meta;
@@ -131,11 +136,24 @@ async function onParseClick() {
         <div style="opacity:.7;font-size:12px">${meta.author}</div>
       </div>`;
     m.hidden = false;
+    // Best-effort whole-video cap: oEmbed has no duration, so probe the
+    // IFrame Player (hidden) once here, before any tab can call Gemini.
+    // Unknown duration (null) falls through to the clip-range gate above.
+    const durationSec = await probeVideoDuration(parsed.videoId);
+    if (exceedsMaxDuration(durationSec, MAX_DURATION_SEC)) {
+      overlayEl.querySelector('#ytTabContent').innerHTML = '';
+      showError(trFmt('youtube.panel.error.videoTooLong_fmt', { max: Math.round(MAX_DURATION_SEC / 60) },
+        `所选视频超过 ${Math.round(MAX_DURATION_SEC / 60)} 分钟，请选择更短的视频或指定片段`));
+      return;
+    }
     await renderTab(activeTab);
   } catch (e) {
     if (e.message === 'NOT_EMBEDDABLE') showError(tr('youtube.panel.error.notEmbeddable', '视频不可用（私有或已删除）'));
     else if (e.message === 'NETWORK')   showError(tr('youtube.panel.error.network', '网络错误，请重试'));
     else                                showError(trFmt('youtube.panel.error.parseFailed_fmt', { msg: e.message }, `解析失败：${e.message}`));
+  } finally {
+    parseBtn.disabled = false;
+    parseBtn.textContent = parseLabel;
   }
 }
 

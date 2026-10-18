@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>youtube/duration.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>youtube/duration.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      DEFAULT_MAX_DURATION_SEC,
+      exceedsMaxDuration,
+      formatDurationMmSs,
+      probeVideoDuration,
+    } from './duration.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // --- exceedsMaxDuration: cap is strict ">" ---
+    check('default cap is 600s', DEFAULT_MAX_DURATION_SEC === 600);
+    check('601s exceeds 600', exceedsMaxDuration(601) === true);
+    check('600s does NOT exceed 600', exceedsMaxDuration(600) === false);
+    check('599s does NOT exceed 600', exceedsMaxDuration(599) === false);
+    check('custom cap: 31 > 30', exceedsMaxDuration(31, 30) === true);
+    check('custom cap: 30 not > 30', exceedsMaxDuration(30, 30) === false);
+    check('null (unknown) is not too long', exceedsMaxDuration(null) === false);
+    check('undefined is not too long', exceedsMaxDuration(undefined) === false);
+    check('NaN is not too long', exceedsMaxDuration(NaN) === false);
+    check('Infinity is not too long', exceedsMaxDuration(Infinity) === false);
+    check('0 is not too long', exceedsMaxDuration(0) === false);
+    check('string "601" is not coerced', exceedsMaxDuration('601') === false);
+
+    // --- formatDurationMmSs ---
+    check('0 → 0:00', formatDurationMmSs(0) === '0:00');
+    check('62 → 1:02', formatDurationMmSs(62) === '1:02');
+    check('600 → 10:00', formatDurationMmSs(600) === '10:00');
+    check('3599 → 59:59', formatDurationMmSs(3599) === '59:59');
+    check('3600 → 60:00', formatDurationMmSs(3600) === '60:00');
+    check('59.6 rounds to 1:00', formatDurationMmSs(59.6) === '1:00');
+    check('negative → empty', formatDurationMmSs(-1) === '');
+    check('NaN → empty', formatDurationMmSs(NaN) === '');
+    check('null → empty', formatDurationMmSs(null) === '');
+
+    // --- probeVideoDuration: guard rails only (no network in tests) ---
+    const noId = await probeVideoDuration('');
+    check('empty videoId resolves null without loading the API', noId === null);
+
+    const pass = results.filter(r => r.pass).length;
+    const fail = results.length - pass;
+    document.getElementById('summary').innerHTML = `<h3 style="color:${fail === 0 ? '#1d7d3f' : '#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>
