@@ -103,8 +103,6 @@ const I18N = {
     cancel: 'キャンセル',
     newDocument: '新規ドキュメント',
     deleteDocument: 'ドキュメント削除',
-    applications: 'アプリケーション',
-    closeApplicationList: 'アプリケーションリストを閉じる',
     close: '閉じる',
     confirmExit: '終了しますか？',
     exitInDevelopment: '終了機能は開発中です...'
@@ -506,8 +504,6 @@ const I18N = {
     cancel: 'Cancel',
     newDocument: 'New Document',
     deleteDocument: 'Delete Document',
-    applications: 'Applications',
-    closeApplicationList: 'Close application list',
     close: 'Close',
     confirmExit: 'Are you sure you want to exit?',
     exitInDevelopment: 'Exit feature is under development...'
@@ -908,8 +904,6 @@ const I18N = {
     cancel: '取消',
     newDocument: '新建文档',
     deleteDocument: '删除文档',
-    applications: '应用程序',
-    closeApplicationList: '关闭应用程序列表',
     close: '关闭',
     confirmExit: '确定要退出吗？',
     exitInDevelopment: '退出功能开发中...'

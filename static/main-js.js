@@ -155,10 +155,16 @@ const headerSpeedValue = $('headerSpeedValue');
   // to re-declare them and drift out of sync.
   if (typeof window !== 'undefined') window.YomikikuanLS = LS;
 
-  // 初始化 EasyMDE Markdown 编辑器
+  // EasyMDE is lazy-loaded (see ensureMarkdownEditor below). The ~345 KB
+  // editor bundle is not part of the first paint: the textarea stays fully
+  // functional until the editor mounts, and value/focus/addEventListener are
+  // shimmed so boot-time callers behave identically before and after mount.
   let easymde = null;
-  
-  if (textInput && typeof EasyMDE !== 'undefined') {
+  let markdownAssetsPromise = null;
+  const pendingEditorHandlers = [];
+
+  function mountMarkdownEditor() {
+    if (easymde || typeof EasyMDE === 'undefined' || !textInput) return;
     easymde = new EasyMDE({
       element: textInput,
       placeholder: textInput.placeholder || '在此输入日语文本进行分析...',
@@ -180,48 +186,12 @@ const headerSpeedValue = $('headerSpeedValue');
       }
     });
 
-    // 覆盖 textInput 对象的属性和方法，使其与 markdown 编辑器兼容
-    // 由于 textInput 本身是一个 HTML 元素，我们可以添加新的属性/方法
-    const originalGetValue = function() { return this.value; };
-    const originalSetValue = function(val) { this.value = val; };
-    
-    Object.defineProperty(textInput, 'value', {
-      get: function() {
-        return easymde ? easymde.value() : '';
-      },
-      set: function(val) {
-        if (easymde) {
-          easymde.value(val || '');
-        }
-      },
-      configurable: true
+    // Re-attach handlers registered on the native textarea before mount.
+    pendingEditorHandlers.forEach(({ event, handler }) => {
+      const cmEvent = event === 'input' ? 'change' : event;
+      try { easymde.codemirror.on(cmEvent, handler); } catch (_) {}
     });
-
-    // 保存原始的 addEventListener 方法
-    const originalAddEventListener = textInput.addEventListener.bind(textInput);
-    
-    textInput.addEventListener = function(event, handler, options) {
-      if (event === 'input' && easymde) {
-        easymde.codemirror.on('change', handler);
-      } else if (event === 'focus' && easymde) {
-        easymde.codemirror.on('focus', handler);
-      } else if (event === 'blur' && easymde) {
-        easymde.codemirror.on('blur', handler);
-      } else {
-        originalAddEventListener(event, handler, options);
-      }
-    };
-
-    // 保存原始的 focus 方法
-    const originalFocus = textInput.focus.bind(textInput);
-    
-    textInput.focus = function() {
-      if (easymde && easymde.codemirror) {
-        easymde.codemirror.focus();
-      } else {
-        originalFocus();
-      }
-    };
+    pendingEditorHandlers.length = 0;
 
     // 将 markdown 编辑器实例保存到全局，方便调试
     window._markdownEditor = easymde;
@@ -247,7 +217,6 @@ const headerSpeedValue = $('headerSpeedValue');
         const newLine = Math.max(0, cursor.line - removedLines);
         easymde.codemirror.setCursor({ line: newLine, ch: cursor.ch });
         
-        console.log('Cleaned leading whitespace/empty lines');
       }
     });
 
@@ -688,6 +657,85 @@ const headerSpeedValue = $('headerSpeedValue');
         });
       }
     }, 500);
+  }
+
+  // Load EasyMDE on demand: after first paint on normal connections, or on
+  // first interaction for data-saver / 2G users (who opted into less data).
+  function scheduleMarkdownEditorLoad() {
+    const conn = (typeof navigator !== 'undefined'
+      && (navigator.connection || navigator.mozConnection || navigator.webkitConnection)) || {};
+    if (conn.saveData === true || /(^|-)2g$/i.test(conn.effectiveType || '')) return;
+    const idle = () => {
+      if (easymde) return;
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(() => { ensureMarkdownEditor(); }, { timeout: 2500 });
+      } else {
+        setTimeout(() => { ensureMarkdownEditor(); }, 400);
+      }
+    };
+    if (document.readyState === 'complete') { idle(); return; }
+    const fallback = setTimeout(idle, 2500);
+    window.addEventListener('load', () => { clearTimeout(fallback); idle(); }, { once: true });
+  }
+
+  function ensureMarkdownEditor() {
+    if (easymde) return Promise.resolve(easymde);
+    if (markdownAssetsPromise) return markdownAssetsPromise;
+    markdownAssetsPromise = new Promise((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        try { mountMarkdownEditor(); } catch (err) { try { console.warn('EasyMDE mount failed:', err); } catch (_) {} }
+        resolve(easymde);
+      };
+      if (typeof EasyMDE !== 'undefined') { finish(); return; }
+      if (!document.querySelector('link[data-easymde]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'static/libs/easymde/easymde.min.css';
+        link.dataset.easymde = '1';
+        document.head.appendChild(link);
+      }
+      const script = document.createElement('script');
+      script.src = 'static/libs/easymde/easymde.min.js';
+      script.onload = finish;
+      script.onerror = () => { try { console.warn('EasyMDE failed to load'); } catch (_) {} resolve(null); };
+      document.head.appendChild(script);
+      setTimeout(finish, 8000); // safety net for a stalled request
+    });
+    return markdownAssetsPromise;
+  }
+
+  if (textInput) {
+    const valueDesc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
+    const nativeValueGet = () => valueDesc.get.call(textInput);
+    const nativeValueSet = (v) => valueDesc.set.call(textInput, v);
+    Object.defineProperty(textInput, 'value', {
+      get() { return easymde ? easymde.value() : nativeValueGet(); },
+      set(v) { if (easymde) easymde.value(v || ''); else nativeValueSet(v); },
+      configurable: true,
+    });
+
+    const nativeAddEventListener = textInput.addEventListener.bind(textInput);
+    textInput.addEventListener = function (event, handler, options) {
+      if (event === 'input' || event === 'focus' || event === 'blur') {
+        pendingEditorHandlers.push({ event, handler });
+      }
+      nativeAddEventListener(event, handler, options);
+    };
+
+    const nativeFocus = textInput.focus.bind(textInput);
+    textInput.focus = function () {
+      if (easymde && easymde.codemirror) { easymde.codemirror.focus(); return; }
+      nativeFocus();
+      ensureMarkdownEditor();
+    };
+
+    // First interaction upgrades immediately, even on data-saver connections.
+    nativeAddEventListener('pointerdown', () => { ensureMarkdownEditor(); });
+    nativeAddEventListener('keydown', () => { ensureMarkdownEditor(); });
+    scheduleMarkdownEditorLoad();
   }
 
   const PWA_MANIFEST_URL = 'static/pwa-assets.json';
@@ -1588,13 +1636,6 @@ const headerSpeedValue = $('headerSpeedValue');
     const emptyText = $('emptyText');
     if (emptyText) emptyText.textContent = t('emptyText');
 
-    // 更新应用程序抽屉
-    const appDrawerTitle = document.getElementById('appDrawerTitle');
-    if (appDrawerTitle) appDrawerTitle.textContent = t('applications');
-    
-    const appDrawerClose = document.getElementById('appDrawerClose');
-    if (appDrawerClose) appDrawerClose.setAttribute('aria-label', t('closeApplicationList'));
-    
     // 语言变化时刷新主题图标与aria标签
     updateReadingToggleLabels();
     // Read the persisted value directly rather than trusting this file's
@@ -4703,11 +4744,42 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
   // 全局函数，供其他地方调用
   window.analyzeText = analyzeText;
 
-  // 初始化时如果有文本则自动分析
+  // 初始化时如果有文本则自动分析。
+  // Defer past first paint: the first analyzeText() call builds the kuromoji
+  // tokenizer, which downloads ~11.5 MB of dictionary files. Letting the shell
+  // render first improves perceived load on real networks. Data-saver / 2G
+  // users opted into reduced data, so we skip the automatic run entirely —
+  // the existing blur / Ctrl+Enter / 解析 paths trigger it on demand.
   if (textInput.value.trim()) {
-    setTimeout(() => analyzeText(), 100);
+    scheduleInitialAnalysis();
   } else {
     showEmptyState();
+  }
+
+  function scheduleInitialAnalysis() {
+    let started = false;
+    const run = () => {
+      if (started) return;
+      started = true;
+      try { analyzeText(); } catch (_) {}
+    };
+    const conn = (typeof navigator !== 'undefined'
+      && (navigator.connection || navigator.mozConnection || navigator.webkitConnection)) || {};
+    const slow = conn.saveData === true || /(^|-)2g$/i.test(conn.effectiveType || '');
+    if (slow) return;
+    const idle = () => {
+      if (started) return;
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(run, { timeout: 2500 });
+      } else {
+        setTimeout(run, 300);
+      }
+    };
+    if (document.readyState === 'complete') { idle(); return; }
+    // Race the load event against a 1.5s fallback so a stalled subresource
+    // can never delay the initial analysis indefinitely.
+    const fallback = setTimeout(idle, 1500);
+    window.addEventListener('load', () => { clearTimeout(fallback); idle(); }, { once: true });
   }
   // Editor toolbar bootstrap is owned by modules/editor/editor-toolbar.js
   // (self-bootstraps on ESM import via app.js). The classic-script call here
