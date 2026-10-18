@@ -30,13 +30,23 @@ All notable changes to this project are documented in this file.
   explicit offline installs.
 
 ### Added
+- **Cloud sync Option A (app side)**: explicit Push / Pull with a conflict
+  prompt, implemented in `modules/cloud-sync/index.js` against a documented
+  `window.__yomikikuanCloudBridge` contract (`get()` /
+  `set(payload, updatedAt)`). Meta baseline lives in
+  `yomikikuan_cloud_sync_meta`; the user menu gains Push/Pull buttons and
+  the legacy sync button delegates to Push. **Firebase is still unwired**
+  (no SDK in `index.html`), so the module degrades gracefully to a
+  "cloud sync not configured" toast. 13 new i18n keys × ja/en/zh; 152 unit
+  cases; E2E ⑫ covers push / pull / conflict accept+dismiss / missing
+  bridge with a mock bridge.
 - **YouTube whole-video duration cap**: `youtube/duration.js` probes
   `getDuration()` through a hidden IFrame player at parse time (the keyless
   oEmbed endpoint has no duration), so a >10-minute video is rejected before
   any tab can call Gemini. Fail-open: a blocked/offline probe resolves
   `null` and falls back to the old `?start=&end=` clip-range check. Sibling
   test: `youtube/duration.test.html`.
-- **CI now runs the Playwright E2E suite** (11 scenarios) after the unit
+- **CI now runs the Playwright E2E suite** (12 scenarios) after the unit
   suite, with failure artifacts. New guards: desktop 1440×900 redesign
   layout (AI rail, fixed dock, paper canvas), mobile 390×844 rail/dock
   geometry, backup **v2 → v3** import compatibility, and a `login.html`
@@ -46,8 +56,9 @@ All notable changes to this project are documented in this file.
   21 module sources resolves in all three languages.
 - **E2E growth**: lazy-EasyMDE mount/typing/blur-analysis and a
   data-saver path (editor stays unloaded until interaction) and a
-  boot-analysis `manual` mode — 11 scenarios total; the runner retries a
-  scenario once on transient local-server flakiness.
+  boot-analysis `manual` mode, cloud sync with a mock bridge — 12
+  scenarios total; the runner retries a scenario once on transient
+  local-server flakiness.
 - **Sibling unit tests** for `settings/theme.js`, `settings/font.js`,
   `settings/display.js` and `analysis/render.js` (+169 cases).
 - `docs/plans/2026-10-18-post-1.1.0-product-decisions.md` — measured

@@ -41,7 +41,7 @@ python -m http.server 8000
 ```
 
 ### Tests
-1356 cases across 49 `*.test.html` pages, runnable headlessly:
+1508 cases across 50 `*.test.html` pages, runnable headlessly:
 ```bash
 npm test          # boots a local HTTP server + Playwright Chromium, prints
                   # per-page status + a TOTAL line, exits 0 on full pass.
@@ -139,7 +139,7 @@ Pull requests are welcome. For issues and feature requests, use GitHub Issues: h
 - モバイル：768px 以下でモーダルがほぼ全画面、タップ領域は WCAG 2.2 準拠。480px 以下でフラッシュカード採点ボタンが 2×2 に折り返し。
 
 ### テスト
-49 ページの `*.test.html` に 1356 ケース、ヘッドレスで一括実行できます:
+50 ページの `*.test.html` に 1508 ケース、ヘッドレスで一括実行できます:
 ```bash
 npm test          # ローカル HTTP サーバ + Playwright Chromium を起動して
                   # 全ページの結果と TOTAL を表示。失敗があれば非ゼロ終了。
@@ -223,7 +223,7 @@ YomiKiku-an（読み聞く庵）是一款基于浏览器的日语阅读与听力
 - 移动端：≤768px 时模态近全屏，tap 目标符合 WCAG 2.2；≤480px 时抽卡 4 档按钮 2×2 排版。
 
 ### 测试
-49 个 `*.test.html` 页面共 1356 个用例，一条命令跑完：
+50 个 `*.test.html` 页面共 1508 个用例，一条命令跑完：
 ```bash
 npm test          # 启动本地 HTTP 服务 + Playwright Chromium，打印每页
                   # 结果和 TOTAL 行；任何失败都返回非零退出码。

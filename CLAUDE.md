@@ -53,7 +53,7 @@ Bulk of logic still in `main-js.js`. When adding features, prefer extracting the
 
 All keys prefixed `yomikikuan_`. Don't wipe them during cache resets. If you rename any, add the old→new pair to `static/js/migrate-legacy-keys.js`.
 
-**Known localStorage keys**: `yomikikuan_texts` (documents), `yomikikuan_activeId`, `yomikikuan_theme`, `yomikikuan_lang`, `yomikikuan_fontSize`, `yomikikuan_gemini_api_key`, `yomikikuan_gemini_style`, `yomikikuan_ruby_mode` (`'true'` or absent), `yomikikuan_bilingual_mode` (`'true'` or absent), `yomikikuan_analyzer_autoplay_preanalyze`, TTS engine/voice prefs, user profile. Plus the backward-compat short keys (`text`, `voiceURI`, `rate`, `volume`, `activeId`, …) still used by main-js.js's `LS` constant — `migrate-legacy-keys.js` maps them.
+**Known localStorage keys**: `yomikikuan_texts` (documents), `yomikikuan_activeId`, `yomikikuan_theme`, `yomikikuan_lang`, `yomikikuan_fontSize`, `yomikikuan_gemini_api_key`, `yomikikuan_gemini_style`, `yomikikuan_ruby_mode` (`'true'` or absent), `yomikikuan_bilingual_mode` (`'true'` or absent), `yomikikuan_analyzer_autoplay_preanalyze`, `yomikikuan_boot_analysis` (`immediate`/`idle`/`manual`), `yomikikuan_cloud_sync_meta` (`{ lastSyncedAt }`, epoch ms), TTS engine/voice prefs, user profile. Plus the backward-compat short keys (`text`, `voiceURI`, `rate`, `volume`, `activeId`, …) still used by main-js.js's `LS` constant — `migrate-legacy-keys.js` maps them.
 
 **sessionStorage**: `yomikikuan_logging_out`, `yomikikuan_sw_reloading` (one-shot flag breaking SW controllerchange reload loop).
 
@@ -67,6 +67,24 @@ All keys prefixed `yomikikuan_`. Don't wipe them during cache resets. If you ren
 | `yomikikuan-srs` | `vocab`, `mistakes` | **No TTL, no eviction** | User-owned SM-2 learning data (词汇本 / 错题本). Only explicit `removeVocab/removeMistake` calls delete. Exposed via `window.__yomikikuanDumpSrs / RestoreSrs`. |
 
 All dates stored as **epoch ms integers** inside records (`createdAt`, `lastReviewedAt`, `nextDueAt`). Only ISO-8601 date string in the codebase is the top-level `createdAt` on the backup-export payload.
+
+### Cloud sync bridge (Option A — app side)
+
+`modules/cloud-sync/index.js` implements explicit **Push / Pull** with a conflict
+prompt. It never talks to a backend itself; it uses a host-installed bridge:
+
+```js
+window.__yomikikuanCloudBridge = {
+  async get()                   // → { payload, updatedAt } | null
+  async set(payload, updatedAt) // → void   (updatedAt = epoch ms)
+};
+```
+
+- `payload` is a backup schema v3 object; `null` means nothing stored yet.
+- Baseline for conflict detection: `localStorage['yomikikuan_cloud_sync_meta'] = { lastSyncedAt }`.
+- No bridge ⇒ action fails gracefully with a "cloud sync not configured" toast (`{ok:false}`), never throws.
+- `index.html` currently ships **no Firebase SDK** ("Firebase SDK 已移除"), so the bridge is not installed in production. Wiring a backend later only means assigning the bridge (see the module header for a Firestore adapter sketch); the module needs no changes.
+- User menu: `#cloudPushBtn` / `#cloudPullBtn`; legacy `#syncDataBtn` delegates to Push. Playback boundary untouched.
 
 ### Classic-script globals
 
@@ -104,7 +122,7 @@ The playback state machine lives **only** in `main-js.js` — local `playSegment
 
 `service-worker.js` deliberately does NOT call `self.skipWaiting()` in `install`. A new worker waits until the page posts `{ type: 'SKIP_WAITING' }`. `main-js.js` registers the SW on every load, shows an `.ap-update-toast` (right-bottom blue `刷新` button) when a new version reaches `installed` state while a current worker is still in control, then posts `SKIP_WAITING` and reloads on `controllerchange`.
 
-**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v88`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
+**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v89`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
 
 Fetch strategy:
 - Navigation → `networkFirst` (fallback to cached `index.html` offline)

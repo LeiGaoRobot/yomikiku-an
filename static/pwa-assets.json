@@ -117,6 +117,7 @@
     "static/flags/zh.svg",
     "static/js/modules/youtube/duration.js",
     "static/libs/easymde/easymde.min.js",
-    "static/libs/easymde/easymde.min.css"
+    "static/libs/easymde/easymde.min.css",
+    "static/js/modules/cloud-sync/index.js"
   ]
 }

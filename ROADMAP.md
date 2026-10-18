@@ -14,8 +14,8 @@ explicitly boundary-locked with its blockers written down.
 > clarity instead of raw LOC.
 
 - **`main-js.js` stays ≤ 7,500 lines** — a ceiling, not a target. Current:
-  **6,753** (after the 2026-10-18 second pass); was 8,835 at the
-  start of the cumulative effort (**−2,082 net**).
+  **6,804** (after the 2026-10-18 third pass); was 8,835 at the
+  start of the cumulative effort (**−2,031 net**).
 - **Acceptance checklist** (re-verify each pass):
   1. `wc -l static/main-js.js` ≤ 7,500.
   2. Every `init*` / stateful concern still in `main-js.js` is either
@@ -29,14 +29,14 @@ explicitly boundary-locked with its blockers written down.
      module must ship its sibling test in the same change.
   4. `npm test` and `npm run e2e` are green on the default ports (CI runs
      both; local runs may override `YK_TEST_PORT` / `YK_E2E_PORT`).
-- **Test coverage growing in lockstep** with each extraction (currently 53
-  `*.test.html` files on disk; **49 run headlessly** via the `TESTS` array
-  in `scripts/test.sh` — **1,356 cases, all green** per the latest
+- **Test coverage growing in lockstep** with each extraction (currently 54
+  `*.test.html` files on disk; **50 run headlessly** via the `TESTS` array
+  in `scripts/test.sh` — **1,508 cases, all green** per the latest
   `npm test` run. The 4 unregistered pages are intentional manual-only
   fixtures that don't use the runner's `#summary` harness (visual tables:
   `difficulty`, `syntax`; `console.assert` page: `idb`; non-standard
   harness: `backup/index`). Plus the Playwright E2E smoke suite via
-  `npm run e2e` (11 scenarios, all green).)
+  `npm run e2e` (12 scenarios, all green).)
 
 <details><summary>Header-refactor dead-code sweep history (2026-06/07)</summary>
 
@@ -67,7 +67,7 @@ guarded, possibly conditionally-present, left as-is.
 > after the technical-debt pass below. Current tree: `main-js.js`
 > **6,655** lines, **87** ESM modules, **53** `*.test.html` on disk of
 > which **49** run headlessly in **1,356** cases, plus the Playwright E2E
-> suite (11 scenarios). *(The old number in this note — 6999 / 86 / 47 /
+> suite (12 scenarios). *(The old number in this note — 6999 / 86 / 47 /
 > v85 / 1147 — was correct before this pass; the Lead bumped `CACHE_VERSION`
 > to v86 in the integration commit.)*
 
@@ -99,7 +99,7 @@ guarded, possibly conditionally-present, left as-is.
 > `analyzeText()` to post-load idle (skipped entirely on data-saver/2G);
 > lazy-loaded EasyMDE (~345 KB) behind value/focus/addEventListener shims
 > so the native textarea works until the editor mounts, with data-saver
-> users loading it only on first interaction; E2E grown to 11 scenarios
+> users loading it only on first interaction; E2E grown to 12 scenarios
 > (lazy-editor mount, data-saver path) with a one-shot retry for transient
 > local-server flakes. `main-js.js` is 6,727 lines — the lazy-editor loader
 > and analysis scheduler added ~150 lines while the drawer cleanup took
@@ -107,6 +107,18 @@ guarded, possibly conditionally-present, left as-is.
 > `localStorage['yomikikuan_boot_analysis']` / `config.js: bootAnalysisMode`
 > = `immediate` | `idle` (default) | `manual`; `manual` renders a prompt
 > with an Analyze button instead of auto-running. E2E scenario ⑪ covers it.
+>
+> **Third pass (2026-10-18, same day): cloud sync Option A (app side).**
+> New `modules/cloud-sync/index.js` implements explicit Push / Pull with a
+> conflict prompt against a documented `window.__yomikikuanCloudBridge`
+> contract (`get()` / `set(payload, updatedAt)`), meta key
+> `yomikikuan_cloud_sync_meta`, 152 sibling tests. User menu gains
+> `#cloudPushBtn` / `#cloudPullBtn`; the legacy `#syncDataBtn` delegates to
+> push. **Firebase is still unwired** — `index.html` ships no SDK, so the
+> module fails gracefully ("cloud sync not configured") and the ~450-line
+> dead Firestore code in `initUserProfile` remains a separate decision.
+> E2E scenario ⑫ covers push/pull/conflict/no-bridge with a mock bridge.
+> `main-js.js` is 6,804 lines (+51 wiring).
 
 
 > **✅ Retargeted 2026-10-18**: the analysis below still stands, so the
@@ -602,7 +614,7 @@ Per CLAUDE.md "Playback pipeline boundary":
   Chromium through the 49 pages in the `TESTS` array (**1,356 cases**).
   Resolves `playwright` from project node_modules, `@playwright/mcp`'s
   nested install, or `$PLAYWRIGHT_NODE_PATH`. E2E: `npm run e2e` →
-  `bash scripts/e2e.sh` → Playwright spec in `tests/e2e/` (11 scenarios,
+  `bash scripts/e2e.sh` → Playwright spec in `tests/e2e/` (12 scenarios,
   includes the redesign layout assertions + login.html smoke). Override
   ports with `YK_TEST_PORT` / `YK_E2E_PORT` when running in parallel.
 
