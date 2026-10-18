@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; } a:hover { color: #8F1A24; }
+    .h { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: rgba(11,22,35,.56); text-transform: uppercase; }
+    .sw { display: flex; flex-direction: column; gap: 8px; }
+    .sw .b { height: 64px; border-radius: 11px; border: 1px solid rgba(11,22,35,.08); }
+    .sw .n { font-size: 13px; font-weight: 500; }
+    .sw .v { font-size: 12px; color: rgba(11,22,35,.56); font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0; }
+    .row { display: flex; align-items: baseline; gap: 16px; }
+    .row .k { width: 120px; font-size: 12px; color: rgba(11,22,35,.56); font-family: ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: 0; flex: none; }
+    .box { background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); }
+  </style>
+</helmet>
+<div style="width: 1200px; height: 820px; padding: 40px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px; background: #FAF7F2;">
+
+  <div style="display: flex; align-items: baseline; gap: 16px;">
+    <div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em;">和纸书斋 · Tokens</div>
+    <div style="font-size: 14px; color: rgba(11,22,35,.56);">来源：favicon.svg 的纸色 / 墨色 / 朱印；圆角、间距、阴影沿用 theme-apple.css</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="h">Color</div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+        <div class="sw"><div class="b" style="background: #FAF7F2;"></div><div class="n">paper</div><div class="v">#FAF7F2</div></div>
+        <div class="sw"><div class="b" style="background: #F3EEE6;"></div><div class="n">paper-2</div><div class="v">#F3EEE6</div></div>
+        <div class="sw"><div class="b" style="background: #FFFDFA;"></div><div class="n">surface</div><div class="v">#FFFDFA</div></div>
+        <div class="sw"><div class="b" style="background: #0B1623;"></div><div class="n">ink</div><div class="v">#0B1623</div></div>
+        <div class="sw"><div class="b" style="background: {{accent}};"></div><div class="n">accent · 朱印</div><div class="v">{{accent}}</div></div>
+        <div class="sw"><div class="b" style="background: rgba(11,22,35,.56);"></div><div class="n">ink-56</div><div class="v">rgba(11,22,35,.56)</div></div>
+        <div class="sw"><div class="b" style="background: rgba(11,22,35,.14);"></div><div class="n">ink-14</div><div class="v">rgba(11,22,35,.14)</div></div>
+        <div class="sw"><div class="b" style="background: rgba(11,22,35,.06);"></div><div class="n">ink-06</div><div class="v">rgba(11,22,35,.06)</div></div>
+      </div>
+      <div class="h" style="margin-top: 8px;">JLPT scale（沿用 badge.css）</div>
+      <div style="display: flex; gap: 8px;">
+        <div style="height: 24px; padding: 0 10px; border-radius: 980px; background: #30d158; color: #0b3d1a; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center;">N5</div>
+        <div style="height: 24px; padding: 0 10px; border-radius: 980px; background: #a6d94f; color: #2b3a12; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center;">N4</div>
+        <div style="height: 24px; padding: 0 10px; border-radius: 980px; background: #ffcc00; color: #3a2d00; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center;">N3</div>
+        <div style="height: 24px; padding: 0 10px; border-radius: 980px; background: #ff9f0a; color: #3a1f00; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center;">N2</div>
+        <div style="height: 24px; padding: 0 10px; border-radius: 980px; background: #ff453a; color: #3d0d0a; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center;">N1</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="h">Type</div>
+      <div class="row"><div class="k">read · 22/2.2</div><div style="font-family: 'Hiragino Mincho ProN', 'Noto Serif JP', 'Yu Mincho', serif; font-size: 22px; line-height: 2.2; letter-spacing: 0.02em;"><ruby>静<rt style="font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 0.42em; color: rgba(11,22,35,.56);">しず</rt></ruby>かな<ruby>庵<rt style="font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 0.42em; color: rgba(11,22,35,.56);">いおり</rt></ruby>で読む</div></div>
+      <div class="row"><div class="k">title · 17/600</div><div style="font-size: 17px; font-weight: 600; letter-spacing: -0.018em;">読み聞く庵 · 文档标题</div></div>
+      <div class="row"><div class="k">body · 15/1.47</div><div style="font-size: 15px;">界面正文。Hiragino Sans → Noto Sans JP 回退。</div></div>
+      <div class="row"><div class="k">meta · 13</div><div style="font-size: 13px; color: rgba(11,22,35,.56);">2026年9月5日 · 1,240 字</div></div>
+      <div class="row"><div class="k">label · 12/600</div><div style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: rgba(11,22,35,.56);">文档</div></div>
+      <div class="row"><div class="k">rail · 10</div><div style="font-size: 10px; color: rgba(11,22,35,.56);">Inspector</div></div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="h">Radius</div>
+      <div style="display: flex; gap: 12px; align-items: flex-end;">
+        <div class="box" style="width: 56px; height: 56px; border-radius: 8px;"></div>
+        <div class="box" style="width: 56px; height: 56px; border-radius: 11px;"></div>
+        <div class="box" style="width: 56px; height: 56px; border-radius: 12px;"></div>
+        <div class="box" style="width: 56px; height: 56px; border-radius: 18px;"></div>
+        <div class="box" style="width: 96px; height: 32px; border-radius: 980px;"></div>
+      </div>
+      <div style="display: flex; gap: 12px; font-size: 12px; color: rgba(11,22,35,.56); font-family: ui-monospace, Menlo, monospace; letter-spacing: 0;"><span style="width: 56px;">8</span><span style="width: 56px;">11</span><span style="width: 56px;">12</span><span style="width: 56px;">18</span><span>pill</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="h">Shadow</div>
+      <div style="display: flex; gap: 20px;">
+        <div style="width: 88px; height: 56px; border-radius: 11px; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.04);"></div>
+        <div style="width: 88px; height: 56px; border-radius: 11px; background: #FFFDFA; box-shadow: 0 4px 16px rgba(11,22,35,.06);"></div>
+        <div style="width: 88px; height: 56px; border-radius: 11px; background: #FFFDFA; box-shadow: 0 12px 40px rgba(11,22,35,.10);"></div>
+      </div>
+      <div style="display: flex; gap: 20px; font-size: 12px; color: rgba(11,22,35,.56); font-family: ui-monospace, Menlo, monospace; letter-spacing: 0;"><span style="width: 88px;">sh-1</span><span style="width: 88px;">sh-2</span><span>sh-3 · dock</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px;">
+      <div class="h">Spacing · 4 base</div>
+      <div style="display: flex; gap: 8px; align-items: flex-end;">
+        <div style="width: 4px; height: 4px; background: #0B1623;"></div>
+        <div style="width: 8px; height: 8px; background: #0B1623;"></div>
+        <div style="width: 12px; height: 12px; background: #0B1623;"></div>
+        <div style="width: 16px; height: 16px; background: #0B1623;"></div>
+        <div style="width: 24px; height: 24px; background: #0B1623;"></div>
+        <div style="width: 32px; height: 32px; background: #0B1623;"></div>
+        <div style="width: 48px; height: 48px; background: #0B1623;"></div>
+      </div>
+      <div style="font-size: 12px; color: rgba(11,22,35,.56); font-family: ui-monospace, Menlo, monospace; letter-spacing: 0;">4 · 8 · 12 · 16 · 24 · 32 · 48 · 64</div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px;">
+    <div class="h">Controls</div>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <div style="height: 40px; padding: 0 18px; border-radius: 980px; background: {{accent}}; color: #FFFDFA; font-size: 15px; font-weight: 500; display: inline-flex; align-items: center;">主要动作</div>
+      <div style="height: 40px; padding: 0 18px; border-radius: 980px; background: #0B1623; color: #FAF7F2; font-size: 15px; font-weight: 500; display: inline-flex; align-items: center;">次要动作</div>
+      <div style="height: 40px; padding: 0 18px; border-radius: 980px; border: 1px solid rgba(11,22,35,.14); color: #0B1623; font-size: 15px; font-weight: 500; display: inline-flex; align-items: center;">边框按钮</div>
+      <div style="height: 28px; padding: 0 10px; border-radius: 980px; border: 1px solid rgba(11,22,35,.14); color: rgba(11,22,35,.72); font-size: 12px; font-weight: 500; display: inline-flex; align-items: center;">chip</div>
+      <div style="height: 28px; padding: 0 10px; border-radius: 980px; background: #0B1623; color: #FAF7F2; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center;">chip · on</div>
+      <div style="width: 34px; height: 34px; border-radius: 8px; background: rgba(11,22,35,.06); display: inline-flex; align-items: center; justify-content: center; color: #0B1623;"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5.5"></circle><path d="M13.5 13.5 17 17"></path></svg></div>
+      <div style="width: 240px; height: 36px; padding: 0 12px; border-radius: 8px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); color: rgba(11,22,35,.4); font-size: 14px; display: inline-flex; align-items: center;">输入框 placeholder</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#E63946","options":["#E63946","#B3232F","#3B4A8C","#0B1623"]},"$preview":{"width":1200,"height":820}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { accent: this.props.accent ?? '#E63946' };
+  }
+}
+</script>
+</body>
+</html>

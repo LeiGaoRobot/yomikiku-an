@@ -25,12 +25,12 @@ function injectCss() {
   style.textContent = `
     #${TRIGGER_ID} { position: relative; }
     #${TRIGGER_ID}[aria-expanded="true"] {
-      background: rgba(0,113,227,.12) !important;
-      color: var(--ap-blue, #0071e3) !important;
+      background: rgba(var(--ap-accent-rgb, 230,57,70),.12) !important;
+      color: var(--ap-blue, #E63946) !important;
     }
     :root[data-theme="dark"] #${TRIGGER_ID}[aria-expanded="true"] {
-      background: rgba(41,151,255,.18) !important;
-      color: #2997ff !important;
+      background: rgba(255,107,117,.18) !important;
+      color: var(--ap-link-dark, #FF6B75) !important;
     }
     #${TRIGGER_ID} .inspector-sparkle {
       font-size: 16px;
@@ -154,8 +154,8 @@ function injectCss() {
       font-family: inherit;
     }
     .inspector-card:hover {
-      background: rgba(0,113,227,.05);
-      border-color: rgba(0,113,227,.22);
+      background: rgba(var(--ap-accent-rgb, 230,57,70),.05);
+      border-color: rgba(var(--ap-accent-rgb, 230,57,70),.22);
       transform: translateY(-1px);
     }
     .inspector-card:active { transform: translateY(0) scale(.99); }
@@ -164,8 +164,8 @@ function injectCss() {
       border-color: rgba(245,245,247,.10);
     }
     :root[data-theme="dark"] .inspector-card:hover {
-      background: rgba(41,151,255,.10);
-      border-color: rgba(41,151,255,.34);
+      background: rgba(255,107,117,.10);
+      border-color: rgba(255,107,117,.34);
     }
 
     .inspector-card .card-icon {
@@ -178,8 +178,8 @@ function injectCss() {
       justify-content: center;
       font-size: 22px;
       line-height: 1;
-      background: linear-gradient(135deg, rgba(0,113,227,.14), rgba(0,113,227,.06));
-      color: var(--ap-blue, #0071e3);
+      background: linear-gradient(135deg, rgba(var(--ap-accent-rgb, 230,57,70),.14), rgba(var(--ap-accent-rgb, 230,57,70),.06));
+      color: var(--ap-blue, #E63946);
     }
     .inspector-card[data-kind="summary"] .card-icon {
       background: linear-gradient(135deg, rgba(175,82,222,.16), rgba(175,82,222,.06));
@@ -227,7 +227,7 @@ function injectCss() {
     }
     .inspector-card:hover .card-chevron {
       transform: translateX(2px);
-      color: var(--ap-blue, #0071e3);
+      color: var(--ap-blue, #E63946);
     }
 
     .inspector-card[data-kind="bilingual"].is-on {
@@ -259,10 +259,9 @@ function injectCss() {
       font-weight: 500;
     }
 
-    #vocabBtn,
-    #articleSummaryBtn,
-    #jlptBtn,
-    #bilingualToggle { display: none !important; }
+    /* (The four AI buttons used to be hidden here after they were folded into
+       the drawer; since the 和纸书斋 redesign they live in the right-hand
+       .ai-rail and the 中/日 toggle in the player dock — see index.html.) */
 
     @media (max-width: 480px) {
       .inspector-drawer { width: 100vw; max-width: 100vw; }

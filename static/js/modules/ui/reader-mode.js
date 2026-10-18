@@ -81,13 +81,13 @@ function injectCss() {
       position: relative;
     }
     .reader-content .reader-line:hover { background: var(--ap-ink-04, rgba(29,29,31,.04)); }
-    .reader-content .reader-line.active { background: rgba(0,113,227,.08); }
+    .reader-content .reader-line.active { background: rgba(var(--ap-accent-rgb, 230,57,70),.08); }
     .reader-content .reader-line.active::before {
       content: ""; position: absolute; left: -14px; top: 14px; bottom: 14px;
-      width: 3px; background: #0071e3; border-radius: 2px;
+      width: 3px; background: var(--ap-blue, #E63946); border-radius: 2px;
     }
     :root[data-theme="dark"] .reader-content .reader-line:hover { background: rgba(255,255,255,.06); }
-    :root[data-theme="dark"] .reader-content .reader-line.active { background: rgba(41,151,255,.16); }
+    :root[data-theme="dark"] .reader-content .reader-line.active { background: rgba(255,107,117,.16); }
 
     .reader-content ruby { ruby-position: over; ruby-align: center; }
     .reader-content rt {
@@ -129,10 +129,10 @@ function injectCss() {
     .reader-floater button:active { transform: scale(.95); }
     .reader-floater .play-main {
       width: 44px; height: 44px;
-      background: #0071e3; color: #fff !important;
+      background: var(--ap-blue, #E63946); color: var(--ap-on-accent, #fff) !important;
       font-size: 16px;
     }
-    .reader-floater .play-main:hover { background: #0077ed; }
+    .reader-floater .play-main:hover { background: var(--ap-blue-hover, #D62F3C); }
     .reader-floater .sep {
       width: 1px; height: 20px; background: var(--ap-ink-08, rgba(29,29,31,.08));
     }

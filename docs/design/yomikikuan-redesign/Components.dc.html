@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&family=Noto+Sans+JP:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; font-size: 15px; line-height: 1.47; letter-spacing: -0.01em; color: #0B1623; background: #FAF7F2; }
+    a { color: #B3232F; text-decoration: none; } a:hover { color: #8F1A24; }
+    svg.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+    .ibtn { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); }
+    .ibtn:hover { background: rgba(11,22,35,.06); color: #0B1623; }
+    .chip { height: 28px; padding: 0 10px; border-radius: 980px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: rgba(11,22,35,.72); border: 1px solid rgba(11,22,35,.14); }
+    .chip.on { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .btn { height: 36px; padding: 0 16px; border-radius: 980px; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; gap: 8px; border: 1px solid rgba(11,22,35,.14); color: #0B1623; }
+    .btn.primary { background: #E63946; color: #FFFDFA; border-color: #E63946; }
+    .btn.ink { background: #0B1623; color: #FAF7F2; border-color: #0B1623; }
+    .read { font-family: "Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif; letter-spacing: 0.02em; }
+    ruby { ruby-align: center; ruby-position: over; }
+    rt { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 0.42em; font-weight: 400; color: rgba(11,22,35,.56); letter-spacing: 0; line-height: 1; }
+    .lv { height: 20px; padding: 0 8px; border-radius: 980px; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; }
+    .lv.n5 { background: #30d158; color: #0b3d1a; } .lv.n4 { background: #a6d94f; color: #2b3a12; } .lv.n3 { background: #ffcc00; color: #3a2d00; } .lv.n2 { background: #ff9f0a; color: #3a1f00; } .lv.n1 { background: #ff453a; color: #3d0d0a; }
+    .panel { background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); border-radius: 18px; box-shadow: 0 24px 64px rgba(11,22,35,.16); display: flex; flex-direction: column; overflow: hidden; }
+    .panel-h { display: flex; align-items: center; gap: 12px; padding: 18px 20px 14px 24px; }
+    .panel-h .ttl { font-size: 17px; font-weight: 600; letter-spacing: -0.018em; }
+    .panel-h .sub { font-size: 13px; color: rgba(11,22,35,.56); }
+    .tabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid rgba(11,22,35,.08); }
+    .tab { height: 40px; padding: 0 12px; font-size: 14px; font-weight: 500; color: rgba(11,22,35,.56); display: inline-flex; align-items: center; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tab.on { color: #0B1623; border-bottom-color: #0B1623; }
+    .card { background: #FAF7F2; border: 1px solid rgba(11,22,35,.06); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .h6 { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: rgba(11,22,35,.56); }
+    .muted { color: rgba(11,22,35,.56); }
+    .field { height: 36px; padding: 0 12px; border-radius: 8px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.12); font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .toggle { width: 40px; height: 24px; border-radius: 12px; background: rgba(11,22,35,.14); position: relative; flex: none; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.2); }
+    .toggle.on { background: #0B1623; } .toggle.on::after { left: 18px; }
+    .row { display: flex; align-items: center; gap: 12px; }
+    .menu-item { height: 40px; padding: 0 12px; border-radius: 8px; display: flex; align-items: center; gap: 12px; font-size: 14px; color: #0B1623; }
+    .menu-item:hover { background: rgba(11,22,35,.06); }
+    .menu-item .kv { margin-left: auto; font-size: 13px; color: rgba(11,22,35,.4); }
+  </style>
+</helmet>
+<div style="width: 1200px; height: 900px; padding: 40px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 28px; background: #FAF7F2;">
+  <div style="display: flex; align-items: baseline; gap: 16px;"><div style="font-size: 28px; font-weight: 600; letter-spacing: -0.02em;">Components</div><div class="muted" style="font-size: 14px;">状态一览 · 默认 / hover / 按下 / 选中 / 禁用</div></div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="h6">Icon button · 34</div>
+      <div class="row" style="gap: 8px;">
+        <div class="ibtn"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+        <div class="ibtn" style="background: rgba(11,22,35,.06); color: #0B1623;"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+        <div class="ibtn" style="background: rgba(11,22,35,.10); color: #0B1623; transform: scale(.94);"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+        <div class="ibtn" style="color: #E63946;"><svg class="ic" viewBox="0 0 20 20" style="fill: #E63946;"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+        <div class="ibtn" style="opacity: .35;"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+        <div class="ibtn" style="box-shadow: 0 0 0 2px #FAF7F2, 0 0 0 4px #E63946;"><svg class="ic" viewBox="0 0 20 20"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+      </div>
+      <div class="muted" style="font-size: 12px;">默认 · hover · 按下 · 已加星 · 禁用 · 焦点环</div>
+
+      <div class="h6" style="margin-top: 12px;">Chip · 28</div>
+      <div class="row" style="gap: 8px;">
+        <div class="chip">ふりがな</div>
+        <div class="chip" style="background: rgba(11,22,35,.06);">ふりがな</div>
+        <div class="chip on">ふりがな</div>
+        <div class="chip" style="opacity: .35;">ふりがな</div>
+        <div class="chip"><svg class="ic" viewBox="0 0 20 20" style="width: 14px; height: 14px;"><path d="M10 4v12M4 10h12"></path></svg>加入词汇本</div>
+        <div class="chip" style="background: rgba(48,209,88,.16); border-color: transparent; color: #0b3d1a;">✓ 已加入</div>
+      </div>
+
+      <div class="h6" style="margin-top: 12px;">Button · 36 / 40</div>
+      <div class="row" style="gap: 10px;">
+        <div class="btn primary">生成</div>
+        <div class="btn ink">开始复习</div>
+        <div class="btn">取消</div>
+        <div class="btn" style="opacity: .4;">生成</div>
+        <div class="btn primary" style="background: #B3232F; border-color: #B3232F;">生成 · 按下</div>
+      </div>
+
+      <div class="h6" style="margin-top: 12px;">Field · 36</div>
+      <div style="display: flex; flex-direction: column; gap: 8px; max-width: 420px;">
+        <div class="field muted">粘贴 YouTube URL（≤10 分钟）</div>
+        <div class="field" style="border-color: #0B1623; box-shadow: 0 0 0 3px rgba(11,22,35,.08);">https://youtu.be/dQw4w9WgXcQ<span style="width: 1px; height: 16px; background: #0B1623;"></span></div>
+        <div class="field" style="border-color: #E63946;">https://example.com<span class="muted" style="margin-left: auto; font-size: 12px; color: #B3232F;">不是 YouTube 链接</span></div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="h6">Document row · 48</div>
+      <div style="display: flex; flex-direction: column; gap: 2px; width: 272px; padding: 8px; background: #F3EEE6; border-radius: 12px;">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 48px; border-radius: 8px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #a6d94f;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 14px; line-height: 1.35;">駅までの道案内</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">昨日 · 380 字</div></div></div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 48px; border-radius: 8px; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.04);"><span style="width: 8px; height: 8px; border-radius: 50%; background: #ff9f0a;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 14px; line-height: 1.35;">NHK ニュース：気候変動と農業</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">9月2日 · 2,010 字</div></div><div class="ibtn" style="width: 28px; height: 28px; color: rgba(11,22,35,.4);"><svg class="ic" viewBox="0 0 20 20" style="width: 16px; height: 16px;"><circle cx="5" cy="10" r="1.2"></circle><circle cx="10" cy="10" r="1.2"></circle><circle cx="15" cy="10" r="1.2"></circle></svg></div></div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 8px 10px; min-height: 48px; border-radius: 8px; background: #FFFDFA; box-shadow: 0 1px 2px rgba(11,22,35,.04); font-weight: 500;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #ffcc00;"></span><div style="flex: 1; display: flex; flex-direction: column; gap: 2px;"><div style="font-size: 14px; line-height: 1.35;">静かな庵で読む</div><div style="font-size: 12px; color: rgba(11,22,35,.4);">今日 · 1,240 字</div></div><svg class="ic" viewBox="0 0 20 20" style="width: 16px; height: 16px; color: #E63946; fill: #E63946;"><path d="M10 2.5l2.2 4.6 5 .7-3.6 3.5.9 5-4.5-2.4-4.5 2.4.9-5L2.8 7.8l5-.7z"></path></svg></div>
+      </div>
+      <div class="muted" style="font-size: 12px;">默认 · hover（显示更多）· 当前 + 加星。左侧圆点 = 本地难度估算</div>
+
+      <div class="h6" style="margin-top: 12px;">Reading line · 22 / 2.2</div>
+      <div style="display: flex; flex-direction: column; gap: 4px; max-width: 520px;">
+        <div class="read" style="font-size: 22px; line-height: 2.2; padding: 6px 0 10px;"><ruby>静<rt>しず</rt></ruby>かな<ruby>庵<rt>いおり</rt></ruby>で<span style="background: rgba(230,57,70,.08); border-radius: 3px;"><ruby>読<rt>よ</rt></ruby>む</span>。</div>
+        <div class="read" style="font-size: 22px; line-height: 2.2; padding: 6px 16px 10px; background: rgba(230,57,70,.05); border-radius: 8px; position: relative;"><span style="position: absolute; left: 2px; top: 22px; width: 6px; height: 6px; border-radius: 50%; background: #E63946;"></span><ruby>耳<rt>みみ</rt></ruby>で<span style="background: rgba(230,57,70,.14); color: #B3232F; border-radius: 3px;"><ruby>聞<rt>き</rt></ruby>いて</span><ruby>確<rt>たし</rt></ruby>かめる。</div>
+        <div class="read" style="font-size: 22px; line-height: 2.2; padding: 6px 0 10px;">静かな庵で読む。<span style="font-family: -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif; font-size: 14px; color: rgba(11,22,35,.56); letter-spacing: -0.01em; margin-left: 12px;">在安静的小屋里阅读。</span></div>
+      </div>
+      <div class="muted" style="font-size: 12px;">词 hover · 当前句 + 当前词 · 中日对照（ふりがな关）</div>
+
+      <div class="h6" style="margin-top: 12px;">Toast</div>
+      <div class="row" style="gap: 12px;">
+        <div style="height: 44px; padding: 0 8px 0 16px; border-radius: 12px; background: #0B1623; color: #FAF7F2; font-size: 14px; display: inline-flex; align-items: center; gap: 12px; box-shadow: 0 12px 40px rgba(11,22,35,.16);">新版本已就绪<div style="height: 30px; padding: 0 12px; border-radius: 980px; background: #E63946; color: #FFFDFA; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center;">刷新</div></div>
+        <div style="height: 44px; padding: 0 16px; border-radius: 12px; background: #FFFDFA; border: 1px solid rgba(11,22,35,.08); color: #0B1623; font-size: 14px; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0 12px 40px rgba(11,22,35,.10);"><span style="width: 8px; height: 8px; border-radius: 50%; background: #30d158;"></span>已同步到云端</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+    <div class="h6">Level badge & rail</div>
+    <div class="row" style="gap: 24px;">
+      <div class="row" style="gap: 6px;"><span class="lv n5">N5</span><span class="lv n4">N4</span><span class="lv n3">N3</span><span class="lv n2">N2</span><span class="lv n1">N1</span><span class="lv" style="border: 1px solid rgba(11,22,35,.14); color: rgba(11,22,35,.56);">—</span></div>
+      <div class="row" style="gap: 4px; padding: 8px; background: #F3EEE6; border-radius: 14px;">
+        <div style="width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72);"><svg class="ic" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"></rect><path d="M6 17h8"></path><path d="M7 8h6M7 11h4"></path></svg></div>
+        <div style="width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center; color: #0B1623; background: rgba(11,22,35,.06);"><svg class="ic" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"></rect><path d="M6 17h8"></path><path d="M7 8h6M7 11h4"></path></svg></div>
+        <div style="width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center; color: #FAF7F2; background: #0B1623;"><svg class="ic" viewBox="0 0 20 20"><rect x="3" y="4" width="14" height="10" rx="2"></rect><path d="M6 17h8"></path><path d="M7 8h6M7 11h4"></path></svg></div>
+        <div style="width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center; color: rgba(11,22,35,.72); position: relative;"><svg class="ic" viewBox="0 0 20 20"><path d="M4 11v-1a6 6 0 0 1 12 0v1"></path><rect x="3" y="11" width="4" height="5" rx="1.5"></rect><rect x="13" y="11" width="4" height="5" rx="1.5"></rect></svg><span style="position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #E63946; box-shadow: 0 0 0 2px #F3EEE6;"></span></div>
+      </div>
+      <div class="muted" style="font-size: 12px;">竖栏：默认 · hover · 打开中 · 缺 API key 红点（对应 .no-gemini-key）</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

@@ -25,8 +25,8 @@ const EXPORT_STYLE = `
   .token-pos { display: none; }
   button, .analyze-line-btn, .play-line-btn, .play-token { display: none !important; }
   .bilingual-translation, .bilingual-line-zh {
-    color: #0071e3; font-size: 14px; font-style: italic;
-    margin-top: 4px; padding-left: 14px; border-left: 2px solid rgba(0,113,227,.3);
+    color: #B3232F; font-size: 14px; font-style: italic;
+    margin-top: 4px; padding-left: 14px; border-left: 2px solid rgba(179,35,47,.3);
   }
   footer { margin-top: 48px; padding-top: 14px;
     border-top: 1px solid rgba(0,0,0,.08);

@@ -53,7 +53,7 @@ function injectCss() {
       margin-top: 2px;
       margin-bottom: 10px;
       padding: 2px 0 2px 10px;
-      border-left: 2px solid var(--accent, #0071e3);
+      border-left: 2px solid var(--ap-blue, #E63946);
       color: var(--muted, #666);
       font-size: 0.85em;
       line-height: 1.55;
@@ -73,7 +73,7 @@ function injectCss() {
     :root[data-theme="dark"] .bilingual-row[data-state="error"] {
       color: #ff6961;
     }
-    #bilingualToggle[aria-pressed="true"] { color: var(--accent, #0071e3); }
+    #bilingualToggle[aria-pressed="true"] { color: var(--ap-blue, #E63946); }
   `;
   const s = document.createElement('style');
   s.id = 'bilingual-css';
