@@ -2,6 +2,52 @@
 
 All notable changes to this project are documented in this file.
 
+## [Unreleased]
+
+### Added
+- **YouTube whole-video duration cap**: `youtube/duration.js` probes
+  `getDuration()` through a hidden IFrame player at parse time (the keyless
+  oEmbed endpoint has no duration), so a >10-minute video is rejected before
+  any tab can call Gemini. Fail-open: a blocked/offline probe resolves
+  `null` and falls back to the old `?start=&end=` clip-range check. Sibling
+  test: `youtube/duration.test.html`.
+- **CI now runs the Playwright E2E suite** (8 scenarios) after the unit
+  suite, with failure artifacts. New guards: desktop 1440×900 redesign
+  layout (AI rail, fixed dock, paper canvas), mobile 390×844 rail/dock
+  geometry, backup **v2 → v3** import compatibility, and a `login.html`
+  smoke test.
+- **i18n coverage test**: `i18n/coverage.test.html` asserts ja/en/zh key
+  sets are identical and that every literal `t/tr/trFmt/format('…')` key in
+  21 module sources resolves in all three languages.
+- **Sibling unit tests** for `settings/theme.js`, `settings/font.js`,
+  `settings/display.js` and `analysis/render.js` (+169 cases).
+- `docs/plans/2026-10-18-post-1.1.0-product-decisions.md` — measured
+  first-load performance, cloud-sync options, and the YouTube-cap design.
+
+### Changed
+- **i18n completion**: 46 new keys × ja/en/zh; localized the inspector
+  drawer (cards, aria, missing-key hint — now a real element instead of a
+  CSS `::after`), shortcut-help panel, progress rings, reading-mode
+  labels/tooltips, HTML export copy, and the editor char-count/toast.
+- **`main-js.js` 6,999 → 6,655 lines** (−344): deleted the always-dead
+  `initAppDrawer` (`#appIcon` never existed in any `index.html`) and removed
+  the duplicate reading-mode state + ~260-line legacy overlay implementation
+  — `modules/editor/reading-mode.js` is now the single owner.
+- `CACHE_VERSION` v85 → v86.
+- `static/logo.png` re-encoded 1024×1024 → 128×128 (1.19 MB → 20.8 KB,
+  −98.3%); it is displayed at 22 px and doubles as the login favicon.
+- Docs: ROADMAP goal retargeted (≤7,500-line ceiling + concern
+  classification + sibling-test rule), test counts now 49 pages / 1,356
+  cases.
+
+### Fixed
+- **Reading-mode state divergence**: the global Esc handler used to flip
+  only main-js.js's legacy boolean while the ESM module stayed "active".
+  Removing the duplicate state makes divergence structurally impossible.
+- YouTube import could send a >10-minute video to Gemini unless the URL
+  carried an explicit clip range; the full-video duration is now checked
+  first.
+
 ## [1.1.0] - 2026-10-18
 
 ### Added

@@ -34,7 +34,7 @@ npm start   # python3 -m http.server 8000
 
 ## Active migration — `main-js.js` → `static/js/modules/`
 
-`static/main-js.js` is ~8800 lines. Extractions under `static/js/modules/`:
+`static/main-js.js` is ~6.7k lines (8,835 at the start of the migration). Extractions under `static/js/modules/`:
 - `app.js` (ESM entry), `analysis/`, `config/`, `docs/`, `editor/`, `i18n/`, `player/`, `settings/`, `ui/`
 - `analyzer/` — `local/` (difficulty/syntax/tokenizer/JLPT tables), `providers/` (gemini/mock/registry/base), `cache/` (idb TTL+LRU, pin), `ui/` (badge, inlineCard, listSwatch, jlptPanel, articleSummary, vocabPanel, bilingual)
 - `backup/` — `index.js` (payload assembly + v3 schema), `io.js` (downloadTextFile + formatNowForFile)
@@ -104,7 +104,7 @@ The playback state machine lives **only** in `main-js.js` — local `playSegment
 
 `service-worker.js` deliberately does NOT call `self.skipWaiting()` in `install`. A new worker waits until the page posts `{ type: 'SKIP_WAITING' }`. `main-js.js` registers the SW on every load, shows an `.ap-update-toast` (right-bottom blue `刷新` button) when a new version reaches `installed` state while a current worker is still in control, then posts `SKIP_WAITING` and reloads on `controllerchange`.
 
-**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v85`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
+**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v86`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
 
 Fetch strategy:
 - Navigation → `networkFirst` (fallback to cached `index.html` offline)

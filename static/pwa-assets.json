@@ -114,6 +114,7 @@
     "static/apple-touch-icon.png",
     "static/flags/ja.svg",
     "static/flags/en.svg",
-    "static/flags/zh.svg"
+    "static/flags/zh.svg",
+    "static/js/modules/youtube/duration.js"
   ]
 }
