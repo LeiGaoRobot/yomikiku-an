@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>settings/display.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>settings/display.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <!-- DOM fixtures: main + sidebar checkbox pairs, reading-script selects,
+       and token nodes affected by the hide-details branch. -->
+  <div id="display-fixtures" style="display:none">
+    <input type="checkbox" id="showKana">
+    <input type="checkbox" id="sidebarShowKana">
+    <input type="checkbox" id="sidebarShowRomaji"> <!-- main #showRomaji absent on purpose -->
+    <input type="checkbox" id="showPos">
+    <input type="checkbox" id="showDetails">
+    <input type="checkbox" id="showUnderline">
+    <input type="checkbox" id="tokenAlignLeft">
+    <input type="checkbox" id="autoRead">
+    <input type="checkbox" id="repeatPlay">
+    <input type="checkbox" id="haAsWa">
+    <select id="readingScriptSelect">
+      <option value="hiragana">hiragana</option>
+      <option value="katakana">katakana</option>
+    </select>
+    <select id="sidebarReadingScriptSelect">
+      <option value="hiragana">hiragana</option>
+      <option value="katakana">katakana</option>
+    </select>
+    <div class="token-details">details</div>
+    <div class="token-pill active">pill</div>
+  </div>
+
+  <script type="module">
+    // settings/display.js self-bootstraps on import: it seeds checkbox
+    // states from localStorage, renders a dynamic <style> tag, and wires
+    // change handlers. Seed storage / DOM before the dynamic import.
+    localStorage.clear();
+    const seed = {
+      showRomaji: 'false',
+      showPos: 'true',
+      showDetails: 'false',
+      showUnderline: 'false',
+      tokenAlignLeft: 'true',
+      autoRead: 'true',
+      haAsWa: 'false',
+      readingScript: 'hiragana',
+      // showKana intentionally absent → module default (true)
+      // repeatPlay intentionally absent → module default (false)
+    };
+    Object.entries(seed).forEach(([k, v]) => localStorage.setItem(k, v));
+
+    let scriptDisplayCalls = 0;
+    let clearTokenCalls = 0;
+    window.updateReadingScriptDisplay = () => { scriptDisplayCalls += 1; };
+    window.__clearActiveTokenDetails = () => { clearTokenCalls += 1; };
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    const mod = await import('./display.js');
+    const byId = (id) => document.getElementById(id);
+    const styleEl = () => document.getElementById('display-control-styles');
+    const cssText = () => styleEl() ? styleEl().textContent : '';
+    document.getElementById('display-fixtures').style.display = 'none';
+
+    // ---- exported surface / globals ----
+    check('exports initDisplayControls', typeof mod.initDisplayControls === 'function');
+    check('exports updateDisplaySettings', typeof mod.updateDisplaySettings === 'function');
+    check('sets window.__ESM_DISPLAY_SETTINGS', window.__ESM_DISPLAY_SETTINGS === true);
+    check('sets window.__ESM_DISPLAY_SETTINGS_INITED',
+      window.__ESM_DISPLAY_SETTINGS_INITED === true);
+    check('exposes window.initDisplayControls', typeof window.initDisplayControls === 'function');
+    check('exposes window.updateDisplaySettings', typeof window.updateDisplaySettings === 'function');
+
+    // ---- checkbox state seeded from localStorage (getBool branches) ----
+    check('missing key uses default true (#showKana)', byId('showKana').checked === true);
+    check('main checkbox mirrors state to sidebar (#sidebarShowKana)',
+      byId('sidebarShowKana').checked === true);
+    check('explicit "false" wins over default (#showPos would be true)',
+      byId('showDetails').checked === false);
+    check('explicit "true" parses (#showPos)', byId('showPos').checked === true);
+    check('explicit "false" parses (#showUnderline)', byId('showUnderline').checked === false);
+    check('explicit "true" parses (#tokenAlignLeft)', byId('tokenAlignLeft').checked === true);
+    check('explicit "true" parses (#autoRead)', byId('autoRead').checked === true);
+    check('missing key uses default false (#repeatPlay)', byId('repeatPlay').checked === false);
+    check('explicit "false" parses (#haAsWa)', byId('haAsWa').checked === false);
+    check('sidebar-only pair reads sidebar state (#sidebarShowRomaji)',
+      byId('sidebarShowRomaji').checked === false);
+
+    // ---- dynamic <style> rendering ----
+    check('injects a single #display-control-styles element',
+      document.querySelectorAll('#display-control-styles').length === 1);
+    check('showKana=true omits the .display-kana hide rule',
+      !cssText().includes('.display-kana'));
+    check('showRomaji=false (sidebar fallback) adds the .display-romaji hide rule',
+      cssText().includes('.display-romaji { display: none !important; }'));
+    check('showPos=true omits the .display-pos hide rule',
+      !cssText().includes('.display-pos'));
+    check('showDetails=false adds the .token-details hide rule',
+      cssText().includes('.token-details { display: none !important; }'));
+    check('showUnderline=false adds the token-pill border rule',
+      cssText().includes('.token-pill { border-bottom: none !important; }'));
+    check('tokenAlignLeft=true adds the token-content align rule',
+      cssText().includes('.token-content { align-items: flex-start !important; }'));
+
+    // ---- hide-details DOM side effects ----
+    check('showDetails=false hides live .token-details nodes',
+      document.querySelector('.token-details').style.display === 'none');
+    check('showDetails=false clears .token-pill.active',
+      !document.querySelector('.token-pill').classList.contains('active'));
+    check('showDetails=false calls __clearActiveTokenDetails', clearTokenCalls >= 1);
+
+    // ---- reading-script select seeding ----
+    check('getScript seeds the main script select (hiragana)',
+      byId('readingScriptSelect').value === 'hiragana');
+    check('getScript seeds the sidebar script select (hiragana)',
+      byId('sidebarReadingScriptSelect').value === 'hiragana');
+    check('bootstrap invokes updateReadingScriptDisplay', scriptDisplayCalls >= 1);
+
+    // ---- repeatPlay global mirrors ----
+    check('window.repeatPlayCheckbox mirrors #repeatPlay',
+      window.repeatPlayCheckbox === byId('repeatPlay'));
+    check('window.sidebarRepeatPlayCheckbox stays unset when absent',
+      typeof window.sidebarRepeatPlayCheckbox === 'undefined');
+
+    // ---- change wiring: main ⇄ sidebar sync + re-render ----
+    byId('showKana').checked = false;
+    byId('showKana').dispatchEvent(new Event('change'));
+    check('showKana change persists "false"', localStorage.getItem('showKana') === 'false');
+    check('showKana change syncs the sidebar checkbox',
+      byId('sidebarShowKana').checked === false);
+    check('showKana change re-renders the hide rule',
+      cssText().includes('.display-kana { display: none !important; }'));
+
+    byId('sidebarShowRomaji').checked = true;
+    byId('sidebarShowRomaji').dispatchEvent(new Event('change'));
+    check('sidebar change persists "true"', localStorage.getItem('showRomaji') === 'true');
+    check('sidebar change re-renders without the .display-romaji rule',
+      !cssText().includes('.display-romaji'));
+
+    byId('showPos').checked = false;
+    byId('showPos').dispatchEvent(new Event('change'));
+    check('showPos change persists + re-renders',
+      localStorage.getItem('showPos') === 'false'
+      && cssText().includes('.display-pos { display: none !important; }'));
+
+    byId('tokenAlignLeft').checked = false;
+    byId('tokenAlignLeft').dispatchEvent(new Event('change'));
+    check('tokenAlignLeft change removes the align rule',
+      localStorage.getItem('tokenAlignLeft') === 'false'
+      && !cssText().includes('.token-content'));
+
+    byId('showUnderline').checked = true;
+    byId('showUnderline').dispatchEvent(new Event('change'));
+    check('showUnderline change removes the border rule',
+      localStorage.getItem('showUnderline') === 'true'
+      && !cssText().includes('.token-pill'));
+
+    // ---- autoRead / repeatPlay / haAsWa persist but do NOT re-render ----
+    const cssBeforeNonRerender = cssText();
+    byId('autoRead').checked = false;
+    byId('autoRead').dispatchEvent(new Event('change'));
+    check('autoRead change persists without re-rendering',
+      localStorage.getItem('autoRead') === 'false' && cssText() === cssBeforeNonRerender);
+    byId('repeatPlay').checked = true;
+    byId('repeatPlay').dispatchEvent(new Event('change'));
+    check('repeatPlay change persists without re-rendering',
+      localStorage.getItem('repeatPlay') === 'true' && cssText() === cssBeforeNonRerender);
+    byId('haAsWa').checked = true;
+    byId('haAsWa').dispatchEvent(new Event('change'));
+    check('haAsWa change persists without re-rendering',
+      localStorage.getItem('haAsWa') === 'true' && cssText() === cssBeforeNonRerender);
+
+    // ---- reading-script change wiring ----
+    const scriptCallsBefore = scriptDisplayCalls;
+    byId('readingScriptSelect').value = 'katakana';
+    byId('readingScriptSelect').dispatchEvent(new Event('change'));
+    check('script change persists "katakana"',
+      localStorage.getItem('readingScript') === 'katakana');
+    check('script change syncs the sidebar select',
+      byId('sidebarReadingScriptSelect').value === 'katakana');
+    check('script change invokes updateReadingScriptDisplay',
+      scriptDisplayCalls === scriptCallsBefore + 1);
+
+    byId('readingScriptSelect').value = 'weird';
+    byId('readingScriptSelect').dispatchEvent(new Event('change'));
+    check('unrecognized script value normalizes to katakana',
+      localStorage.getItem('readingScript') === 'katakana');
+
+    // ---- getScript invalid stored value → katakana default (fresh boot) ----
+    localStorage.setItem('readingScript', 'weird');
+    byId('readingScriptSelect').value = 'hiragana';
+    delete window.__ESM_DISPLAY_SETTINGS_INITED;
+    const fresh = await import('./display.js?invalid-script');
+    check('invalid stored readingScript boots as katakana',
+      byId('readingScriptSelect').value === 'katakana');
+    check('re-boot reuses the single injected style element',
+      document.querySelectorAll('#display-control-styles').length === 1);
+    check('fresh instance exports the same surface',
+      typeof fresh.initDisplayControls === 'function'
+      && typeof fresh.updateDisplaySettings === 'function');
+
+    // ---- all-checkboxes-absent fallback (state === undefined) ----
+    ['showKana', 'sidebarShowKana', 'sidebarShowRomaji', 'showPos', 'showDetails',
+      'showUnderline', 'tokenAlignLeft', 'autoRead', 'repeatPlay', 'haAsWa']
+      .forEach((id) => { const el = byId(id); if (el) el.remove(); });
+    let updateThrew = null;
+    try { mod.updateDisplaySettings(); } catch (e) { updateThrew = e.message; }
+    check('updateDisplaySettings tolerates missing checkbox DOM', updateThrew === null);
+    check('all-absent state re-adds every hide rule',
+      cssText().includes('.display-kana')
+      && cssText().includes('.display-romaji')
+      && cssText().includes('.display-pos')
+      && cssText().includes('.token-details')
+      && cssText().includes('.token-pill'));
+
+    // ---- summary ----
+    const pass = results.filter((r) => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail === 0 ? '#1d7d3f' : '#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const rootEl = document.getElementById('results');
+    results.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      rootEl.appendChild(row);
+    });
+  </script>
+</body>
+</html>

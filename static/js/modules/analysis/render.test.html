@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>analysis/render.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>analysis/render.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import * as events from '../player/events.js';
+    import * as mod from './render.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    // ---- exported facade surface ----
+    const fns = ['analyzeText', 'playLine', 'playToken', 'toggleTokenDetails',
+      'highlightToken', 'clearTokenHighlight', 'hasAnalysis'];
+    check('exports the full named facade surface',
+      fns.every((n) => typeof mod[n] === 'function'),
+      fns.filter((n) => typeof mod[n] !== 'function').join(', '));
+    check('re-exposes window.YomikikuanEvents via player/events.js',
+      typeof window.YomikikuanEvents === 'object'
+      && typeof window.YomikikuanEvents.emit === 'function');
+
+    // ---- delegation to classic-script globals ----
+    let playLineArgs = null;
+    window.playLine = (...args) => { playLineArgs = args; return `line:${args[0]}`; };
+    check('playLine forwards its index and returns the handler value',
+      mod.playLine(3) === 'line:3' && playLineArgs.length === 1 && playLineArgs[0] === 3);
+
+    let playTokenArgs = null;
+    const fakeEvent = { type: 'click' };
+    const fakeToken = { surface: '猫' };
+    window.playToken = (...args) => { playTokenArgs = args; return 'PT'; };
+    check('playToken forwards (text, event, tokenData) verbatim',
+      mod.playToken('猫', fakeEvent, fakeToken) === 'PT'
+      && playTokenArgs.length === 3
+      && playTokenArgs[0] === '猫'
+      && playTokenArgs[1] === fakeEvent
+      && playTokenArgs[2] === fakeToken);
+
+    let toggleArgs = null;
+    const tokenEl = document.createElement('span');
+    window.toggleTokenDetails = (...args) => { toggleArgs = args; return 'TOGGLED'; };
+    check('toggleTokenDetails forwards the element and returns the handler value',
+      mod.toggleTokenDetails(tokenEl) === 'TOGGLED'
+      && toggleArgs.length === 1 && toggleArgs[0] === tokenEl);
+
+    let analyzeCalls = 0;
+    window.analyzeText = async () => { analyzeCalls += 1; return 'ANALYZED'; };
+    check('analyzeText awaits the async classic-script handler',
+      (await mod.analyzeText()) === 'ANALYZED' && analyzeCalls === 1);
+
+    // ---- missing-handler branches return undefined (warn only) ----
+    delete window.playLine;
+    check('playLine without a handler → undefined', mod.playLine(0) === undefined);
+    delete window.analyzeText;
+    check('analyzeText without a handler → undefined',
+      (await mod.analyzeText()) === undefined);
+
+    // ---- highlightToken: event emit THEN delegate, args forwarded ----
+    const highlightSeen = [];
+    const offHighlight = events.on('token:highlight', (p) => {
+      highlightSeen.push(['event', p.surface, p.element]);
+    });
+    let highlightArgs = null;
+    window.highlightToken = (...args) => {
+      highlightSeen.push(['handler']);
+      highlightArgs = args;
+      return 'HIGHLIGHTED';
+    };
+    const hiEl = document.createElement('span');
+    const hiOpts = { mode: 'focus' };
+    const hiRet = mod.highlightToken('猫', hiEl, hiOpts);
+    offHighlight();
+    check('highlightToken returns the handler value', hiRet === 'HIGHLIGHTED');
+    check('highlightToken emits token:highlight with {surface, element}',
+      highlightSeen.length === 2
+      && highlightSeen[0][0] === 'event'
+      && highlightSeen[0][1] === '猫'
+      && highlightSeen[0][2] === hiEl
+      && highlightSeen[1][0] === 'handler',
+      JSON.stringify(highlightSeen.map((s) => s[0])));
+    check('highlightToken forwards (surface, element, opts)',
+      highlightArgs.length === 3
+      && highlightArgs[0] === '猫'
+      && highlightArgs[1] === hiEl
+      && highlightArgs[2] === hiOpts);
+
+    // Default parameters: targetElement = null, opts = {}.
+    highlightArgs = null;
+    mod.highlightToken('犬');
+    check('highlightToken defaults element=null and opts={}',
+      highlightArgs[1] === null
+      && typeof highlightArgs[2] === 'object'
+      && Object.keys(highlightArgs[2]).length === 0);
+
+    // ---- clearTokenHighlight: emit token:clear THEN delegate ----
+    const clearSeen = [];
+    const offClear = events.on('token:clear', (p) => {
+      clearSeen.push(['event', p]);
+    });
+    window.clearTokenHighlight = () => { clearSeen.push(['handler']); return 'CLEARED'; };
+    const clearRet = mod.clearTokenHighlight();
+    offClear();
+    check('clearTokenHighlight returns the handler value', clearRet === 'CLEARED');
+    check('clearTokenHighlight emits token:clear before delegating',
+      clearSeen.length === 2
+      && clearSeen[0][0] === 'event'
+      && clearSeen[1][0] === 'handler');
+    check('token:clear payload is an empty object',
+      typeof clearSeen[0][1] === 'object'
+      && clearSeen[0][1] !== null
+      && Object.keys(clearSeen[0][1]).length === 0);
+
+    // ---- hasAnalysis: DOM-presence probe ----
+    const removeContent = () => {
+      const c = document.getElementById('content');
+      if (c) c.remove();
+    };
+    const setContent = (html) => {
+      removeContent();
+      const c = document.createElement('div');
+      c.id = 'content';
+      c.innerHTML = html;
+      document.body.appendChild(c);
+      return c;
+    };
+
+    removeContent();
+    check('hasAnalysis is false without #content', mod.hasAnalysis() === false);
+    setContent('');
+    check('hasAnalysis is false for empty #content', mod.hasAnalysis() === false);
+    setContent('<div class="line-container"></div>');
+    check('hasAnalysis true for .line-container', mod.hasAnalysis() === true);
+    setContent('<span class="token-pill"></span>');
+    check('hasAnalysis true for .token-pill', mod.hasAnalysis() === true);
+    setContent('<div class="analysis-section"></div>');
+    check('hasAnalysis true for .analysis-section', mod.hasAnalysis() === true);
+    setContent('<p>plain text only</p>');
+    check('hasAnalysis false for analyzed-less markup', mod.hasAnalysis() === false);
+    removeContent();
+
+    // ---- summary ----
+    const pass = results.filter((r) => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail === 0 ? '#1d7d3f' : '#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const rootEl = document.getElementById('results');
+    results.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      rootEl.appendChild(row);
+    });
+  </script>
+</body>
+</html>

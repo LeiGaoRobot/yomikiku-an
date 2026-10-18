@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>settings/theme.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>settings/theme.js tests</h1>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    // settings/theme.js self-bootstraps when imported: it reads
+    // localStorage, applies <html data-theme>, and wires the theme
+    // selects / #theme-toggle. Build the DOM fixtures + storage state
+    // BEFORE the dynamic import so the very first boot is deterministic.
+    localStorage.clear();
+
+    const mkSelect = (id, values) => {
+      const s = document.createElement('select');
+      s.id = id;
+      for (const v of values) {
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = v;
+        s.appendChild(o);
+      }
+      document.body.appendChild(s);
+      return s;
+    };
+    const themeSelect = mkSelect('themeSelect',
+      ['paper', 'sakura', 'sticky', 'green', 'blue', 'dark', 'auto']);
+    const sidebarSelect = mkSelect('sidebarThemeSelect', ['paper', 'dark', 'auto']);
+    const toggleBtn = document.createElement('button');
+    toggleBtn.id = 'theme-toggle';
+    toggleBtn.innerHTML = '<span class="theme-icon">🌙</span>';
+    document.body.appendChild(toggleBtn);
+
+    // i18n labels for the toggle button read this classic-script global.
+    window.getCurrentLang = () => 'en';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail || '' });
+
+    const mod = await import('./theme.js');
+    const { THEME, LIGHT_THEMES } = mod;
+    const root = document.documentElement;
+    const icon = () => toggleBtn.querySelector('.theme-icon').textContent;
+    const dataTheme = () => root.getAttribute('data-theme');
+
+    // ---- constants ----
+    check('THEME.PAPER is "paper"', THEME.PAPER === 'paper');
+    check('THEME.DARK is "dark"', THEME.DARK === 'dark');
+    check('THEME.AUTO is "auto"', THEME.AUTO === 'auto');
+    check('LIGHT_THEMES has the 5 light themes', LIGHT_THEMES.length === 5);
+    check('LIGHT_THEMES includes paper/sakura/sticky/green/blue',
+      ['paper', 'sakura', 'sticky', 'green', 'blue'].every((t) => LIGHT_THEMES.includes(t)));
+    check('LIGHT_THEMES excludes dark', !LIGHT_THEMES.includes('dark'));
+    check('LIGHT_THEMES excludes auto', !LIGHT_THEMES.includes('auto'));
+
+    // ---- normalizeThemeValue ----
+    check('normalize(null) → paper', mod.normalizeThemeValue(null) === 'paper');
+    check('normalize(undefined) → paper', mod.normalizeThemeValue(undefined) === 'paper');
+    check('normalize("") → paper', mod.normalizeThemeValue('') === 'paper');
+    check('normalize("light") legacy alias → paper', mod.normalizeThemeValue('light') === 'paper');
+    check('normalize("dark") → dark', mod.normalizeThemeValue('dark') === 'dark');
+    check('normalize("auto") → auto', mod.normalizeThemeValue('auto') === 'auto');
+    check('normalize("sakura") → sakura', mod.normalizeThemeValue('sakura') === 'sakura');
+    check('normalize("sticky") → sticky', mod.normalizeThemeValue('sticky') === 'sticky');
+    check('normalize("green") → green', mod.normalizeThemeValue('green') === 'green');
+    check('normalize("blue") → blue', mod.normalizeThemeValue('blue') === 'blue');
+    check('normalize("neon") unknown → paper', mod.normalizeThemeValue('neon') === 'paper');
+    check('normalize("DARK") is case-sensitive → paper', mod.normalizeThemeValue('DARK') === 'paper');
+
+    // ---- resolveTheme ----
+    check('resolve("dark") → dark', mod.resolveTheme('dark') === 'dark');
+    check('resolve("paper") → paper', mod.resolveTheme('paper') === 'paper');
+    check('resolve("sakura") → sakura', mod.resolveTheme('sakura') === 'sakura');
+    check('resolve("blue") → blue', mod.resolveTheme('blue') === 'blue');
+    check('resolve("bogus") → paper', mod.resolveTheme('bogus') === 'paper');
+    check('resolve("light") legacy alias → paper', mod.resolveTheme('light') === 'paper');
+    check('resolve(auto) ∈ {dark} ∪ LIGHT_THEMES',
+      ['dark', ...LIGHT_THEMES].includes(mod.resolveTheme('auto')),
+      `got ${mod.resolveTheme('auto')}`);
+
+    // ---- applyTheme: attribute + select sync + toggle icon/label ----
+    mod.applyTheme('dark');
+    check('applyTheme(dark) sets <html data-theme="dark">', dataTheme() === 'dark');
+    check('applyTheme(dark) syncs #themeSelect', themeSelect.value === 'dark');
+    check('applyTheme(dark) syncs #sidebarThemeSelect', sidebarSelect.value === 'dark');
+    check('applyTheme(dark) shows the sun icon', icon() === '☀️');
+    check('applyTheme(dark) labels next action "Switch to Light Theme"',
+      toggleBtn.getAttribute('aria-label') === 'Switch to Light Theme');
+    check('applyTheme(dark) mirrors the label into title',
+      toggleBtn.title === 'Switch to Light Theme');
+
+    mod.applyTheme('sakura');
+    check('applyTheme(sakura) sets data-theme=sakura', dataTheme() === 'sakura');
+    check('applyTheme(light theme) shows the moon icon', icon() === '🌙');
+    check('applyTheme(light theme) labels next action "Switch to Dark Theme"',
+      toggleBtn.getAttribute('aria-label') === 'Switch to Dark Theme');
+
+    mod.applyTheme('neon');
+    check('applyTheme(unknown) falls back to paper', dataTheme() === 'paper');
+
+    // i18n branches on the toggle label
+    window.getCurrentLang = () => 'ja';
+    mod.applyTheme('paper');
+    check('ja label for switching to dark', toggleBtn.getAttribute('aria-label') === 'ダークモードに切り替え');
+    mod.applyTheme('dark');
+    check('ja label for switching to light', toggleBtn.getAttribute('aria-label') === 'ライトモードに切り替え');
+
+    window.getCurrentLang = () => 'zh';
+    mod.applyTheme('paper');
+    check('zh label for switching to dark', toggleBtn.getAttribute('aria-label') === '切换到暗色主题');
+    mod.applyTheme('dark');
+    check('zh label for switching to light', toggleBtn.getAttribute('aria-label') === '切换到浅色主题');
+
+    delete window.getCurrentLang;
+    mod.applyTheme('paper');
+    check('missing getCurrentLang falls back to ja labels',
+      toggleBtn.getAttribute('aria-label') === 'ダークモードに切り替え');
+
+    // ---- setThemePreference: persistence + last-light-theme memory ----
+    mod.setThemePreference('dark');
+    check('setThemePreference(dark) persists "theme"', localStorage.getItem('theme') === 'dark');
+    check('setThemePreference(dark) applies dark', dataTheme() === 'dark');
+
+    mod.setThemePreference('sakura');
+    check('setThemePreference(light) persists "theme"', localStorage.getItem('theme') === 'sakura');
+    check('setThemePreference(light) remembers "lightTheme"',
+      localStorage.getItem('lightTheme') === 'sakura');
+
+    mod.setThemePreference('green');
+    mod.setThemePreference('dark');
+    toggleBtn.click();
+    check('toggle from dark returns to the last light theme (green)',
+      localStorage.getItem('theme') === 'green' && dataTheme() === 'green');
+
+    mod.setThemePreference('paper');
+    toggleBtn.click();
+    check('toggle from light goes to dark',
+      localStorage.getItem('theme') === 'dark' && dataTheme() === 'dark');
+
+    mod.setThemePreference('neon');
+    check('setThemePreference(unknown) normalizes to paper',
+      localStorage.getItem('theme') === 'paper' && dataTheme() === 'paper');
+
+    mod.setThemePreference('light');
+    check('setThemePreference("light") normalizes to paper (legacy alias)',
+      localStorage.getItem('theme') === 'paper');
+
+    // ---- auto branch (fresh module instance with a stubbed matchMedia) ----
+    const realMatchMedia = window.matchMedia;
+    const stubMatchMedia = (matches) => (query) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent() { return false; },
+    });
+
+    window.matchMedia = stubMatchMedia(false); // prefers light
+    localStorage.setItem('theme', 'auto');
+    localStorage.setItem('lightTheme', 'sakura');
+    const autoLight = await import('./theme.js?auto-light');
+    check('auto + prefers-light → last light theme (sakura)',
+      autoLight.resolveTheme('auto') === 'sakura');
+    check('auto + prefers-light boot applies sakura', dataTheme() === 'sakura');
+
+    window.matchMedia = stubMatchMedia(true); // prefers dark
+    localStorage.setItem('theme', 'auto');
+    localStorage.setItem('lightTheme', 'sticky');
+    const autoDark = await import('./theme.js?auto-dark');
+    check('auto + prefers-dark → dark', autoDark.resolveTheme('auto') === 'dark');
+    check('auto + prefers-dark boot applies dark', dataTheme() === 'dark');
+
+    // Unknown saved preference + unset lightTheme is normalized on boot.
+    window.matchMedia = stubMatchMedia(false);
+    localStorage.setItem('theme', 'neon');
+    localStorage.removeItem('lightTheme');
+    await import('./theme.js?bogus-boot');
+    check('bogus stored theme boots as paper', dataTheme() === 'paper');
+    check('bogus boot persists lightTheme=paper', localStorage.getItem('lightTheme') === 'paper');
+
+    window.matchMedia = realMatchMedia;
+
+    // ---- syncThemeSelects null-safety ----
+    mod.syncThemeSelects('paper');
+    check('syncThemeSelects("paper") updates both selects',
+      themeSelect.value === 'paper' && sidebarSelect.value === 'paper');
+    themeSelect.remove();
+    sidebarSelect.remove();
+    let syncThrew = null;
+    try { mod.syncThemeSelects('dark'); } catch (e) { syncThrew = e.message; }
+    check('syncThemeSelects tolerates missing selects', syncThrew === null);
+
+    // applyTheme tolerates missing #theme-toggle too.
+    toggleBtn.remove();
+    let applyThrew = null;
+    try { mod.applyTheme('dark'); } catch (e) { applyThrew = e.message; }
+    check('applyTheme tolerates missing #theme-toggle', applyThrew === null && dataTheme() === 'dark');
+
+    // ---- summary ----
+    const pass = results.filter((r) => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail === 0 ? '#1d7d3f' : '#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const rootEl = document.getElementById('results');
+    results.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      rootEl.appendChild(row);
+    });
+  </script>
+</body>
+</html>

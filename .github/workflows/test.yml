@@ -8,7 +8,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
 
     steps:
       - uses: actions/checkout@v5
@@ -22,8 +22,11 @@ jobs:
           npm install --no-save playwright
           npx playwright install chromium --with-deps
 
-      - name: Run test suite (43 *.test.html pages, 1147 cases)
+      - name: Run test suite (49 *.test.html pages, 1356 cases)
         run: npm test 2>&1 | tee test-output.log
+
+      - name: Run E2E smoke suite (8 Playwright scenarios)
+        run: npm run e2e 2>&1 | tee e2e-output.log
 
       - name: Upload test output on failure
         if: failure()
@@ -31,4 +34,12 @@ jobs:
         with:
           name: test-output
           path: test-output.log
+          retention-days: 14
+
+      - name: Upload E2E output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output
+          path: e2e-output.log
           retention-days: 14
