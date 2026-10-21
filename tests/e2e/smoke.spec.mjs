@@ -703,7 +703,7 @@ async function bootAnalysisManual(page, errors) {
 //   4. conflict → dismiss = cancel = pull the cloud copy instead
 //   5. missing bridge → graceful error toast, no pageerror, state untouched
 //   6. legacy #syncDataBtn delegates to the new push entry point while the
-//      old (dead) window.performDataSync Firestore path is left intact.
+//      old (dead) Firestore sync path is gone (removed 2026-10-21).
 async function cloudSyncOptionA(page, errors) {
   await page.goto(`${BASE}/index.html`);
   await waitForBoot(page);
@@ -997,13 +997,16 @@ async function cloudSyncOptionA(page, errors) {
     hasLegacyDoc: window.__yomikikuanCloudMockState.payload.data.documents
       .some((d) => d.id === 'e2e-cloud-legacy'),
     performDataSync: typeof window.performDataSync,
+    autoSyncGlobals: [typeof window.markUnsyncedChanges, typeof window.startAutoSync, typeof window.stopAutoSync],
   }));
   assert(legacy.meta === legacy.mockUpdatedAt && legacy.meta !== beforeLegacy,
     '#syncDataBtn did not delegate to the cloud-sync push entry point');
   assert(legacy.hasLegacyDoc,
     '#syncDataBtn push did not write the local backup payload to the bridge');
-  assert(legacy.performDataSync === 'function',
-    'the old (dead) window.performDataSync Firestore path must be retained this round');
+  assert(legacy.performDataSync === 'undefined',
+    'the dead window.performDataSync Firestore path should be removed');
+  assert(legacy.autoSyncGlobals.every((t) => t === 'undefined'),
+    `dead auto-sync globals still exposed: ${legacy.autoSyncGlobals.join(', ')}`);
 
   const fatal = errors.filter((entry) => entry.startsWith('pageerror:'));
   assert(fatal.length === 0, `cloud sync emitted page errors: ${fatal[0]}`);

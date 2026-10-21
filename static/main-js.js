@@ -102,7 +102,6 @@ const headerSpeedValue = $('headerSpeedValue');
   const editorCharCount = document.getElementById('editorCharCount');
   const editorStarToggle = document.getElementById('editorStarToggle');
   const docSortToggle = $('docSortToggle');
-  const syncBtn = document.getElementById('syncBtn');
   const editorDeleteBtn = document.getElementById('editorDeleteBtn');
   const themeToggleBtn = document.getElementById('theme-toggle');
   
@@ -2324,10 +2323,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     // 保存所有文档
     saveAllDocuments(docs) {
       localStorage.setItem(this.storageKey, JSON.stringify(docs || []));
-      // 标记有未同步的更改
-      if (typeof window.markUnsyncedChanges === 'function') {
-        window.markUnsyncedChanges();
-      }
     }
 
     // 获取活动文档ID
@@ -3004,31 +2999,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
           if (!newDocDropdownBtn.contains(e.target) && !newDocDropdownMenu.contains(e.target)) {
             newDocDropdownMenu.classList.remove('show');
             newDocDropdownBtn.classList.remove('active');
-          }
-        });
-      }
-
-      // 顶部“同步”按钮：清空示例缓存并强制从 JSON 重新注入；点击时SVG居中旋转3圈
-      if (syncBtn) {
-        syncBtn.addEventListener('click', async () => {
-          syncBtn.classList.add('is-loading', 'rotate-3');
-          syncBtn.disabled = true;
-          const svg = syncBtn.querySelector('svg');
-          const onEnd = () => {
-            syncBtn.classList.remove('rotate-3');
-            svg && svg.removeEventListener('animationend', onEnd);
-          };
-          if (svg) svg.addEventListener('animationend', onEnd);
-          try {
-            // 调用全局的数据同步函数
-            if (typeof window.performDataSync === 'function') {
-              await window.performDataSync();
-            } else {
-              showErrorToast('同期機能が利用できません');
-            }
-          } finally {
-            syncBtn.classList.remove('is-loading');
-            syncBtn.disabled = false;
           }
         });
       }
@@ -5867,380 +5837,7 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       }
     });
 
-    // ========== 自动同步功能 ==========
-    let autoSyncInterval = null;
-    let pendingSyncTimeout = null;
-    let lastSyncTime = null;
-    let hasUnsyncedChanges = false;
     
-    // 自动同步配置
-    const AUTO_SYNC_CONFIG = {
-      INTERVAL: 10 * 60 * 1000,      // 定期自动同步：10分钟
-      CHANGE_DELAY: 5 * 60 * 1000,   // 内容变化后延迟同步：5分钟
-      MIN_INTERVAL: 2 * 60 * 1000,   // 最小同步间隔：2分钟
-    };
-    
-    // 标记有未同步的更改
-    function markUnsyncedChanges() {
-      hasUnsyncedChanges = true;
-      // 取消之前的延迟同步
-      if (pendingSyncTimeout) {
-        clearTimeout(pendingSyncTimeout);
-      }
-      // 设置新的延迟同步
-      pendingSyncTimeout = setTimeout(() => {
-        if (hasUnsyncedChanges) {
-          console.log('Auto-syncing after content change...');
-          performAutoSync();
-        }
-      }, AUTO_SYNC_CONFIG.CHANGE_DELAY);
-    }
-    
-    // 执行自动同步（带条件检查）
-    async function performAutoSync() {
-      // 检查是否距离上次同步超过最小间隔
-      if (lastSyncTime && (Date.now() - lastSyncTime) < AUTO_SYNC_CONFIG.MIN_INTERVAL) {
-        console.log('Skipping auto-sync: too soon since last sync');
-        return;
-      }
-      
-      // 检查是否有未同步的更改或超过定期同步时间
-      const shouldSync = hasUnsyncedChanges || 
-                        !lastSyncTime || 
-                        (Date.now() - lastSyncTime) > AUTO_SYNC_CONFIG.INTERVAL;
-      
-      if (!shouldSync) {
-        return;
-      }
-      
-      try {
-        console.log('Performing auto-sync...');
-        await window.performDataSync(true); // 传入 true 表示是自动同步
-        hasUnsyncedChanges = false;
-        lastSyncTime = Date.now();
-        console.log('Auto-sync completed');
-      } catch (error) {
-        console.error('Auto-sync failed:', error);
-      }
-    }
-    
-    // 启动自动同步定时器
-    function startAutoSync() {
-      // 清除旧的定时器
-      if (autoSyncInterval) {
-        clearInterval(autoSyncInterval);
-      }
-      
-      // 设置定期自动同步
-      autoSyncInterval = setInterval(() => {
-        console.log('Periodic auto-sync triggered');
-        performAutoSync();
-      }, AUTO_SYNC_CONFIG.INTERVAL);
-      
-      console.log('Auto-sync started: every', AUTO_SYNC_CONFIG.INTERVAL / 60000, 'minutes');
-    }
-    
-    // 停止自动同步
-    function stopAutoSync() {
-      if (autoSyncInterval) {
-        clearInterval(autoSyncInterval);
-        autoSyncInterval = null;
-      }
-      if (pendingSyncTimeout) {
-        clearTimeout(pendingSyncTimeout);
-        pendingSyncTimeout = null;
-      }
-      console.log('Auto-sync stopped');
-    }
-    
-    // 页面可见性变化时的处理
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        // 页面隐藏时，如果有未同步的更改，立即同步
-        if (hasUnsyncedChanges) {
-          console.log('Page hidden, syncing changes...');
-          performAutoSync();
-        }
-      }
-    });
-    
-    // 暴露自动同步控制函数
-    window.startAutoSync = startAutoSync;
-    window.stopAutoSync = stopAutoSync;
-    window.markUnsyncedChanges = markUnsyncedChanges;
-    
-    // 共享的数据同步功能（挂载到 window 对象，以便全局访问）
-    window.performDataSync = async function(isAutoSync = false) {
-      // 检查 Firebase 是否初始化
-      if (!window.firebaseDB || !window.firebaseAuth || !window.firestoreHelpers) {
-        if (!isAutoSync) {
-          showErrorToast('Firebase が初期化されていません');
-        }
-        return false;
-      }
-
-      // 获取当前用户
-      const currentUser = window.firebaseAuth.currentUser;
-      if (!currentUser) {
-        showErrorToast('ログインが必要です');
-        return false;
-      }
-
-      try {
-        // 直接开始同步，不显示确认对话框
-
-        // 获取进度提示元素
-        const syncToast = document.getElementById('syncProgressToast');
-        const syncText = document.getElementById('syncProgressText');
-
-        // 显示进度提示
-        if (syncToast) {
-          syncToast.classList.add('show');
-          syncText.textContent = 'データを同期中...';
-        }
-
-        // 检查 documentManager 是否存在
-        if (!window.documentManager) {
-          showErrorToast('ドキュメントマネージャーが初期化されていません');
-          if (syncToast) syncToast.classList.remove('show');
-          return false;
-        }
-
-        // 获取本地所有文档（排除示例文档和默认文档）
-        const allDocs = window.documentManager.getAllDocuments();
-        const localDocs = allDocs.filter(doc => {
-          // 不同步示例文档
-          if (doc.folder === 'samples') return false;
-          // 不同步默认文档 default-01
-          if (doc.id === 'default-01') return false;
-          return true;
-        });
-        
-        const { collection, doc, setDoc, serverTimestamp, getDocs, deleteDoc, getDoc } = window.firestoreHelpers;
-        const db = window.firebaseDB;
-        
-        let uploadCount = 0;
-        let downloadCount = 0;
-        let updateCount = 0;
-        let deleteCount = 0;
-        let failCount = 0;
-
-        // 第一步：获取云端所有文档
-        if (syncText) {
-          syncText.textContent = 'クラウドデータを取得中...';
-        }
-        
-        const cloudDocs = new Map(); // id -> doc data
-        try {
-          const docsCollectionRef = collection(db, 'users', currentUser.uid, 'documents');
-          const snapshot = await getDocs(docsCollectionRef);
-          snapshot.forEach(d => {
-            cloudDocs.set(d.id, d.data());
-          });
-        } catch (error) {
-          console.error('获取云端文档列表失败:', error);
-          showErrorToast('クラウドデータの取得に失敗しました');
-          if (syncToast) syncToast.classList.remove('show');
-          return false;
-        }
-
-        // 第二步：建立本地文档映射
-        const localDocsMap = new Map();
-        localDocs.forEach(d => {
-          localDocsMap.set(d.id, d);
-        });
-
-        // 第三步：双向同步
-        const allDocIds = new Set([...localDocsMap.keys(), ...cloudDocs.keys()]);
-        let processedCount = 0;
-        const totalCount = allDocIds.size;
-
-        for (const docId of allDocIds) {
-          processedCount++;
-          if (syncText) {
-            syncText.textContent = `双方向同期中... (${processedCount}/${totalCount})`;
-          }
-
-          const localDoc = localDocsMap.get(docId);
-          const cloudDoc = cloudDocs.get(docId);
-
-          try {
-            // 情况1：只在本地，上传到云端
-            if (localDoc && !cloudDoc) {
-              let contentStr = '';
-              if (Array.isArray(localDoc.content)) {
-                contentStr = localDoc.content.join('\n');
-              } else if (typeof localDoc.content === 'string') {
-                contentStr = localDoc.content;
-              }
-              
-              const titleStr = localDoc.title || (contentStr.split('\n')[0]?.trim() || '');
-              const docRef = doc(db, 'users', currentUser.uid, 'documents', docId);
-              
-              await setDoc(docRef, {
-                id: localDoc.id,
-                title: titleStr,
-                content: contentStr,
-                folderId: localDoc.folderId || null,
-                favorite: Boolean(localDoc.favorite),
-                createdAt: localDoc.createdAt,
-                updatedAt: serverTimestamp()
-              });
-              uploadCount++;
-              console.log(`上传到云端: ${docId}`);
-            }
-            // 情况2：只在云端，下载到本地
-            else if (!localDoc && cloudDoc) {
-              // 跳过不应该同步的文档
-              if (docId === 'default-01' || cloudDoc.folder === 'samples') {
-                // 删除这些不应该存在的云端文档
-                const docRef = doc(db, 'users', currentUser.uid, 'documents', docId);
-                await deleteDoc(docRef);
-                deleteCount++;
-                console.log(`删除云端不应同步的文档: ${docId}`);
-                continue;
-              }
-              
-              const newDoc = {
-                id: cloudDoc.id,
-                content: cloudDoc.content || '',
-                title: cloudDoc.title || '',
-                folderId: cloudDoc.folderId || null,
-                favorite: Boolean(cloudDoc.favorite),
-                createdAt: cloudDoc.createdAt || Date.now(),
-                updatedAt: cloudDoc.updatedAt?.toMillis?.() || Date.now(),
-                locked: false
-              };
-              
-              allDocs.push(newDoc);
-              downloadCount++;
-              console.log(`从云端下载: ${docId}`);
-            }
-            // 情况3：两边都有，比较时间戳，保留最新的
-            else if (localDoc && cloudDoc) {
-              const localTime = localDoc.updatedAt || localDoc.createdAt || 0;
-              const cloudTime = cloudDoc.updatedAt?.toMillis?.() || cloudDoc.createdAt || 0;
-              
-              // 云端更新，下载到本地
-              if (cloudTime > localTime) {
-                const docIndex = allDocs.findIndex(d => d.id === docId);
-                if (docIndex !== -1) {
-                  allDocs[docIndex] = {
-                    ...allDocs[docIndex],
-                    content: cloudDoc.content || allDocs[docIndex].content,
-                    title: cloudDoc.title || allDocs[docIndex].title,
-                    folderId: cloudDoc.folderId !== undefined ? cloudDoc.folderId : allDocs[docIndex].folderId,
-                    favorite: cloudDoc.favorite !== undefined ? cloudDoc.favorite : allDocs[docIndex].favorite,
-                    updatedAt: cloudTime
-                  };
-                  updateCount++;
-                  console.log(`更新本地文档（云端更新）: ${docId}`);
-                }
-              }
-              // 本地更新，上传到云端
-              else if (localTime > cloudTime) {
-                let contentStr = '';
-                if (Array.isArray(localDoc.content)) {
-                  contentStr = localDoc.content.join('\n');
-                } else if (typeof localDoc.content === 'string') {
-                  contentStr = localDoc.content;
-                }
-                
-                const titleStr = localDoc.title || (contentStr.split('\n')[0]?.trim() || '');
-                const docRef = doc(db, 'users', currentUser.uid, 'documents', docId);
-                
-                await setDoc(docRef, {
-                  id: localDoc.id,
-                  title: titleStr,
-                  content: contentStr,
-                  folderId: localDoc.folderId || null,
-                  favorite: Boolean(localDoc.favorite),
-                  createdAt: localDoc.createdAt,
-                  updatedAt: serverTimestamp()
-                });
-                updateCount++;
-                console.log(`更新云端文档（本地更新）: ${docId}`);
-              }
-              // 时间戳相同，跳过
-            }
-          } catch (error) {
-            console.error(`同步文档失败: ${docId}`, error);
-            failCount++;
-          }
-        }
-
-        // 保存更新后的本地文档
-        if (downloadCount > 0 || updateCount > 0) {
-          window.documentManager.saveAllDocuments(allDocs);
-          window.documentManager.render();
-        }
-
-        // 同步文件夹
-        if (syncText) {
-          syncText.textContent = 'フォルダを同期中...';
-        }
-
-        const folders = window.documentManager.folders || [];
-        for (const folder of folders) {
-          try {
-            const folderRef = doc(db, 'users', currentUser.uid, 'folders', folder.id);
-            await setDoc(folderRef, {
-              id: folder.id,
-              name: folder.name,
-              createdAt: folder.createdAt || Date.now(),
-              updatedAt: serverTimestamp()
-            });
-          } catch (error) {
-            console.error(`フォルダ同期失败: ${folder.id}`, error);
-          }
-        }
-
-        // 隐藏进度提示
-        if (syncToast) {
-          syncText.textContent = '同期完了！';
-          setTimeout(() => {
-            syncToast.classList.remove('show');
-          }, 2000);
-        }
-
-        // 显示结果
-        if (failCount === 0) {
-          // 全部成功，显示详细信息
-          const messages = [];
-          if (uploadCount > 0) messages.push(`アップロード: ${uploadCount}件`);
-          if (downloadCount > 0) messages.push(`ダウンロード: ${downloadCount}件`);
-          if (updateCount > 0) messages.push(`更新: ${updateCount}件`);
-          if (deleteCount > 0) messages.push(`削除: ${deleteCount}件`);
-          
-          if (messages.length > 0 && !isAutoSync) {
-            showSuccessToast(`同期完了！${messages.join('、')}`);
-          } else if (isAutoSync) {
-            console.log(`Auto-sync completed: ${messages.join(', ')}`);
-          }
-        } else {
-          const messages = [];
-          if (uploadCount > 0) messages.push(`${uploadCount}件アップロード`);
-          if (downloadCount > 0) messages.push(`${downloadCount}件ダウンロード`);
-          if (updateCount > 0) messages.push(`${updateCount}件更新`);
-          if (deleteCount > 0) messages.push(`${deleteCount}件削除`);
-          messages.push(`${failCount}件失敗`);
-          showErrorToast(`同期完了: ${messages.join('、')}`);
-        }
-
-        return true;
-      } catch (error) {
-        console.error('同步错误:', error);
-        
-        // 隐藏进度提示
-        const syncToast = document.getElementById('syncProgressToast');
-        if (syncToast) {
-          syncToast.classList.remove('show');
-        }
-        
-        showErrorToast('同期に失敗しました: ' + error.message);
-        return false;
-      }
-    }
     
     // 显示错误提示的辅助函数
     // Phase-2 dedup → canonical impl in modules/ui/toasts.js
@@ -6269,8 +5866,9 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     // 方案 A：显式 Push / Pull。真实 Firebase SDK 已从 index.html 移除，
     // 因此 window.__yomikikuanCloudBridge 目前不会被安装 —— 模块会优雅地
     // 提示「云同步未配置（Firebase SDK 已禁用）」且不抛错。
-    // 旧的 window.performDataSync / initUserProfile 内的 Firestore 代码
-    // 保留原样（下一轮再决定去留），只是不再由用户菜单按钮触发。
+    // 旧的 window.performDataSync / 自动同步 / Firestore 合并代码已于
+    // 2026-10-21 删除（结构上不可达：window.firebase* 从未被赋值）；
+    // 如未来接 Firebase，只需按 modules/cloud-sync 的 bridge 契约重新接线。
     async function runCloudSyncAction(direction, triggerBtn) {
       const btn = triggerBtn || (direction === 'pull' ? cloudPullBtn : cloudPushBtn);
       userProfileContainer.classList.remove('open');
@@ -6414,9 +6012,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
     switchAccountBtn.addEventListener('click', async () => {
       userProfileContainer.classList.remove('open');
       try {
-        if (window.firebaseSignOut && typeof window.firebaseSignOut === 'function') {
-          try { await window.firebaseSignOut(); } catch (_) {}
-        }
         localStorage.removeItem('yomikikuan_user');
       } finally {
         window.location.href = 'index.html';
@@ -6428,9 +6023,6 @@ Try YomiKiku-an and enjoy Japanese language analysis!`;
       userProfileContainer.classList.remove('open');
       try {
         showInfoToast('ログアウトしています...', 1000);
-        if (window.firebaseSignOut && typeof window.firebaseSignOut === 'function') {
-          try { await window.firebaseSignOut(); } catch (_) {}
-        }
         localStorage.removeItem('yomikikuan_user');
         await new Promise(resolve => setTimeout(resolve, 500));
       } finally {
