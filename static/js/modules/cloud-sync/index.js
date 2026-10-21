@@ -16,12 +16,21 @@
 //     strings / ISO strings / Firestore-Timestamp-like objects by
 //     `normalizeTimestamp`).
 //
-// IMPORTANT — current deploy state: `index.html` ships **no Firebase SDK**
-// (it was removed; see index.html "Firebase SDK 已移除（登录与云同步禁用）").
-// `window.firebase*` / `window.firebaseDB` etc. are never assigned, so the
-// bridge is never installed in production. Every entry point below therefore
-// fails gracefully: it shows an error toast ("cloud sync not configured /
-// Firebase SDK disabled") and returns `{ ok:false }` — nothing throws.
+// BRIDGE INSTALLATION — `./firebase.js` (the Firebase adapter)
+// When NO bridge is present AND a Firebase config exists (config.js
+// `window.YOMIKIKUAN_CONFIG.firebaseConfig`, or the JSON copy in
+// localStorage `yomikikuan_firebase_config` persisted by index.html's config
+// sync IIFE), push/pull lazily `import('./firebase.js')`, reuse/sign in an
+// anonymous auth user and install the bridge over
+// `users/{uid}/sync/main`. Nothing is fetched while unconfigured.
+//
+// Install failures are classified and surfaced as a specific error toast
+// (`cloudSyncConfigInvalid` / `cloudSyncSdkLoadFailed` / `cloudSyncAuthFailed`
+// / `cloudSyncFirestoreFailed`); when there is no config at all, or the
+// specific-reason path does not apply, the legacy graceful degradation below
+// still runs. A host-injected bridge always wins over the lazy install, and
+// no failure ever throws. See firebase.js's module header for the real
+// Firebase project setup (enable Anonymous auth + deploy Firestore rules).
 //
 // Wiring a real backend later requires ONLY assigning the bridge object, e.g.
 // after Firebase init:
@@ -307,6 +316,122 @@ export function errorMessageKey(code) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Lazy Firebase bridge installation (Option A — see ./firebase.js)
+// ─────────────────────────────────────────────────────────────────────────────
+// Only attempted when (a) no bridge is installed and (b) a Firebase config
+// candidate exists. The adapter module itself is imported dynamically so an
+// unconfigured app never even downloads the local adapter (and never touches
+// the Firebase CDN).
+
+// Mirrors `FIREBASE_CONFIG_STORAGE_KEY` in ./firebase.js (duplicated so this
+// module can gate on the config WITHOUT importing the adapter).
+export const CLOUD_SYNC_FIREBASE_CONFIG_KEY = 'yomikikuan_firebase_config';
+
+// Firebase install reason → i18n key (all three language blocks carry every key).
+const BRIDGE_INSTALL_ERROR_KEYS = Object.freeze({
+  'config-invalid': 'cloudSyncConfigInvalid',
+  'sdk-load-failed': 'cloudSyncSdkLoadFailed',
+  'auth-failed': 'cloudSyncAuthFailed',
+  'firestore-failed': 'cloudSyncFirestoreFailed',
+});
+
+/** i18n key for a firebase.js install failure reason, or `null`. */
+export function bridgeInstallMessageKey(reason) {
+  return BRIDGE_INSTALL_ERROR_KEYS[reason] || null;
+}
+
+let firebaseModulePromise = null;
+
+function importFirebaseModule() {
+  if (!firebaseModulePromise) {
+    firebaseModulePromise = import('./firebase.js').catch((error) => {
+      // Allow a later click to retry the import.
+      firebaseModulePromise = null;
+      throw error;
+    });
+  }
+  return firebaseModulePromise;
+}
+
+/**
+ * Cheap sync check: is there anything that *looks like* a Firebase config?
+ * Precedence mirrors `readFirebaseConfig` (window config wins). An empty /
+ * malformed object still counts as a candidate so the adapter can report
+ * `config-invalid` instead of silently showing "not configured".
+ */
+export function hasFirebaseConfigCandidate(win, storage) {
+  try {
+    const wrapper = win && win.YOMIKIKUAN_CONFIG;
+    const firebaseConfig = wrapper && typeof wrapper === 'object' ? wrapper.firebaseConfig : undefined;
+    if (firebaseConfig !== undefined && firebaseConfig !== null) return true;
+  } catch (_) { /* unreadable window */ }
+  try {
+    const raw = storage && typeof storage.getItem === 'function'
+      ? storage.getItem(CLOUD_SYNC_FIREBASE_CONFIG_KEY)
+      : null;
+    if (typeof raw === 'string' && raw.trim()) return true;
+  } catch (_) { /* storage denied */ }
+  return false;
+}
+
+function classifyInstallException(error) {
+  const reason = error && typeof error === 'object' ? error.reason : null;
+  if (typeof reason === 'string' && bridgeInstallMessageKey(reason)) return reason;
+  return 'sdk-load-failed';
+}
+
+/**
+ * Resolve the bridge for an action: existing host bridge first, then a lazy
+ * Firebase install when configured. Never throws.
+ * @returns {Promise<{bridge: object|null, installReason: string|null}>}
+ */
+async function ensureCloudBridge(deps) {
+  const existing = deps.getBridge();
+  if (existing) return { bridge: existing, installReason: null };
+  if (!hasFirebaseConfigCandidate(deps.win, deps.storage)) {
+    return { bridge: null, installReason: null };
+  }
+
+  let firebase = null;
+  try {
+    firebase = await importFirebaseModule();
+  } catch (error) {
+    console.warn('[cloud-sync] could not load the Firebase adapter', error);
+    return { bridge: null, installReason: 'sdk-load-failed' };
+  }
+
+  let result = null;
+  try {
+    const resolved = typeof firebase.readFirebaseConfig === 'function'
+      ? firebase.readFirebaseConfig(deps.win, deps.storage)
+      : { ok: false, reason: 'config-invalid' };
+    if (!resolved || resolved.ok !== true) {
+      const reason = (resolved && resolved.reason) || 'config-invalid';
+      // A config that vanished between the candidate check and the read keeps
+      // the legacy "not configured" toast (no half-specific message).
+      return { bridge: null, installReason: reason === 'config-missing' ? null : reason };
+    }
+    result = await firebase.installFirebaseBridge({ win: deps.win, config: resolved.config });
+  } catch (error) {
+    console.warn('[cloud-sync] Firebase bridge install failed', error);
+    return { bridge: null, installReason: classifyInstallException(error) };
+  }
+
+  if (result && result.ok === true && result.bridge) {
+    return { bridge: result.bridge, installReason: null };
+  }
+  const reason = (result && result.reason) || 'sdk-load-failed';
+  return { bridge: null, installReason: reason === 'config-missing' ? null : reason };
+}
+
+function failWithBridgeInstallReason(deps, reason) {
+  const messageKey = bridgeInstallMessageKey(reason);
+  if (!messageKey) return fail(deps, CLOUD_SYNC_ERRORS.NO_BRIDGE);
+  deps.notify.error(deps.translate(messageKey));
+  return { ok: false, action: null, reason };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Dependency resolution (everything is DI so unit tests never touch a network)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -480,8 +605,12 @@ async function applyCloudSnapshot(deps, cloud, { conflict = false } = {}) {
  */
 export async function pushToCloud(rawDeps = {}) {
   const deps = resolveCloudSyncDeps(rawDeps);
-  const bridge = deps.getBridge();
-  if (!bridge) return fail(deps, CLOUD_SYNC_ERRORS.NO_BRIDGE);
+  const bridgeState = await ensureCloudBridge(deps);
+  const bridge = bridgeState.bridge;
+  if (!bridge) {
+    if (bridgeState.installReason) return failWithBridgeInstallReason(deps, bridgeState.installReason);
+    return fail(deps, CLOUD_SYNC_ERRORS.NO_BRIDGE);
+  }
 
   try {
     // 1. Cloud copy + baseline — needed for the conflict decision.
@@ -546,8 +675,12 @@ export async function pushToCloud(rawDeps = {}) {
  */
 export async function pullFromCloud(rawDeps = {}) {
   const deps = resolveCloudSyncDeps(rawDeps);
-  const bridge = deps.getBridge();
-  if (!bridge) return fail(deps, CLOUD_SYNC_ERRORS.NO_BRIDGE);
+  const bridgeState = await ensureCloudBridge(deps);
+  const bridge = bridgeState.bridge;
+  if (!bridge) {
+    if (bridgeState.installReason) return failWithBridgeInstallReason(deps, bridgeState.installReason);
+    return fail(deps, CLOUD_SYNC_ERRORS.NO_BRIDGE);
+  }
 
   try {
     let cloud = null;

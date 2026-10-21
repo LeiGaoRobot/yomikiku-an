@@ -649,6 +649,16 @@
           if (typeof cfg.bootAnalysisMode === 'string' && cfg.bootAnalysisMode) {
             localStorage.setItem('yomikikuan_boot_analysis', cfg.bootAnalysisMode);
           }
+          // Cloud sync (Firebase — Option A): persist the Firebase web config
+          // as JSON. `modules/cloud-sync/firebase.js` reads this key lazily on
+          // the first Push/Pull (config.js takes precedence over this copy).
+          // Only non-empty configs are written; null/undefined stays disabled.
+          if (cfg.firebaseConfig && typeof cfg.firebaseConfig === 'object'
+              && Object.keys(cfg.firebaseConfig).length > 0) {
+            try {
+              localStorage.setItem('yomikikuan_firebase_config', JSON.stringify(cfg.firebaseConfig));
+            } catch (_) { /* non-serialisable config — cloud sync stays off */ }
+          }
         }
       } catch (_) { /* localStorage disabled */ }
       // Key health status — exposed for Settings panel + any header indicator.

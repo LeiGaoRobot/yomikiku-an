@@ -1,0 +1,915 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>cloud-sync/firebase.js — tests</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif; padding: 20px; max-width: 980px; margin: 0 auto; }
+    h1 { font-size: 18px; }
+    .note { color: #666; font-size: 12.5px; margin: 4px 0 12px; }
+    .row { padding: 6px 10px; border-radius: 6px; margin: 4px 0; }
+    .row.pass { background: #e7f9ed; border-left: 3px solid #34c759; }
+    .row.fail { background: #ffe7e4; border-left: 3px solid #ff3b30; }
+    .row .name { font-weight: 600; }
+    .row .detail { opacity: .7; font-size: 12px; font-family: monospace; word-break: break-word; }
+  </style>
+  <!-- Canonical dictionary (classic script, like index.html) for key checks. -->
+  <script src="../../i18n.js"></script>
+</head>
+<body>
+  <h1>cloud-sync/firebase.js tests</h1>
+  <div class="note">
+    The Firebase bridge adapter (<code>firebase.js</code>) and its lazy-install
+    integration with <code>cloud-sync/index.js</code> — driven entirely by an
+    in-memory mock SDK (<code>loadSdk</code> DI) and fake storage. No network,
+    no real Firebase project, no CDN import: the real SDK loader is never
+    called here.
+  </div>
+  <div id="summary"></div>
+  <div id="results"></div>
+
+  <script type="module">
+    import {
+      FIREBASE_SDK_VERSION,
+      FIREBASE_CONFIG_STORAGE_KEY,
+      FIREBASE_BRIDGE_KEY,
+      FIREBASE_SDK_LOADER_HOOK_KEY,
+      REQUIRED_FIREBASE_CONFIG_FIELDS,
+      firebaseSdkUrls,
+      validateFirebaseConfig,
+      readFirebaseConfig,
+      firebaseSyncDocPath,
+      normalizeFirebaseTimestamp,
+      classifyFirebaseError,
+      getInstalledBridge,
+      createFirebaseCloudBridge,
+      installFirebaseBridge,
+    } from './firebase.js';
+
+    import {
+      CLOUD_SYNC_BRIDGE_KEY,
+      CLOUD_SYNC_FIREBASE_CONFIG_KEY,
+      bridgeInstallMessageKey,
+      hasFirebaseConfigCandidate,
+      pushToCloud,
+      pullFromCloud,
+    } from './index.js';
+
+    const results = [];
+    const check = (name, cond, detail) =>
+      results.push({ name, pass: !!cond, detail: detail == null ? '' : String(detail) });
+    const jsonEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+    const NOW = 1700000000000;
+    const translate = (key) => `T:${key}`;
+
+    const VALID_CONFIG = Object.freeze({
+      apiKey: 'AIza-fake-key',
+      authDomain: 'test-project.firebaseapp.com',
+      projectId: 'test-project',
+      storageBucket: 'test-project.appspot.com',
+      messagingSenderId: '1234567890',
+      appId: '1:1234567890:web:abcdef',
+    });
+
+    const PAYLOAD = Object.freeze({
+      app: 'YomiKiku-an',
+      version: 3,
+      createdAt: '1970-01-01T00:00:00.000Z',
+      data: { documents: [], activeId: '', settings: {}, srs: { vocab: [], mistakes: [] } },
+    });
+
+    // ---- test doubles -------------------------------------------------------
+
+    function makeStorage(initial = {}) {
+      const map = new Map(Object.entries(initial));
+      return {
+        getItem(key) { return map.has(key) ? map.get(key) : null; },
+        setItem(key, value) { map.set(key, String(value)); },
+        removeItem(key) { map.delete(key); },
+        raw() { return Object.fromEntries(map); },
+      };
+    }
+
+    function makeWin(extra = {}) {
+      return { ...extra };
+    }
+
+    /**
+     * In-memory Firebase modular-SDK mock. Only the API surface the adapter
+     * touches is implemented; every call is recorded in `calls`.
+     */
+    function makeSdk(options = {}) {
+      const calls = {
+        initializeApp: [],
+        getAuth: 0,
+        signInAnonymously: 0,
+        getFirestore: 0,
+        doc: [],
+        getDoc: 0,
+        setDoc: [],
+      };
+      const state = {
+        apps: options.initializeApps ? [...options.initializeApps] : [],
+        currentUser: options.currentUser || null,
+        docRef: options.docRef || { path: 'mock-ref' },
+      };
+      const sdk = {
+        calls,
+        state,
+        getApps() {
+          if (options.getAppsError) throw options.getAppsError;
+          return state.apps;
+        },
+        initializeApp(config) {
+          if (options.initializeAppError) throw options.initializeAppError;
+          calls.initializeApp.push(config);
+          const app = { name: '[DEFAULT]', options: config };
+          state.apps = [app];
+          return app;
+        },
+        getAuth(app) {
+          calls.getAuth += 1;
+          if (options.getAuthError) throw options.getAuthError;
+          return {
+            app,
+            get currentUser() { return state.currentUser; },
+          };
+        },
+        async signInAnonymously(auth) {
+          calls.signInAnonymously += 1;
+          if (options.signInError) throw options.signInError;
+          const hasOverride = Object.prototype.hasOwnProperty.call(options, 'signInUser');
+          const user = hasOverride ? options.signInUser : { uid: 'anon-uid-1', isAnonymous: true };
+          state.currentUser = user;
+          return { user };
+        },
+        getFirestore(app) {
+          calls.getFirestore += 1;
+          if (options.getFirestoreError) throw options.getFirestoreError;
+          return { app };
+        },
+        doc(db, ...segments) {
+          calls.doc.push(segments);
+          if (options.docError) throw options.docError;
+          return state.docRef;
+        },
+        async getDoc(ref) {
+          calls.getDoc += 1;
+          if (options.getDocError) throw options.getDocError;
+          const snap = options.snapshot;
+          return {
+            exists: () => snap != null,
+            data: () => (snap == null ? undefined : snap),
+          };
+        },
+        async setDoc(ref, data) {
+          calls.setDoc.push({ ref, data });
+          if (options.setDocError) throw options.setDocError;
+          return undefined;
+        },
+      };
+      return sdk;
+    }
+
+    function makeNotify() {
+      const notes = [];
+      return {
+        notes,
+        notify: {
+          success: (m) => notes.push({ level: 'success', message: m }),
+          error: (m) => notes.push({ level: 'error', message: m }),
+          info: (m) => notes.push({ level: 'info', message: m }),
+        },
+      };
+    }
+
+    function makeInlineBridge(initial = null) {
+      const state = { payload: initial, updatedAt: 0, getCalls: 0, setCalls: [] };
+      return {
+        state,
+        async get() {
+          state.getCalls += 1;
+          return state.payload ? { payload: state.payload, updatedAt: state.updatedAt } : null;
+        },
+        async set(payload, updatedAt) {
+          state.setCalls.push({ payload, updatedAt });
+          state.payload = payload;
+          state.updatedAt = updatedAt;
+        },
+      };
+    }
+
+    // =========================================================================
+    // 1. Pinned constants + CDN URLs
+    // =========================================================================
+    check('FIREBASE_SDK_VERSION is a pinned semver', /^\d+\.\d+\.\d+$/.test(FIREBASE_SDK_VERSION), FIREBASE_SDK_VERSION);
+    check('config storage key matches the documented one',
+      FIREBASE_CONFIG_STORAGE_KEY === 'yomikikuan_firebase_config');
+    check('bridge key matches cloud-sync/index.js CLOUD_SYNC_BRIDGE_KEY',
+      FIREBASE_BRIDGE_KEY === CLOUD_SYNC_BRIDGE_KEY && FIREBASE_BRIDGE_KEY === '__yomikikuanCloudBridge');
+    check('SDK loader hook key is the documented test hook',
+      FIREBASE_SDK_LOADER_HOOK_KEY === '__yomikikuanFirebaseSdkLoader');
+    check('config storage key matches cloud-sync/index.js constant',
+      FIREBASE_CONFIG_STORAGE_KEY === CLOUD_SYNC_FIREBASE_CONFIG_KEY);
+    check('required config fields = apiKey/authDomain/projectId/appId',
+      jsonEq(REQUIRED_FIREBASE_CONFIG_FIELDS, ['apiKey', 'authDomain', 'projectId', 'appId']));
+    {
+      const urls = firebaseSdkUrls();
+      check('default SDK URLs are pinned gstatic v10 modules',
+        urls.app === `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app.js`
+        && urls.auth === `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth.js`
+        && urls.firestore === `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore.js`,
+        JSON.stringify(urls));
+    }
+    {
+      const urls = firebaseSdkUrls('9.1.2');
+      check('SDK URLs accept an explicit version override',
+        urls.app === 'https://www.gstatic.com/firebasejs/9.1.2/firebase-app.js'
+        && urls.auth === 'https://www.gstatic.com/firebasejs/9.1.2/firebase-auth.js'
+        && urls.firestore === 'https://www.gstatic.com/firebasejs/9.1.2/firebase-firestore.js');
+    }
+    check('blank version falls back to the pinned version',
+      firebaseSdkUrls('').app.includes(`/${FIREBASE_SDK_VERSION}/`));
+
+    // =========================================================================
+    // 2. validateFirebaseConfig (pure)
+    // =========================================================================
+    check('validate(null) → config-missing',
+      validateFirebaseConfig(null).reason === 'config-missing');
+    check('validate(undefined) → config-missing',
+      validateFirebaseConfig(undefined).reason === 'config-missing');
+    check('validate(string) → config-invalid',
+      validateFirebaseConfig('nope').reason === 'config-invalid');
+    check('validate(array) → config-invalid',
+      validateFirebaseConfig([]).reason === 'config-invalid');
+    check('validate({}) → config-invalid with all fields missing',
+      validateFirebaseConfig({}).reason === 'config-invalid'
+      && validateFirebaseConfig({}).missing.length === 4);
+    for (const field of ['apiKey', 'authDomain', 'projectId', 'appId']) {
+      const partial = { ...VALID_CONFIG };
+      delete partial[field];
+      const result = validateFirebaseConfig(partial);
+      check(`validate() rejects missing ${field}`,
+        result.ok === false && result.reason === 'config-invalid'
+        && jsonEq(result.missing, [field]), JSON.stringify(result.missing));
+    }
+    {
+      const blank = { ...VALID_CONFIG, apiKey: '   ' };
+      check('validate() rejects a whitespace-only required field',
+        validateFirebaseConfig(blank).reason === 'config-invalid');
+    }
+    {
+      const result = validateFirebaseConfig(VALID_CONFIG);
+      check('validate(valid) → ok', result.ok === true);
+      check('validate(valid) keeps all known fields',
+        jsonEq(result.config, VALID_CONFIG), JSON.stringify(result.config));
+    }
+    {
+      const result = validateFirebaseConfig({
+        ...VALID_CONFIG,
+        apiKey: '  AIza-padded  ',
+        unknownField: 'drop-me',
+      });
+      check('validate() trims strings and drops unknown fields',
+        result.ok === true
+        && result.config.apiKey === 'AIza-padded'
+        && !('unknownField' in result.config),
+        JSON.stringify(result.config));
+    }
+
+    // =========================================================================
+    // 3. readFirebaseConfig — precedence + robustness
+    // =========================================================================
+    check('readFirebaseConfig(no win, no storage) → config-missing',
+      readFirebaseConfig(null, null).reason === 'config-missing');
+    check('readFirebaseConfig({}, empty storage) → config-missing',
+      readFirebaseConfig({}, makeStorage()).reason === 'config-missing');
+    {
+      const win = { YOMIKIKUAN_CONFIG: { firebaseConfig: VALID_CONFIG } };
+      const result = readFirebaseConfig(win, makeStorage());
+      check('readFirebaseConfig() prefers the window (config.js) config',
+        result.ok === true && result.config.projectId === 'test-project');
+    }
+    {
+      const win = { YOMIKIKUAN_CONFIG: { firebaseConfig: { ...VALID_CONFIG, projectId: 'from-config-js' } } };
+      const storage = makeStorage({
+        [FIREBASE_CONFIG_STORAGE_KEY]: JSON.stringify({ ...VALID_CONFIG, projectId: 'from-localstorage' }),
+      });
+      const result = readFirebaseConfig(win, storage);
+      check('window config wins over localStorage',
+        result.ok === true && result.config.projectId === 'from-config-js');
+    }
+    {
+      const win = { YOMIKIKUAN_CONFIG: { firebaseConfig: null } };
+      const storage = makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: JSON.stringify(VALID_CONFIG) });
+      check('explicit firebaseConfig:null disables cloud sync (no stale-storage fallback)',
+        readFirebaseConfig(win, storage).reason === 'config-missing');
+    }
+    {
+      const win = { YOMIKIKUAN_CONFIG: { firebaseConfig: {} } };
+      const storage = makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: JSON.stringify(VALID_CONFIG) });
+      check('invalid window config is reported, not silently replaced by storage',
+        readFirebaseConfig(win, storage).reason === 'config-invalid');
+    }
+    {
+      const storage = makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: JSON.stringify(VALID_CONFIG) });
+      const result = readFirebaseConfig({}, storage);
+      check('readFirebaseConfig() falls back to localStorage JSON',
+        result.ok === true && result.config.apiKey === 'AIza-fake-key');
+    }
+    check('corrupted localStorage JSON → config-invalid',
+      readFirebaseConfig({}, makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: '{not json' })).reason === 'config-invalid');
+    check('non-object localStorage JSON → config-invalid',
+      readFirebaseConfig({}, makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: '42' })).reason === 'config-invalid');
+    check('array localStorage JSON → config-invalid',
+      readFirebaseConfig({}, makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: '[]' })).reason === 'config-invalid');
+    check('blank localStorage value → config-missing',
+      readFirebaseConfig({}, makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: '   ' })).reason === 'config-missing');
+    check('localStorage config missing projectId → config-invalid',
+      readFirebaseConfig({}, makeStorage({
+        [FIREBASE_CONFIG_STORAGE_KEY]: JSON.stringify({ ...VALID_CONFIG, projectId: '' }),
+      })).reason === 'config-invalid');
+    {
+      const throwing = { getItem() { throw new Error('denied'); } };
+      let threw = false;
+      let result = null;
+      try { result = readFirebaseConfig({}, throwing); } catch (_) { threw = true; }
+      check('throwing storage does not throw (degrades to config-missing)',
+        threw === false && result.reason === 'config-missing');
+    }
+    {
+      const win = { YOMIKIKUAN_CONFIG: { get firebaseConfig() { throw new Error('boom'); } } };
+      let threw = false;
+      let result = null;
+      try { result = readFirebaseConfig(win, makeStorage()); } catch (_) { threw = true; }
+      check('throwing window config getter does not throw', threw === false && !!result);
+    }
+
+    // =========================================================================
+    // 4. firebaseSyncDocPath
+    // =========================================================================
+    check('firebaseSyncDocPath("uid-1") → users/uid-1/sync/main',
+      jsonEq(firebaseSyncDocPath('uid-1'), ['users', 'uid-1', 'sync', 'main']),
+      JSON.stringify(firebaseSyncDocPath('uid-1')));
+    check('firebaseSyncDocPath trims the uid',
+      jsonEq(firebaseSyncDocPath('  uid-2  '), ['users', 'uid-2', 'sync', 'main']));
+    check('firebaseSyncDocPath("") → null', firebaseSyncDocPath('') === null);
+    check('firebaseSyncDocPath("   ") → null', firebaseSyncDocPath('   ') === null);
+    check('firebaseSyncDocPath(null) → null', firebaseSyncDocPath(null) === null);
+    check('firebaseSyncDocPath(123) → null', firebaseSyncDocPath(123) === null);
+
+    // =========================================================================
+    // 5. normalizeFirebaseTimestamp
+    // =========================================================================
+    check('timestamp(number) → same', normalizeFirebaseTimestamp(1700000000123) === 1700000000123);
+    check('timestamp(numeric string) → number',
+      normalizeFirebaseTimestamp('1700000000123') === 1700000000123);
+    check('timestamp(ISO string) → epoch ms',
+      normalizeFirebaseTimestamp('2024-01-02T03:04:05.000Z') === Date.parse('2024-01-02T03:04:05.000Z'));
+    check('timestamp(Date) → getTime',
+      normalizeFirebaseTimestamp(new Date(1700000000123)) === 1700000000123);
+    check('timestamp({ toMillis }) → millis',
+      normalizeFirebaseTimestamp({ toMillis: () => 1700000000123 }) === 1700000000123);
+    check('timestamp({ seconds }) → millis',
+      normalizeFirebaseTimestamp({ seconds: 1700000000 }) === 1700000000 * 1000);
+    {
+      const bad = [null, undefined, 0, -5, NaN, Infinity, '', '   ', 'not-a-date', {}, { seconds: 'nope' }, { toMillis: () => NaN }];
+      const wrong = bad.filter((value) => normalizeFirebaseTimestamp(value) !== null);
+      check('timestamp(invalid values) → null (no throw)', wrong.length === 0,
+        wrong.map((v) => JSON.stringify(v)).join(', '));
+    }
+    check('timestamp({ toMillis } that throws) → null', (() => {
+      try { return normalizeFirebaseTimestamp({ toMillis() { throw new Error('x'); } }) === null; }
+      catch (_) { return false; }
+    })());
+
+    // =========================================================================
+    // 6. classifyFirebaseError
+    // =========================================================================
+    check('classify(phase:sdk) → sdk-load-failed',
+      classifyFirebaseError(new Error('whatever'), 'sdk') === 'sdk-load-failed');
+    check('classify(phase:auth) → auth-failed',
+      classifyFirebaseError(new Error('whatever'), 'auth') === 'auth-failed');
+    check('classify(phase:firestore) → firestore-failed',
+      classifyFirebaseError(new Error('whatever'), 'firestore') === 'firestore-failed');
+    check('classify(null) → sdk-load-failed', classifyFirebaseError(null) === 'sdk-load-failed');
+    check('classify(auth/... code) → auth-failed',
+      classifyFirebaseError({ code: 'auth/operation-not-allowed' }) === 'auth-failed');
+    check('classify("permission denied") → firestore-failed',
+      classifyFirebaseError(new Error('permission denied')) === 'firestore-failed');
+    check('classify("unavailable") → firestore-failed',
+      classifyFirebaseError(new Error('unavailable')) === 'firestore-failed');
+    check('classify(firestore/... code) → firestore-failed',
+      classifyFirebaseError({ code: 'firestore/permission-denied' }) === 'firestore-failed');
+    check('classify("Failed to fetch") → firestore-failed',
+      classifyFirebaseError(new TypeError('Failed to fetch')) === 'firestore-failed');
+    check('classify("dynamically imported module") → sdk-load-failed',
+      classifyFirebaseError(new Error('Failed to fetch dynamically imported module')) === 'sdk-load-failed');
+    check('classify("gstatic script error") → sdk-load-failed',
+      classifyFirebaseError(new Error('error loading gstatic module')) === 'sdk-load-failed');
+    check('classify("permission denied", phase:sdk) → phase wins',
+      classifyFirebaseError(new Error('permission denied'), 'sdk') === 'sdk-load-failed');
+    check('classify(unknown) → sdk-load-failed',
+      classifyFirebaseError(new Error('totally unknown boom')) === 'sdk-load-failed');
+
+    // =========================================================================
+    // 7. installFirebaseBridge — failure modes
+    // =========================================================================
+    {
+      let loaderCalls = 0;
+      const win = makeWin();
+      const res = await installFirebaseBridge({
+        win,
+        storage: makeStorage(),
+        loadSdk: async () => { loaderCalls += 1; return makeSdk(); },
+      });
+      check('install without config → { ok:false, reason:config-missing }',
+        res.ok === false && res.reason === 'config-missing');
+      check('install without config never calls the SDK loader', loaderCalls === 0);
+      check('install without config leaves no bridge', getInstalledBridge(win) === null);
+    }
+    {
+      let loaderCalls = 0;
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: { apiKey: 'only-api-key' },
+        loadSdk: async () => { loaderCalls += 1; return makeSdk(); },
+      });
+      check('install with invalid config → config-invalid + missing list',
+        res.ok === false && res.reason === 'config-invalid'
+        && jsonEq(res.missing, ['authDomain', 'projectId', 'appId']),
+        JSON.stringify(res.missing));
+      check('install with invalid config never calls the SDK loader', loaderCalls === 0);
+    }
+    {
+      const win = makeWin();
+      const res = await installFirebaseBridge({
+        win,
+        config: VALID_CONFIG,
+        loadSdk: () => Promise.reject(new Error('offline')),
+      });
+      check('SDK loader rejection → sdk-load-failed',
+        res.ok === false && res.reason === 'sdk-load-failed');
+      check('SDK loader rejection installs no bridge', getInstalledBridge(win) === null);
+    }
+    {
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: VALID_CONFIG,
+        loadSdk: async () => null,
+      });
+      check('SDK loader resolving null → sdk-load-failed',
+        res.ok === false && res.reason === 'sdk-load-failed');
+    }
+    {
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: VALID_CONFIG,
+        loadSdk: async () => makeSdk({ initializeAppError: new Error('bad options') }),
+      });
+      check('initializeApp failure → sdk-load-failed',
+        res.ok === false && res.reason === 'sdk-load-failed');
+    }
+    {
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: VALID_CONFIG,
+        loadSdk: async () => makeSdk({ getAppsError: new Error('apps boom') }),
+      });
+      check('getApps failure → sdk-load-failed',
+        res.ok === false && res.reason === 'sdk-load-failed');
+    }
+    {
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: VALID_CONFIG,
+        loadSdk: async () => makeSdk({ getAuthError: new Error('auth init failed') }),
+      });
+      check('getAuth failure → auth-failed',
+        res.ok === false && res.reason === 'auth-failed');
+    }
+    {
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: VALID_CONFIG,
+        loadSdk: async () => makeSdk({ signInError: new Error('auth/operation-not-allowed') }),
+      });
+      check('anonymous sign-in rejection → auth-failed',
+        res.ok === false && res.reason === 'auth-failed');
+    }
+    {
+      const sdk = makeSdk({ signInUser: null });
+      const win = makeWin();
+      const res = await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      check('anonymous sign-in returning no user → auth-failed',
+        res.ok === false && res.reason === 'auth-failed');
+      check('auth failure installs no bridge', getInstalledBridge(win) === null);
+    }
+    {
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: VALID_CONFIG,
+        loadSdk: async () => makeSdk({ getFirestoreError: new Error('db init failed') }),
+      });
+      check('getFirestore failure → firestore-failed',
+        res.ok === false && res.reason === 'firestore-failed');
+    }
+    {
+      const res = await installFirebaseBridge({
+        win: makeWin(),
+        config: VALID_CONFIG,
+        loadSdk: async () => makeSdk({ docError: new Error('bad path') }),
+      });
+      check('doc() failure → firestore-failed',
+        res.ok === false && res.reason === 'firestore-failed');
+    }
+
+    // =========================================================================
+    // 8. installFirebaseBridge — success paths
+    // =========================================================================
+    {
+      const win = makeWin();
+      const sdk = makeSdk();
+      const res = await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      check('anonymous install → { ok:true }', res.ok === true && res.alreadyInstalled === false);
+      check('successful install assigns __yomikikuanCloudBridge on the window',
+        res.bridge === win[FIREBASE_BRIDGE_KEY] && getInstalledBridge(win) === res.bridge);
+      check('installed bridge exposes async get/set',
+        typeof res.bridge.get === 'function' && typeof res.bridge.set === 'function');
+      check('anonymous sign-in ran once (no current user)', sdk.calls.signInAnonymously === 1);
+      check('initializeApp received the normalised config',
+        sdk.calls.initializeApp.length === 1
+        && sdk.calls.initializeApp[0].projectId === 'test-project');
+      check('Firestore ref path = users/{uid}/sync/main',
+        jsonEq(sdk.calls.doc[0], ['users', 'anon-uid-1', 'sync', 'main']),
+        JSON.stringify(sdk.calls.doc[0]));
+      check('install reports the auth uid', res.uid === 'anon-uid-1');
+    }
+    {
+      const win = makeWin();
+      const sdk = makeSdk({ currentUser: { uid: 'existing-uid', isAnonymous: false } });
+      const res = await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      check('existing auth user is reused (no signInAnonymously)',
+        res.ok === true && sdk.calls.signInAnonymously === 0);
+      check('existing user drives the Firestore path',
+        jsonEq(sdk.calls.doc[0], ['users', 'existing-uid', 'sync', 'main']));
+    }
+    {
+      const existingApp = { name: '[DEFAULT]', existing: true };
+      const sdk = makeSdk({ initializeApps: [existingApp] });
+      const res = await installFirebaseBridge({ win: makeWin(), config: VALID_CONFIG, loadSdk: async () => sdk });
+      check('an existing Firebase app is reused (initializeApp not called)',
+        res.ok === true && sdk.calls.initializeApp.length === 0);
+    }
+    {
+      let loaderCalls = 0;
+      const win = makeWin();
+      const sdk = makeSdk();
+      const first = await installFirebaseBridge({
+        win, config: VALID_CONFIG, loadSdk: async () => { loaderCalls += 1; return sdk; },
+      });
+      const second = await installFirebaseBridge({
+        win, config: { ...VALID_CONFIG, projectId: 'other' },
+        loadSdk: async () => { loaderCalls += 1; return makeSdk(); },
+      });
+      check('install is idempotent (second call returns the installed bridge)',
+        second.ok === true && second.alreadyInstalled === true && second.bridge === first.bridge);
+      check('idempotent install does not re-load or re-init the SDK', loaderCalls === 1);
+    }
+
+    // =========================================================================
+    // 9. Bridge get() / set()
+    // =========================================================================
+    {
+      const sdk = makeSdk({ snapshot: null });
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      const value = await win[FIREBASE_BRIDGE_KEY].get();
+      check('bridge.get() → null when the Firestore doc does not exist', value === null);
+    }
+    {
+      const sdk = makeSdk({
+        snapshot: {
+          payload: PAYLOAD,
+          updatedAt: { toMillis: () => 1700000000123 },
+        },
+      });
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      const value = await win[FIREBASE_BRIDGE_KEY].get();
+      check('bridge.get() returns the stored payload', value && value.payload === PAYLOAD);
+      check('bridge.get() normalises a Firestore Timestamp updatedAt',
+        value && value.updatedAt === 1700000000123);
+    }
+    {
+      const sdk = makeSdk({ snapshot: { payload: PAYLOAD, updatedAt: 4242 } });
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      const value = await win[FIREBASE_BRIDGE_KEY].get();
+      check('bridge.get() passes numeric updatedAt through',
+        value && value.updatedAt === 4242);
+    }
+    {
+      const sdk = makeSdk({ snapshot: {} });
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      const value = await win[FIREBASE_BRIDGE_KEY].get();
+      check('bridge.get() tolerates a doc without payload/updatedAt',
+        value !== null && value.payload === null && value.updatedAt === null);
+    }
+    {
+      const sdk = makeSdk();
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      await win[FIREBASE_BRIDGE_KEY].set(PAYLOAD, 1700000000999);
+      check('bridge.set() writes { payload, updatedAt } via setDoc',
+        sdk.calls.setDoc.length === 1
+        && sdk.calls.setDoc[0].data.payload === PAYLOAD
+        && sdk.calls.setDoc[0].data.updatedAt === 1700000000999);
+      check('bridge.set() writes to the same doc ref created at install',
+        sdk.calls.setDoc[0].ref === sdk.state.docRef);
+    }
+    {
+      const sdk = makeSdk();
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      await win[FIREBASE_BRIDGE_KEY].set(PAYLOAD, '1700000000999');
+      check('bridge.set() normalises a numeric-string updatedAt',
+        sdk.calls.setDoc[0].data.updatedAt === 1700000000999);
+    }
+    {
+      const sdk = makeSdk();
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      await win[FIREBASE_BRIDGE_KEY].set(PAYLOAD, 'garbage');
+      const written = sdk.calls.setDoc[0].data.updatedAt;
+      check('bridge.set() falls back to now() when updatedAt is invalid',
+        typeof written === 'number' && written > 0);
+    }
+    {
+      const sdk = makeSdk({ getDocError: new Error('permission denied') });
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      let thrown = null;
+      try { await win[FIREBASE_BRIDGE_KEY].get(); } catch (error) { thrown = error; }
+      check('bridge.get() propagates getDoc failures for index.js classification',
+        !!thrown && thrown.message === 'permission denied');
+    }
+    {
+      const sdk = makeSdk({ setDocError: new Error('unavailable') });
+      const win = makeWin();
+      await installFirebaseBridge({ win, config: VALID_CONFIG, loadSdk: async () => sdk });
+      let thrown = null;
+      try { await win[FIREBASE_BRIDGE_KEY].set(PAYLOAD, NOW); } catch (error) { thrown = error; }
+      check('bridge.set() propagates setDoc failures for index.js classification',
+        !!thrown && thrown.message === 'unavailable');
+    }
+    {
+      const sdk = makeSdk();
+      const ref = sdk.state.docRef;
+      const client = createFirebaseCloudBridge({ sdk, ref });
+      check('createFirebaseCloudBridge() is a pure bridge factory (get/set only)',
+        typeof client.get === 'function' && typeof client.set === 'function'
+        && Object.keys(client).length === 2);
+    }
+
+    // =========================================================================
+    // 10. Test hook + DI precedence
+    // =========================================================================
+    {
+      let hookCalls = 0;
+      const win = makeWin({
+        [FIREBASE_SDK_LOADER_HOOK_KEY]: async () => {
+          hookCalls += 1;
+          return makeSdk();
+        },
+      });
+      const res = await installFirebaseBridge({ win, config: VALID_CONFIG });
+      check('window.__yomikikuanFirebaseSdkLoader hook replaces the CDN import',
+        res.ok === true && hookCalls === 1);
+    }
+    {
+      let hookCalls = 0;
+      let diCalls = 0;
+      const win = makeWin({
+        [FIREBASE_SDK_LOADER_HOOK_KEY]: async () => { hookCalls += 1; return makeSdk(); },
+      });
+      const res = await installFirebaseBridge({
+        win,
+        config: VALID_CONFIG,
+        loadSdk: async () => { diCalls += 1; return makeSdk(); },
+      });
+      check('explicit loadSdk DI wins over the window hook',
+        res.ok === true && diCalls === 1 && hookCalls === 0);
+    }
+
+    // =========================================================================
+    // 11. Config-candidate gate used by cloud-sync/index.js
+    // =========================================================================
+    check('hasFirebaseConfigCandidate({}, empty storage) → false',
+      hasFirebaseConfigCandidate({}, makeStorage()) === false);
+    check('hasFirebaseConfigCandidate(window config) → true',
+      hasFirebaseConfigCandidate({ YOMIKIKUAN_CONFIG: { firebaseConfig: VALID_CONFIG } }, makeStorage()) === true);
+    check('hasFirebaseConfigCandidate(empty window config object) → true (reported invalid later)',
+      hasFirebaseConfigCandidate({ YOMIKIKUAN_CONFIG: { firebaseConfig: {} } }, makeStorage()) === true);
+    check('hasFirebaseConfigCandidate(localStorage JSON) → true',
+      hasFirebaseConfigCandidate({}, makeStorage({
+        [FIREBASE_CONFIG_STORAGE_KEY]: JSON.stringify(VALID_CONFIG),
+      })) === true);
+    check('hasFirebaseConfigCandidate(null firebaseConfig + stale storage) → true',
+      hasFirebaseConfigCandidate({ YOMIKIKUAN_CONFIG: { firebaseConfig: null } }, makeStorage({
+        [FIREBASE_CONFIG_STORAGE_KEY]: JSON.stringify(VALID_CONFIG),
+      })) === true);
+
+    // =========================================================================
+    // 12. Integration with cloud-sync/index.js (lazy install on Push/Pull)
+    // =========================================================================
+    check('bridgeInstallMessageKey maps every install reason',
+      bridgeInstallMessageKey('config-invalid') === 'cloudSyncConfigInvalid'
+      && bridgeInstallMessageKey('sdk-load-failed') === 'cloudSyncSdkLoadFailed'
+      && bridgeInstallMessageKey('auth-failed') === 'cloudSyncAuthFailed'
+      && bridgeInstallMessageKey('firestore-failed') === 'cloudSyncFirestoreFailed'
+      && bridgeInstallMessageKey('nope') === null);
+
+    // 12a. No config → legacy no-bridge degradation (one toast, no loader).
+    {
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win: {}, storage: makeStorage(), notify, translate,
+      });
+      check('push without config → { ok:false, reason:no-bridge }',
+        res.ok === false && res.reason === 'no-bridge');
+      check('push without config → legacy cloudSyncNotConfigured toast',
+        notes.length === 1 && notes[0].level === 'error'
+        && notes[0].message === translate('cloudSyncNotConfigured'));
+    }
+
+    // 12b. Config + successful install → push uses the installed bridge.
+    {
+      const sdk = makeSdk({ snapshot: null });
+      const win = {
+        YOMIKIKUAN_CONFIG: { firebaseConfig: VALID_CONFIG },
+        [FIREBASE_SDK_LOADER_HOOK_KEY]: async () => sdk,
+      };
+      const storage = makeStorage();
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win, storage, notify, translate, now: () => NOW,
+        getDocuments: () => [],
+        getActiveId: () => '',
+        getSettings: () => ({}),
+        collectBackupPayload: async () => PAYLOAD,
+      });
+      check('push lazily installs the Firebase bridge when configured',
+        res.ok === true && res.action === 'push'
+        && getInstalledBridge(win) !== null);
+      check('push writes the backup payload through the installed bridge',
+        sdk.calls.setDoc.length === 1
+        && sdk.calls.setDoc[0].data.payload === PAYLOAD
+        && sdk.calls.setDoc[0].data.updatedAt === NOW);
+      check('push success toast after lazy install',
+        notes.some((n) => n.level === 'success' && n.message === translate('cloudSyncPushSuccess')));
+      check('push records meta after lazy install',
+        JSON.parse(storage.getItem('yomikikuan_cloud_sync_meta')).lastSyncedAt === NOW);
+    }
+
+    // 12c. Config + SDK load failure → specific toast, no legacy fallback.
+    {
+      const win = {
+        YOMIKIKUAN_CONFIG: { firebaseConfig: VALID_CONFIG },
+        [FIREBASE_SDK_LOADER_HOOK_KEY]: () => Promise.reject(new Error('offline')),
+      };
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win, storage: makeStorage(), notify, translate,
+        getDocuments: () => [],
+        collectBackupPayload: async () => PAYLOAD,
+      });
+      check('push with SDK failure → reason sdk-load-failed',
+        res.ok === false && res.reason === 'sdk-load-failed');
+      check('push with SDK failure → cloudSyncSdkLoadFailed toast',
+        notes.length === 1 && notes[0].message === translate('cloudSyncSdkLoadFailed'));
+      check('push with SDK failure installs no bridge', getInstalledBridge(win) === null);
+    }
+
+    // 12d. Corrupted stored config → config-invalid toast, loader never runs.
+    {
+      let loaderCalls = 0;
+      const win = { [FIREBASE_SDK_LOADER_HOOK_KEY]: async () => { loaderCalls += 1; return makeSdk(); } };
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win,
+        storage: makeStorage({ [FIREBASE_CONFIG_STORAGE_KEY]: '{broken json' }),
+        notify, translate,
+        getDocuments: () => [],
+        collectBackupPayload: async () => PAYLOAD,
+      });
+      check('push with corrupted config → reason config-invalid',
+        res.ok === false && res.reason === 'config-invalid');
+      check('push with corrupted config → cloudSyncConfigInvalid toast',
+        notes.length === 1 && notes[0].message === translate('cloudSyncConfigInvalid'));
+      check('push with corrupted config never calls the SDK loader', loaderCalls === 0);
+    }
+
+    // 12e. Anonymous auth failure surfaces the auth-specific toast.
+    {
+      const win = {
+        YOMIKIKUAN_CONFIG: { firebaseConfig: VALID_CONFIG },
+        [FIREBASE_SDK_LOADER_HOOK_KEY]: async () => makeSdk({ getAuthError: new Error('auth failed') }),
+      };
+      const { notes, notify } = makeNotify();
+      const res = await pushToCloud({
+        win, storage: makeStorage(), notify, translate,
+        getDocuments: () => [],
+        collectBackupPayload: async () => PAYLOAD,
+      });
+      check('push with auth failure → reason auth-failed',
+        res.ok === false && res.reason === 'auth-failed');
+      check('push with auth failure → cloudSyncAuthFailed toast',
+        notes.length === 1 && notes[0].message === translate('cloudSyncAuthFailed'));
+    }
+
+    // 12f. A host-injected bridge always wins over lazy install.
+    {
+      let hookCalls = 0;
+      const bridge = makeInlineBridge();
+      const win = {
+        YOMIKIKUAN_CONFIG: { firebaseConfig: VALID_CONFIG },
+        [FIREBASE_SDK_LOADER_HOOK_KEY]: async () => { hookCalls += 1; return makeSdk(); },
+        [CLOUD_SYNC_BRIDGE_KEY]: bridge,
+      };
+      const res = await pushToCloud({
+        win, storage: makeStorage(), notify: makeNotify().notify, translate, now: () => NOW,
+        getDocuments: () => [],
+        getActiveId: () => '',
+        getSettings: () => ({}),
+        collectBackupPayload: async () => PAYLOAD,
+      });
+      check('an already-installed bridge is used without lazy install',
+        res.ok === true && hookCalls === 0 && bridge.state.setCalls.length === 1);
+    }
+
+    // 12g. Pull also benefits from lazy install.
+    {
+      const sdk = makeSdk({ snapshot: { payload: PAYLOAD, updatedAt: 5000 } });
+      const win = {
+        YOMIKIKUAN_CONFIG: { firebaseConfig: VALID_CONFIG },
+        [FIREBASE_SDK_LOADER_HOOK_KEY]: async () => sdk,
+      };
+      const storage = makeStorage();
+      const { notes, notify } = makeNotify();
+      const applied = [];
+      const res = await pullFromCloud({
+        win, storage, notify, translate, now: () => NOW,
+        getDocuments: () => [],
+        applyBackup: async (payload) => { applied.push(payload); },
+      });
+      check('pull lazily installs the bridge and applies the cloud payload',
+        res.ok === true && res.action === 'pull' && applied.length === 1 && applied[0] === PAYLOAD);
+      check('pull records meta from the cloud updatedAt after lazy install',
+        JSON.parse(storage.getItem('yomikikuan_cloud_sync_meta')).lastSyncedAt === 5000);
+      check('pull success toast after lazy install',
+        notes.some((n) => n.level === 'success' && n.message === translate('cloudSyncPullSuccess')));
+    }
+
+    // =========================================================================
+    // 13. i18n keys exist in ja / en / zh (coverage.test.html style)
+    // =========================================================================
+    {
+      const dict = (typeof window !== 'undefined' && window.I18N) ? window.I18N : null;
+      const keys = [
+        'cloudSyncConfigInvalid',
+        'cloudSyncSdkLoadFailed',
+        'cloudSyncAuthFailed',
+        'cloudSyncFirestoreFailed',
+      ];
+      check('window.I18N is available for key checks', !!dict);
+      for (const key of keys) {
+        const missing = ['ja', 'en', 'zh'].filter((lang) => {
+          const value = dict && dict[lang] && dict[lang][key];
+          return typeof value !== 'string' || value === '';
+        });
+        check(`i18n key ${key} exists in ja/en/zh`, missing.length === 0, missing.join(', '));
+      }
+    }
+
+    // =========================================================================
+    // render harness
+    // =========================================================================
+    const pass = results.filter((r) => r.pass).length;
+    const fail = results.length - pass;
+    const summary = document.getElementById('summary');
+    summary.innerHTML = `<h3 style="color:${fail === 0 ? '#1d7d3f' : '#ff3b30'};">
+      ${fail === 0 ? '✓ ALL PASS' : '✗ ' + fail + ' FAILED'} — ${pass}/${results.length}
+    </h3>`;
+    const root = document.getElementById('results');
+    results.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'row ' + (r.pass ? 'pass' : 'fail');
+      row.innerHTML = `<span class="name">${r.pass ? '✓' : '✗'} ${r.name}</span>${r.detail ? ` <span class="detail">${r.detail}</span>` : ''}`;
+      root.appendChild(row);
+    });
+  </script>
+</body>
+</html>

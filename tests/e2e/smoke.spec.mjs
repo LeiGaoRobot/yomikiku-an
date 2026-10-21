@@ -1,4 +1,4 @@
-// E2E smoke specs — 12 happy paths covering the major user-visible
+// E2E smoke specs — 13 scenarios covering the major user-visible
 // surfaces of YomiKiku-an. Run via `bash scripts/e2e.sh` (which spawns
 // a Python HTTP server + injects PLAYWRIGHT_NODE_PATH).
 //
@@ -22,6 +22,12 @@
 //   prompt) against an in-memory mock of the documented
 //   `window.__yomikikuanCloudBridge` contract. The app ships NO Firebase
 //   SDK — the mock is the reference adapter for a future real one.
+// - Scenario ⑬ covers the Firebase bridge's graceful degradation: a fake
+//   `firebaseConfig` is seeded in localStorage and the documented test hook
+//   `window.__yomikikuanFirebaseSdkLoader` is forced to reject (offline), so
+//   Push must show the specific "SDK load failed" toast — never the legacy
+//   "cloud sync not configured" one — and must not leak a pageerror or
+//   install a partial bridge.
 
 const PORT = process.env.YK_E2E_PORT || '8002';
 const BASE = `http://localhost:${PORT}`;
@@ -68,6 +74,30 @@ const CLOUD_SYNC_MOCK_INIT = `(() => {
   };
 })();`;
 
+// ⑬ support: a syntactically valid Firebase config in localStorage plus a
+// failing SDK loader injected through the documented test hook
+// (`window.__yomikikuanFirebaseSdkLoader`, see modules/cloud-sync/firebase.js).
+// No network is used — the loader rejects immediately, emulating "SDK CDN
+// unreachable". The counter proves the app really tried to load it.
+const FIREBASE_CONFIG_FAILURE_INIT = `(() => {
+  try { localStorage.setItem('lang', 'ja'); } catch (e) {}
+  try {
+    localStorage.setItem('yomikikuan_firebase_config', JSON.stringify({
+      apiKey: 'AIza-E2E-PLACEHOLDER',
+      authDomain: 'e2e-firebase.invalid',
+      projectId: 'e2e-firebase',
+      storageBucket: 'e2e-firebase.appspot.com',
+      messagingSenderId: '1234567890',
+      appId: '1:1234567890:web:e2eplaceholder',
+    }));
+  } catch (e) {}
+  window.__yomikikuanFirebaseLoaderCalls = 0;
+  window.__yomikikuanFirebaseSdkLoader = () => {
+    window.__yomikikuanFirebaseLoaderCalls += 1;
+    return Promise.reject(new Error('e2e: Firebase SDK unavailable (offline)'));
+  };
+})();`;
+
 const TESTS = [
   { name: '①  app boots — title + #textInput + 4 panel buttons present',          fn: bootSmoke },
   { name: '②  analyze → vocab — addVocab via window hook renders in vocabPanel', fn: analyzeToVocab },
@@ -81,6 +111,7 @@ const TESTS = [
   { name: '⑩  data-saver — EasyMDE stays unloaded until first interaction',      fn: markdownEditorDataSaver, viewport: { width: 1440, height: 900 }, init: DATA_SAVER_INIT },
   { name: '⑪  boot-analysis switch — manual mode waits for the Analyze button',  fn: bootAnalysisManual, init: BOOT_MANUAL_INIT },
   { name: '⑫  cloud sync Option A — mock bridge: push, pull, conflict prompt, missing bridge', fn: cloudSyncOptionA, init: CLOUD_SYNC_MOCK_INIT },
+  { name: '⑬  firebaseConfig present but SDK load fails — specific toast, graceful degradation', fn: firebaseConfigDegradation, init: FIREBASE_CONFIG_FAILURE_INIT },
 ];
 
 // Cleared once at the start of each scenario (via Playwright init script).
@@ -1010,6 +1041,75 @@ async function cloudSyncOptionA(page, errors) {
 
   const fatal = errors.filter((entry) => entry.startsWith('pageerror:'));
   assert(fatal.length === 0, `cloud sync emitted page errors: ${fatal[0]}`);
+}
+
+// ⑬ Firebase bridge graceful degradation. A fake (but schema-valid) Firebase
+// config is seeded in localStorage and the documented test hook
+// `window.__yomikikuanFirebaseSdkLoader` rejects immediately (emulating an
+// unreachable/gstatic CDN). Push must:
+//   1. actually attempt the lazy install (hook called exactly once),
+//   2. show the specific "SDK load failed" toast — NOT the legacy
+//      "cloud sync not configured" one,
+//   3. install no bridge, write no sync meta, keep the button enabled,
+//   4. never emit a pageerror.
+async function firebaseConfigDegradation(page, errors) {
+  await page.goto(`${BASE}/index.html`);
+  await waitForBoot(page);
+
+  await page.waitForFunction(
+    () => !!document.getElementById('cloudPushBtn')
+       && typeof window.showSuccessToast === 'function',
+    { timeout: 8000 },
+  );
+
+  const getText = (key) => page.evaluate((k) => window.YomikikuanGetText(k), key);
+  const sdkFailedText = await getText('cloudSyncSdkLoadFailed');
+  const notConfiguredText = await getText('cloudSyncNotConfigured');
+  assert(sdkFailedText !== notConfiguredText,
+    'cloudSyncSdkLoadFailed and cloudSyncNotConfigured must be distinct strings');
+
+  const before = await page.evaluate(() => ({
+    config: localStorage.getItem('yomikikuan_firebase_config'),
+    bridge: typeof window.__yomikikuanCloudBridge,
+    loaderCalls: window.__yomikikuanFirebaseLoaderCalls,
+    meta: localStorage.getItem('yomikikuan_cloud_sync_meta'),
+  }));
+  assert(!!before.config, 'seeded firebaseConfig missing from localStorage');
+  assert(before.bridge === 'undefined', 'bridge was installed before any cloud action');
+  assert(before.loaderCalls === 0, 'SDK loader ran before any cloud action');
+  assert(before.meta === null, 'fresh browser should have no cloud-sync meta');
+
+  await page.evaluate(() => document.getElementById('cloudPushBtn').click());
+  await page.waitForFunction(
+    (expected) => {
+      const el = document.getElementById('errorText');
+      return !!el && el.textContent === expected;
+    },
+    sdkFailedText,
+    { timeout: 8000 },
+  );
+
+  const after = await page.evaluate(() => ({
+    toast: document.getElementById('errorText').textContent,
+    bridge: typeof window.__yomikikuanCloudBridge,
+    loaderCalls: window.__yomikikuanFirebaseLoaderCalls,
+    meta: localStorage.getItem('yomikikuan_cloud_sync_meta'),
+    pushDisabled: document.getElementById('cloudPushBtn').disabled,
+    docs: localStorage.getItem('texts'),
+  }));
+  assert(after.toast === sdkFailedText,
+    `expected the SDK-failure toast "${sdkFailedText}", got "${after.toast}"`);
+  assert(after.toast !== notConfiguredText,
+    'configured-but-broken Firebase must not fall back to the "not configured" toast');
+  assert(after.bridge === 'undefined',
+    `a failed install must not leave a partial bridge (typeof = "${after.bridge}")`);
+  assert(after.loaderCalls === 1,
+    `the SDK loader should be attempted exactly once, got ${after.loaderCalls}`);
+  assert(after.meta === null, 'failed push must not write the cloud-sync meta');
+  assert(!after.pushDisabled, 'cloud push button stayed disabled after the graceful failure');
+
+  const fatal = errors.filter((entry) => entry.startsWith('pageerror:'));
+  assert(fatal.length === 0, `firebase degradation emitted page errors: ${fatal[0]}`);
 }
 
 // --- harness ---

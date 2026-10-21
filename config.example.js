@@ -14,8 +14,26 @@
 //        geminiApiKey  -> localStorage['yomikikuan_gemini_api_key']
 //        geminiStyle   -> localStorage['yomikikuan_gemini_style']
 //        bootAnalysisMode -> localStorage['yomikikuan_boot_analysis']
-//    After that, all consumers (tts.js, analyzer providers, jlptPanel.js)
-//    just read localStorage as usual. No other code changes needed.
+//        firebaseConfig -> localStorage['yomikikuan_firebase_config'] (JSON)
+//    After that, all consumers (tts.js, analyzer providers, jlptPanel.js,
+//    modules/cloud-sync/firebase.js) just read localStorage as usual. No
+//    other code changes needed.
+//
+//  CLOUD SYNC (Firebase — Option A) — see the firebaseConfig field below.
+//    • Firebase web config is NOT a secret (it ships in every client), but it
+//      enables writes to your Firestore project. ALWAYS deploy scoped
+//      security rules; never leave the database in test mode on a public host.
+//    • Requirements: Authentication → Anonymous sign-in enabled, a Firestore
+//      database, and rules scoping users/{uid}/sync/* to request.auth.uid.
+//    • The app touches only users/{uid}/sync/main = { payload, updatedAt }.
+//    • The Firebase JS SDK is loaded lazily from www.gstatic.com (pinned
+//      version in modules/cloud-sync/firebase.js) only when a config exists.
+//    • Anonymous auth is per-browser: clearing site data makes the previous
+//      cloud copy unreachable (new uid). Fine for single-device use; account
+//      linking is out of scope for Option A.
+//    • Local testing: `firebase emulators:start --only auth,firestore` and
+//      supply window.__yomikikuanFirebaseSdkLoader (see firebase.js header) to
+//      connect the emulators — the production loader always uses the CDN.
 //
 //  PRECEDENCE
 //    config.js is authoritative when values are non-empty: it runs on every
@@ -53,4 +71,53 @@ window.YOMIKIKUAN_CONFIG = {
   //   manual    — never auto-analyze; show an Analyze button in the reading pane
   // Empty string keeps the stored/local default ('idle').
   bootAnalysisMode: '',
+
+  // ── Cloud sync (Firebase — Option A) ──────────────────────────────────────
+  //
+  // null = cloud sync stays disabled: Push/Pull show the graceful
+  // "cloud sync is not configured" toast and nothing else happens (default,
+  // no SDK is fetched).
+  //
+  // Set this to the web-app config from:
+  //   Firebase console → Project settings → General → Your apps →
+  //   SDK setup and configuration → Config.
+  //
+  // firebaseConfig: {
+  //   apiKey: 'AIzaSy…',                                  // required
+  //   authDomain: 'my-project.firebaseapp.com',           // required
+  //   projectId: 'my-project',                            // required
+  //   storageBucket: 'my-project.appspot.com',            // optional here
+  //   messagingSenderId: '1234567890',                    // optional here
+  //   appId: '1:1234567890:web:abcdef123456',             // required
+  // },
+  //
+  // Setup checklist (details in static/js/modules/cloud-sync/firebase.js):
+  //   1. Authentication → Sign-in method → enable **Anonymous**.
+  //      (Existing users are reused; signInAnonymously runs only when no user.)
+  //   2. Firestore Database → create it in production mode, deploy:
+  //
+  //        rules_version = '2';
+  //        service cloud.firestore {
+  //          match /databases/{database}/documents {
+  //            match /users/{uid}/sync/{doc} {
+  //              allow read, write: if request.auth != null
+  //                                 && request.auth.uid == uid;
+  //            }
+  //          }
+  //        }
+  //
+  //      This is the ONLY security boundary — the web config is public, so a
+  //      public deploy MUST use scoped rules (otherwise anyone can read/write
+  //      the whole database).
+  //   3. Reload the app; the config is cached as
+  //      localStorage['yomikikuan_firebase_config'] (JSON). config.js wins on
+  //      every reload: blank this field AND remove that localStorage key to
+  //      fully disable cloud sync again.
+  //   4. Reload → user menu → 「クラウドへ保存」 / 「クラウドから復元」.
+  //      First use needs network access to www.gstatic.com (SDK is imported
+  //      lazily from the CDN, pinned in firebase.js).
+  //
+  // Before a PUBLIC deploy also consider Firebase App Check / usage quotas:
+  // the pushed backup contains every user document.
+  firebaseConfig: null,
 };

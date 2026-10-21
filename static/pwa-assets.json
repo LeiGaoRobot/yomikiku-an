@@ -118,6 +118,7 @@
     "static/js/modules/youtube/duration.js",
     "static/libs/easymde/easymde.min.js",
     "static/libs/easymde/easymde.min.css",
-    "static/js/modules/cloud-sync/index.js"
+    "static/js/modules/cloud-sync/index.js",
+    "static/js/modules/cloud-sync/firebase.js"
   ]
 }
