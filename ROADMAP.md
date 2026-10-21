@@ -14,8 +14,8 @@ explicitly boundary-locked with its blockers written down.
 > clarity instead of raw LOC.
 
 - **`main-js.js` stays ≤ 7,500 lines** — a ceiling, not a target. Current:
-  **6,807** (after the 2026-10-18 third pass); was 8,835 at the
-  start of the cumulative effort (**−2,028 net**).
+  **6,399** (after the 2026-10-21 fourth pass); was 8,835 at the
+  start of the cumulative effort (**−2,436 net**).
 - **Acceptance checklist** (re-verify each pass):
   1. `wc -l static/main-js.js` ≤ 7,500.
   2. Every `init*` / stateful concern still in `main-js.js` is either
@@ -29,14 +29,14 @@ explicitly boundary-locked with its blockers written down.
      module must ship its sibling test in the same change.
   4. `npm test` and `npm run e2e` are green on the default ports (CI runs
      both; local runs may override `YK_TEST_PORT` / `YK_E2E_PORT`).
-- **Test coverage growing in lockstep** with each extraction (currently 54
-  `*.test.html` files on disk; **50 run headlessly** via the `TESTS` array
-  in `scripts/test.sh` — **1,508 cases, all green** per the latest
+- **Test coverage growing in lockstep** with each extraction (currently 55
+  `*.test.html` files on disk; **51 run headlessly** via the `TESTS` array
+  in `scripts/test.sh` — **1,642 cases, all green** per the latest
   `npm test` run. The 4 unregistered pages are intentional manual-only
   fixtures that don't use the runner's `#summary` harness (visual tables:
   `difficulty`, `syntax`; `console.assert` page: `idb`; non-standard
   harness: `backup/index`). Plus the Playwright E2E smoke suite via
-  `npm run e2e` (12 scenarios, all green).)
+  `npm run e2e` (13 scenarios, all green).)
 
 <details><summary>Header-refactor dead-code sweep history (2026-06/07)</summary>
 
@@ -67,7 +67,7 @@ guarded, possibly conditionally-present, left as-is.
 > after the technical-debt pass below. Current tree: `main-js.js`
 > **6,655** lines, **87** ESM modules, **53** `*.test.html` on disk of
 > which **49** run headlessly in **1,356** cases, plus the Playwright E2E
-> suite (12 scenarios). *(The old number in this note — 6999 / 86 / 47 /
+> suite (13 scenarios). *(The old number in this note — 6999 / 86 / 47 /
 > v85 / 1147 — was correct before this pass; the Lead bumped `CACHE_VERSION`
 > to v86 in the integration commit.)*
 
@@ -99,7 +99,7 @@ guarded, possibly conditionally-present, left as-is.
 > `analyzeText()` to post-load idle (skipped entirely on data-saver/2G);
 > lazy-loaded EasyMDE (~345 KB) behind value/focus/addEventListener shims
 > so the native textarea works until the editor mounts, with data-saver
-> users loading it only on first interaction; E2E grown to 12 scenarios
+> users loading it only on first interaction; E2E grown to 13 scenarios
 > (lazy-editor mount, data-saver path) with a one-shot retry for transient
 > local-server flakes. `main-js.js` is 6,727 lines — the lazy-editor loader
 > and analysis scheduler added ~150 lines while the drawer cleanup took
@@ -124,6 +124,21 @@ guarded, possibly conditionally-present, left as-is.
 > up; import now writes the live keys and E2E ③ asserts through
 > `documentManager` via the real `#userImportFile` path.
 > `main-js.js` is 6,807 lines (+54 wiring/import fix).
+
+> **Fourth pass (2026-10-21): dead Firestore path deleted + Firebase bridge
+> wired.** Removed `window.performDataSync`, the auto-sync subsystem
+> (timers / visibility listener / `markUnsyncedChanges`), the `firebaseSignOut`
+> guards and the dead header sync button — **−408 lines** (6,807 → 6,399;
+> cumulative −2,436). Cloud sync's Firebase side is now a config-gated,
+> lazily-loaded adapter (`modules/cloud-sync/firebase.js`, Firebase v10.14.1,
+> anonymous/existing auth, `users/{uid}/sync/main`) with reason-specific
+> degradation and 134 mock-SDK tests; E2E ⑬ covers the SDK-load-failure path.
+> Real Firebase (CDN/auth/rules) remains unverified without a project or
+> emulator. Also added `npm run bench:boot` + a measured A/B report
+> (`docs/plans/2026-10-21-boot-analysis-ab.md`): `manual` mode cuts the bytes
+> fetched before analysis from ~18.7 MiB to ~1.5 MiB (−92%), while `idle` vs
+> `immediate` is a wash on localhost. Suite is now 51 headless pages / 1,642
+> cases / 13 E2E scenarios.
 
 
 > **✅ Retargeted 2026-10-18**: the analysis below still stands, so the
@@ -619,7 +634,7 @@ Per CLAUDE.md "Playback pipeline boundary":
   Chromium through the 49 pages in the `TESTS` array (**1,356 cases**).
   Resolves `playwright` from project node_modules, `@playwright/mcp`'s
   nested install, or `$PLAYWRIGHT_NODE_PATH`. E2E: `npm run e2e` →
-  `bash scripts/e2e.sh` → Playwright spec in `tests/e2e/` (12 scenarios,
+  `bash scripts/e2e.sh` → Playwright spec in `tests/e2e/` (13 scenarios,
   includes the redesign layout assertions + login.html smoke). Override
   ports with `YK_TEST_PORT` / `YK_E2E_PORT` when running in parallel.
 

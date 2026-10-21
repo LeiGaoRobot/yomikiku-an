@@ -22,10 +22,10 @@ jobs:
           npm install --no-save playwright
           npx playwright install chromium --with-deps
 
-      - name: Run test suite (50 *.test.html pages, 1508 cases)
+      - name: Run test suite (51 *.test.html pages, 1642 cases)
         run: npm test 2>&1 | tee test-output.log
 
-      - name: Run E2E smoke suite (12 Playwright scenarios)
+      - name: Run E2E smoke suite (13 Playwright scenarios)
         run: npm run e2e 2>&1 | tee e2e-output.log
 
       - name: Upload test output on failure

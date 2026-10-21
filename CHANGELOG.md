@@ -2,9 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [1.2.0] - 2026-10-21
 
 ### Changed
+- **Deleted the dead Firestore sync path** (−408 lines): `window.performDataSync`,
+  the auto-sync subsystem (10-minute timers, `markUnsyncedChanges`,
+  visibility listener, `startAutoSync`/`stopAutoSync`), the `firebaseSignOut`
+  guards and the dead header sync button are gone — they were structurally
+  unreachable (`window.firebase*` was never assigned). `main-js.js`
+  6,807 → **6,399** (cumulative −2,436 from 8,835). Cloud sync now flows only
+  through `modules/cloud-sync` (+ the new Firebase adapter).
 - **EasyMDE is lazy-loaded**: the ~345 KB editor bundle is no longer part
   of the first paint. The plain textarea stays fully functional until the
   editor mounts; `textInput.value` / `focus` / `addEventListener` are
@@ -30,6 +37,21 @@ All notable changes to this project are documented in this file.
   explicit offline installs.
 
 ### Added
+- **Cloud sync Firebase adapter (config-gated)**: `modules/cloud-sync/firebase.js`
+  lazily imports the pinned Firebase v10.14.1 modular SDK, reuses an existing
+  auth user (or signs in anonymously) and installs the bridge against
+  `users/{uid}/sync/main`. It only activates when `config.js` supplies
+  `firebaseConfig`; without it nothing is fetched and the existing "not
+  configured" degradation applies. Failures are classified
+  (`config-invalid` / `sdk-load-failed` / `auth-failed` / `firestore-failed`)
+  with specific toasts. 134 mock-SDK unit cases; E2E ⑬ covers the
+  SDK-load-failure path. Real-project setup (Anonymous auth + Firestore rules
+  + emulator) is documented in `config.example.js` and the module header.
+- **Boot-analysis A/B benchmark**: `npm run bench:boot`
+  (`scripts/bench-boot-analysis.mjs`) measures FCP/DCL/ready-time and bytes
+  fetched at analysis-ready for `immediate` / `idle` / `manual`, with results
+  and interpretation in `docs/plans/2026-10-21-boot-analysis-ab.md`
+  (`manual` fetches ~1.5 MiB before analysis vs ~18.7 MiB for the auto modes).
 - **Cloud sync Option A (app side)**: explicit Push / Pull with a conflict
   prompt, implemented in `modules/cloud-sync/index.js` against a documented
   `window.__yomikikuanCloudBridge` contract (`get()` /
@@ -46,7 +68,7 @@ All notable changes to this project are documented in this file.
   any tab can call Gemini. Fail-open: a blocked/offline probe resolves
   `null` and falls back to the old `?start=&end=` clip-range check. Sibling
   test: `youtube/duration.test.html`.
-- **CI now runs the Playwright E2E suite** (12 scenarios) after the unit
+- **CI now runs the Playwright E2E suite** (13 scenarios) after the unit
   suite, with failure artifacts. New guards: desktop 1440×900 redesign
   layout (AI rail, fixed dock, paper canvas), mobile 390×844 rail/dock
   geometry, backup **v2 → v3** import compatibility, and a `login.html`
@@ -56,9 +78,9 @@ All notable changes to this project are documented in this file.
   21 module sources resolves in all three languages.
 - **E2E growth**: lazy-EasyMDE mount/typing/blur-analysis and a
   data-saver path (editor stays unloaded until interaction) and a
-  boot-analysis `manual` mode, cloud sync with a mock bridge — 12
-  scenarios total; the runner retries a scenario once on transient
-  local-server flakiness.
+  boot-analysis `manual` mode, cloud sync with a mock bridge, Firebase
+  SDK-load failure — 13 scenarios total; the runner retries a scenario once
+  on transient local-server flakiness.
 - **Sibling unit tests** for `settings/theme.js`, `settings/font.js`,
   `settings/display.js` and `analysis/render.js` (+169 cases).
 - `docs/plans/2026-10-18-post-1.1.0-product-decisions.md` — measured

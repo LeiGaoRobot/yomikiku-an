@@ -83,7 +83,8 @@ window.__yomikikuanCloudBridge = {
 - `payload` is a backup schema v3 object; `null` means nothing stored yet.
 - Baseline for conflict detection: `localStorage['yomikikuan_cloud_sync_meta'] = { lastSyncedAt }`.
 - No bridge ⇒ action fails gracefully with a "cloud sync not configured" toast (`{ok:false}`), never throws.
-- `index.html` currently ships **no Firebase SDK** ("Firebase SDK 已移除"), so the bridge is not installed in production. Wiring a backend later only means assigning the bridge (see the module header for a Firestore adapter sketch); the module needs no changes.
+- **Firebase adapter is wired but config-gated**: `modules/cloud-sync/firebase.js` lazily loads the pinned Firebase v10 modular SDK from gstatic, reuses an existing auth user (otherwise `signInAnonymously`), and stores at `users/{uid}/sync/main`. It only activates when `config.js` supplies `firebaseConfig` (persisted to `localStorage['yomikikuan_firebase_config']`); no config ⇒ the module degrades to the "not configured" toast and fetches nothing. Failures are classified (`config-invalid` / `sdk-load-failed` / `auth-failed` / `firestore-failed`) and surfaced as specific toasts. Real-project setup + Firestore rules are documented in `config.example.js` and the module header.
+- Env: `config.js` is gitignored; never commit real Firebase config to a public deploy (same warning as the Gemini key). Anonymous auth is per-browser — clearing site data orphans the cloud copy.
 - User menu: `#cloudPushBtn` / `#cloudPullBtn`; legacy `#syncDataBtn` delegates to Push. Playback boundary untouched.
 
 ### Classic-script globals
@@ -122,7 +123,7 @@ The playback state machine lives **only** in `main-js.js` — local `playSegment
 
 `service-worker.js` deliberately does NOT call `self.skipWaiting()` in `install`. A new worker waits until the page posts `{ type: 'SKIP_WAITING' }`. `main-js.js` registers the SW on every load, shows an `.ap-update-toast` (right-bottom blue `刷新` button) when a new version reaches `installed` state while a current worker is still in control, then posts `SKIP_WAITING` and reloads on `controllerchange`.
 
-**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v90`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
+**Every deploy that changes any cached asset MUST bump `CACHE_VERSION` in `service-worker.js`** (currently `v91`; bumped on every asset-affecting change) — otherwise the activate-sweep won't purge the stale bucket and users never see the new code.
 
 Fetch strategy:
 - Navigation → `networkFirst` (fallback to cached `index.html` offline)
